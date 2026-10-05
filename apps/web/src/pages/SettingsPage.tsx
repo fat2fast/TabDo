@@ -1,3 +1,13 @@
+import React from 'react'
+import { AccountSettings } from '../features/settings/AccountSettings'
+
 export function SettingsPage() {
-  return <section className="card"><h2>Settings</h2><p>Initial settings screen.</p></section>
+  return (
+    <div className="settings-page">
+      <div className="page-header">
+        <h2>Cài đặt tài khoản</h2>
+      </div>
+      <AccountSettings />
+    </div>
+  )
 }

@@ -1,12 +1,10 @@
 import { defineConfig } from 'wxt'
-import react from '@wxt-dev/module-react'
 
 export default defineConfig({
-  modules: [react()],
+  modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: 'Task MVP',
+    name: 'TabDo',
     description: 'Personal task reminder companion',
     permissions: ['storage', 'alarms', 'notifications'],
-    host_permissions: ['https://*.supabase.co/*'],
   },
 })
