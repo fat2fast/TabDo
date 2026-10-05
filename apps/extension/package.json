@@ -1,26 +1,27 @@
 {
-  "name": "@task-mvp/extension",
+  "name": "@tabdo/extension",
   "private": true,
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "postinstall": "wxt prepare",
     "dev": "wxt",
     "build": "wxt build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "wxt prepare && tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/supabase-js": "latest",
-    "@task-mvp/types": "workspace:*",
-    "@task-mvp/utils": "workspace:*",
-    "react": "latest",
-    "react-dom": "latest"
+    "@supabase/supabase-js": "^2.117.2",
+    "@tabdo/types": "workspace:*",
+    "@tabdo/utils": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
-    "@types/chrome": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@wxt-dev/module-react": "latest",
-    "typescript": "latest",
-    "wxt": "latest"
+    "@types/chrome": "^0.3.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@wxt-dev/module-react": "^1.2.2",
+    "typescript": "^7.0.2",
+    "wxt": "^0.21.4"
   }
 }

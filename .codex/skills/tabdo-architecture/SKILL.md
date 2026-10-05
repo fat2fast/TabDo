@@ -27,8 +27,8 @@ user's requested scope.
 - For personal records, verify that the affected table/query is scoped to its
   owner (`auth.uid() = user_id`, or `id` for `profiles`). Do not assume an admin
   role can read or modify another user's personal data.
-- Put shared domain types in `@task-mvp/types`, pure cross-client helpers in
-  `@task-mvp/utils`, and client-safe client creation in `@task-mvp/supabase`.
+- Put shared domain types in `@tabdo/types`, pure cross-client helpers in
+  `@tabdo/utils`, and client-safe client creation in `@tabdo/supabase`.
 - Use TanStack Query for Web server state. Use Zustand only for local UI state;
   invalidate or update query data after a successful remote mutation rather than
   creating a second entity cache.
@@ -37,7 +37,7 @@ user's requested scope.
 
 - Store and transmit instants as `timestamptz`; render and accept local values
   using `profiles.timezone` (default `Asia/Ho_Chi_Minh`). Put reusable conversion
-  rules in `@task-mvp/utils` rather than reimplementing them per client.
+  rules in `@tabdo/utils` rather than reimplementing them per client.
 - The extension's Supabase data is authoritative. `chrome.storage.local` is a
   cache for session, reminders, sync metadata, and preferences.
 - When a reminder is created, changed, completed, dismissed, or deleted,

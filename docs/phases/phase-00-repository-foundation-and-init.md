@@ -18,7 +18,7 @@ Phase 0 should not implement product workflows such as task CRUD or reminder beh
 
 ### Included
 
-- Rename temporary `task-mvp` package names to `tabdo`.
+- Rename temporary legacy package names to `tabdo`.
 - Standardize Node and pnpm versions.
 - Pin dependency versions.
 - Fix WXT React setup.
@@ -79,15 +79,15 @@ Phase 0 should not implement product workflows such as task CRUD or reminder beh
 
 Rename:
 
-- `task-mvp` → `tabdo`
-- `@task-mvp/web` → `@tabdo/web`
-- `@task-mvp/extension` → `@tabdo/extension`
-- `@task-mvp/types` → `@tabdo/types`
-- `@task-mvp/utils` → `@tabdo/utils`
-- `@task-mvp/supabase` → `@tabdo/supabase`
-- `@task-mvp/ui` → `@tabdo/ui`
+- `legacy-starter` → `tabdo`
+- `@legacy/web` → `@tabdo/web`
+- `@legacy/extension` → `@tabdo/extension`
+- `@legacy/types` → `@tabdo/types`
+- `@legacy/utils` → `@tabdo/utils`
+- `@legacy/supabase` → `@tabdo/supabase`
+- `@legacy/ui` → `@tabdo/ui`
 
-Search the repository for `task-mvp` after the rename. The old namespace should not remain in package manifests, imports, documentation, or lockfile metadata.
+Search the repository for the old namespace after the rename. The old namespace should not remain in package manifests, imports, documentation, or lockfile metadata.
 
 ---
 
@@ -118,7 +118,7 @@ Do not depend on whichever global pnpm version happens to exist on a developer m
 
 ## 6. Dependency policy
 
-Do not keep `"latest"` in production or development dependencies.
+Do not keep unpinned latest versions in production or development dependencies.
 
 Pin compatible semver ranges for at least:
 
@@ -587,5 +587,5 @@ Phase 0 is done when:
 - Admin bootstrap is idempotent.
 - No privileged secret is committed or bundled.
 - CI passes.
-- Old `task-mvp` naming is gone.
+- Old namespace naming is gone.
 - Repository documentation identifies the product as TabDo.

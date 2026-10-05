@@ -345,17 +345,17 @@ At the end of this phase:
 
 ## 0.1 Rename project packages
 
-Replace the temporary `task-mvp` naming.
+Replace the temporary legacy naming.
 
 Examples:
 
-- `task-mvp` → `tabdo`
-- `@task-mvp/web` → `@tabdo/web`
-- `@task-mvp/extension` → `@tabdo/extension`
-- `@task-mvp/types` → `@tabdo/types`
-- `@task-mvp/utils` → `@tabdo/utils`
-- `@task-mvp/supabase` → `@tabdo/supabase`
-- `@task-mvp/ui` → `@tabdo/ui`
+- `legacy-starter` → `tabdo`
+- `@legacy/web` → `@tabdo/web`
+- `@legacy/extension` → `@tabdo/extension`
+- `@legacy/types` → `@tabdo/types`
+- `@legacy/utils` → `@tabdo/utils`
+- `@legacy/supabase` → `@tabdo/supabase`
+- `@legacy/ui` → `@tabdo/ui`
 
 Update:
 
@@ -641,7 +641,7 @@ Phase 0 is complete when:
 - Admin credentials are not exposed to browser code.
 - `admin-create-user` function foundation exists.
 - CI passes.
-- No package uses the old `task-mvp` namespace.
+- No package uses the old legacy namespace.
 - No production dependency uses `latest`.
 - No secret key is committed.
 - README identifies the project as TabDo.

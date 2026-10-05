@@ -1,11 +1,23 @@
 {
-  "name": "task-mvp",
+  "name": "tabdo",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@12.9.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
-    "dev:web": "pnpm --filter @task-mvp/web dev",
-    "dev:extension": "pnpm --filter @task-mvp/extension dev",
+    "dev:web": "pnpm --filter @tabdo/web dev",
+    "dev:extension": "pnpm --filter @tabdo/extension dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm --filter @tabdo/web lint",
+    "test": "pnpm --filter @tabdo/web test",
+    "test:integration": "node --experimental-strip-types scripts/test-integration.ts",
+    "bootstrap:admin": "node --experimental-strip-types scripts/bootstrap-admin.ts"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "@types/node": "^26.6.4"
   }
 }
