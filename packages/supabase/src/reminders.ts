@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ReminderKind, ReminderStatus, TaskStatus, UpcomingReminder } from '@tabdo/types'
+import { resolveSnoozeInstant } from '@tabdo/utils'
 
 interface RawUpcomingReminderRow {
   id: string
@@ -79,4 +80,79 @@ export async function getUpcomingReminders(
       updatedAt: row.updated_at,
       taskUpdatedAt: row.tasks!.updated_at,
     }))
+}
+
+/**
+ * Best-effort updates reminder status to triggered after notification display.
+ */
+export async function markReminderTriggered(
+  client: SupabaseClient,
+  reminderId: string,
+  previousUpdatedAt?: string
+): Promise<boolean> {
+  try {
+    let query = client
+      .from('reminders')
+      .update({ status: 'triggered' })
+      .eq('id', reminderId)
+
+    if (previousUpdatedAt) {
+      query = query.eq('updated_at', previousUpdatedAt)
+    }
+
+    const { error } = await query
+    return !error
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Snoozes a reminder by updating snoozed_until and effective_at with optimistic concurrency.
+ */
+export async function snoozeReminder(
+  client: SupabaseClient,
+  reminderId: string,
+  snoozeMinutes: number,
+  previousUpdatedAt?: string,
+  now: Date = new Date()
+): Promise<{ id: string; snoozedUntil: string; effectiveAt: string; updatedAt: string }> {
+  const snoozedUntil = resolveSnoozeInstant(now, snoozeMinutes)
+
+  let query = client
+    .from('reminders')
+    .update({
+      status: 'snoozed',
+      snoozed_until: snoozedUntil,
+    })
+    .eq('id', reminderId)
+
+  if (previousUpdatedAt) {
+    query = query.eq('updated_at', previousUpdatedAt)
+  }
+
+  const { data, error } = await query
+    .select('id, snoozed_until, effective_at, updated_at')
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      throw new Error('Reminder was modified or does not exist (concurrent modification conflict)')
+    }
+    throw error
+  }
+
+  const row = data as {
+    id: string
+    snoozed_until: string
+    effective_at: string
+    updated_at: string
+  }
+
+  return {
+    id: row.id,
+    snoozedUntil: row.snoozed_until,
+    effectiveAt: row.effective_at,
+    updatedAt: row.updated_at,
+  }
 }

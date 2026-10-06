@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useSubtasks } from '../hooks/use-tasks'
 import { useTaskMutations } from '../hooks/use-task-mutations'
+import { useConfirm } from '../../../components/ui'
 import type { Task } from '../types'
 
 export interface SubtaskListProps {
@@ -12,6 +13,7 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
   const { data: subtasks = [], isLoading } = useSubtasks(parentTask.id)
   const { createTaskMutation, completeTaskMutation, reopenTaskMutation, deleteTaskMutation } =
     useTaskMutations()
+  const confirm = useConfirm()
 
   const [newTitle, setNewTitle] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -53,8 +55,21 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
     }
   }
 
-  const handleDelete = (subtaskId: string) => {
-    deleteTaskMutation.mutate({ id: subtaskId, parentId: parentTask.id })
+  const handleDelete = async (subtaskId: string, title: string) => {
+    const confirmed = await confirm({
+      title: 'Xóa công việc con?',
+      message: (
+        <span>
+          Bạn có chắc chắn muốn xóa công việc con <strong>"{title}"</strong>?
+        </span>
+      ),
+      confirmText: 'Xóa công việc con',
+      cancelText: 'Hủy',
+      variant: 'danger',
+    })
+    if (confirmed) {
+      deleteTaskMutation.mutate({ id: subtaskId, parentId: parentTask.id })
+    }
   }
 
   return (
@@ -118,7 +133,7 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
                 <button
                   type="button"
                   className="subtask-delete-btn"
-                  onClick={() => handleDelete(st.id)}
+                  onClick={() => handleDelete(st.id, st.title)}
                   title="Xóa công việc con"
                   aria-label={`Xóa công việc con: ${st.title}`}
                 >

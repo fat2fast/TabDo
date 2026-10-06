@@ -175,3 +175,13 @@ export interface TaskActivity {
   metadata: Record<string, unknown>
   createdAt: string
 }
+
+export interface ExtensionTodayTask {
+  id: string
+  title: string
+  status: TaskStatus
+  priority: TaskPriority
+  dueDateKind: DueDateKind
+  dueAt: string | null
+  updatedAt: string
+}

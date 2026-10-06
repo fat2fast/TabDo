@@ -1,6 +1,6 @@
 # TabDo
 
-TabDo is a personal productivity platform combining task management, calendar scheduling, persistent reminders, and AI summaries across web and browser extension interfaces.
+TabDo is a personal productivity platform combining task management, calendar scheduling, persistent reminders, and daily/weekly productivity summaries across web and browser extension interfaces.
 
 ## Technology Stack
 
@@ -102,7 +102,7 @@ This ensures the user exists in Supabase Auth and their profile role is set to `
   Opens at `http://localhost:5173`.
   - `/login`: User portal sign-in.
   - `/admin/login`: Administrative portal sign-in.
-  - `/tasks`: Core task workspace with smart views (`Inbox`, `Today`, `Upcoming`, `Completed`, `Trash`).
+  - `/tasks`: Core task workspace with smart views (`Inbox`, `Today`, `Upcoming`, `Overdue`, `Completed`).
   - `/calendar`: Day and week calendar with task scheduling and block drag/resize.
   - `/admin/users`: Admin user creation and management.
   - `/settings`: User account preferences and password management.
@@ -110,6 +110,10 @@ This ensures the user exists in Supabase Auth and their profile role is set to `
 - **Browser extension:**
   ```bash
   pnpm dev:extension
+  # Or build for loading unpacked:
+  pnpm --filter @tabdo/extension build
+  # Load in Chrome (chrome://extensions -> Developer Mode -> Load unpacked):
+  # apps/extension/.output/chrome-mv3
   ```
 
 ## Implementation Status
@@ -119,10 +123,10 @@ TabDo is following an incremental roadmap defined in [`docs/phases/README.md`](d
 - ✅ **Phase 0:** Monorepo Foundation & Init (`@tabdo/*`, Supabase schema & migrations `0001`-`0002`)
 - ✅ **Phase 1:** Authentication, Portal Routing & Admin User Provisioning (`admin-create-user` Edge Function)
 - ✅ **Phase 2:** Core Task Management (Task CRUD, priorities, categories, checklist subtasks, markdown editor)
-- ✅ **Phase 3:** Smart Task Views & Organization (`Inbox`, `Today`, `Upcoming`, `Completed`, `Trash`, search/filter)
+- ✅ **Phase 3:** Smart Task Views & Organization (`Inbox`, `Today`, `Upcoming`, `Overdue`, `Completed`, search/filter)
 - ✅ **Phase 4:** Scheduling & Calendar (Migration `0004`, FullCalendar Standard day/week views, schedule blocks)
 - ✅ **Phase 5:** Reminder Engine (Migration `0005`, absolute & relative-to-due triggers, presets, snooze/dismiss)
-- ⏳ **Phase 6 (Next Up):** Browser Extension (`chrome.storage.local` sync, `chrome.alarms` & `chrome.notifications`)
+- ✅ **Phase 6:** Browser Extension (WXT Manifest V3, Today view, title-only Quick Add, `chrome.storage.local` sync, `chrome.alarms` & `chrome.notifications`)
 - 📋 **Phases 7–10:** Recurring tasks, Dashboard, Summaries, and MVP Hardening
 
 ## Quality Gates & Verification

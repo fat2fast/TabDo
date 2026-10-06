@@ -117,4 +117,20 @@ describe('task-routes', () => {
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
   })
+
+  it('opens task drawer on /tasks/today?taskId=<id> and removes taskId on close', async () => {
+    const { userEvent } = await import('@testing-library/user-event')
+    const user = userEvent.setup()
+
+    renderRoute('/tasks/today?taskId=123e4567-e89b-12d3-a456-426614174000')
+
+    expect(await screen.findByRole('heading', { name: /hôm nay \(today\)/i })).toBeInTheDocument()
+    expect(await screen.findByTestId('task-drawer')).toBeInTheDocument()
+
+    // Click close button
+    const closeBtn = screen.getByLabelText('Đóng bảng chi tiết')
+    await user.click(closeBtn)
+
+    expect(screen.queryByTestId('task-drawer')).not.toBeInTheDocument()
+  })
 })

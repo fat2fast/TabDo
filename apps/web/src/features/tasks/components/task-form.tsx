@@ -33,6 +33,7 @@ import { useScheduleBlocksByTask } from '../../scheduling/hooks/use-schedule-blo
 import type { ScheduleBlock } from '../../scheduling/types'
 import { ReminderList } from '../../reminders/components/reminder-list'
 import { useRemindersByTask } from '../../reminders/hooks/use-reminders'
+import { useConfirm } from '../../../components/ui'
 
 export interface TaskFormProps {
   task: Task
@@ -53,6 +54,7 @@ export function TaskForm({
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
   const { data: categories = [] } = useCategories()
   const { updateTaskMutation, deleteTaskMutation } = useTaskMutations()
+  const confirm = useConfirm()
   const { data: parentTask } = useTaskDetail(task.parentId)
   const { data: subtasks = [] } = useSubtasks(task.parentId ? null : task.id)
   const { data: scheduleBlocks = [] } = useScheduleBlocksByTask(task.id)
@@ -206,7 +208,18 @@ export function TaskForm({
   }
 
   const handleDelete = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa công việc này?')) {
+    const confirmed = await confirm({
+      title: 'Xóa công việc?',
+      message: (
+        <span>
+          Bạn có chắc chắn muốn xóa công việc <strong>"{task.title}"</strong>? Các công việc con và tài liệu đính kèm liên quan cũng sẽ bị xóa vĩnh viễn.
+        </span>
+      ),
+      confirmText: 'Xóa công việc',
+      cancelText: 'Hủy',
+      variant: 'danger',
+    })
+    if (!confirmed) {
       return
     }
 

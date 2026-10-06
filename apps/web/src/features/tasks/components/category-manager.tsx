@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useCategories } from '../hooks/use-categories'
 import { useTaskMutations } from '../hooks/use-task-mutations'
+import { useConfirm } from '../../../components/ui'
 import type { Category } from '../types'
 
 export interface CategoryManagerProps {
@@ -22,6 +23,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
   const { data: categories = [], isLoading } = useCategories()
   const { createCategoryMutation, updateCategoryMutation, deleteCategoryMutation } =
     useTaskMutations()
+  const confirm = useConfirm()
 
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(PRESET_COLORS[0])
@@ -85,11 +87,18 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn xóa danh mục "${name}"? Các công việc thuộc danh mục này sẽ được chuyển thành "Không phân loại" và KHÔNG bị xóa.`
-      )
-    ) {
+    const confirmed = await confirm({
+      title: 'Xóa danh mục?',
+      message: (
+        <span>
+          Bạn có chắc chắn muốn xóa danh mục <strong>"{name}"</strong>? Các công việc thuộc danh mục này sẽ được chuyển thành <em>"Không phân loại"</em> và KHÔNG bị xóa.
+        </span>
+      ),
+      confirmText: 'Xóa danh mục',
+      cancelText: 'Hủy',
+      variant: 'danger',
+    })
+    if (!confirmed) {
       return
     }
 

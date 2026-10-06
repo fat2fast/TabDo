@@ -8,6 +8,7 @@ import type { Task } from '../types'
 import { extractTaskAttachments } from '../utils/task-attachments'
 import { extractTaskChecklist } from '../utils/task-checklist'
 import { extractLinkedTaskIds } from '../utils/task-linking'
+import { useConfirm } from '../../../components/ui'
 
 export interface TaskRowProps {
   task: Task
@@ -21,6 +22,7 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
   const { data: categories = [] } = useCategories()
   const { completeTaskMutation, reopenTaskMutation, deleteTaskMutation } = useTaskMutations()
   const { data: subtasks = [] } = useSubtasks(task.parentId ? null : task.id)
+  const confirm = useConfirm()
 
   const isCompleted = task.status === 'done'
   const isOverdue = isTaskOverdue(task.dueAt, task.status, new Date())
@@ -57,9 +59,20 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
     }
   }
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (window.confirm(`Xóa công việc "${task.title}"?`)) {
+    const confirmed = await confirm({
+      title: 'Xóa công việc?',
+      message: (
+        <span>
+          Bạn có chắc chắn muốn xóa công việc <strong>"{task.title}"</strong>? Các công việc con và dữ liệu liên quan cũng sẽ bị xóa vĩnh viễn.
+        </span>
+      ),
+      confirmText: 'Xóa công việc',
+      cancelText: 'Hủy',
+      variant: 'danger',
+    })
+    if (confirmed) {
       deleteTaskMutation.mutate({ id: task.id, parentId: task.parentId })
     }
   }

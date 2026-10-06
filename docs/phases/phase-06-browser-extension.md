@@ -1,6 +1,6 @@
 # Phase 6 — Browser Extension
 
-**Status:** Planned (Next up)  
+**Status:** Completed
 **Depends on:** Phases 1, 2, 5  
 **Blocks:** Full reminder experience
 

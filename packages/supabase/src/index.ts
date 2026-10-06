@@ -1,4 +1,4 @@
-import { createClient, SupabaseClientOptions } from '@supabase/supabase-js'
+import { createClient, type SupabaseClientOptions } from '@supabase/supabase-js'
 
 export interface CreateTabDoClientParams {
   url: string
@@ -11,3 +11,4 @@ export function createTabDoClient({ url, anonKey, options }: CreateTabDoClientPa
 }
 
 export * from './reminders.js'
+export * from './tasks.js'

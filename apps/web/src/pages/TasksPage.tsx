@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import {
   getThisWeekEnd,
   getTomorrowBoundaries,
@@ -24,6 +24,8 @@ import type { Task, TaskView } from '../features/tasks/types'
 
 export function TasksPage() {
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const taskIdParam = searchParams.get('taskId')
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
 
@@ -41,8 +43,24 @@ export function TasksPage() {
   const { params, setParams, clearFilters } = useTaskViewSearchParams()
 
   // Local UI state (drawer and category manager)
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(taskIdParam)
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false)
+
+  // Synchronize when taskId search param changes
+  useEffect(() => {
+    if (taskIdParam) {
+      setSelectedTaskId(taskIdParam)
+    }
+  }, [taskIdParam])
+
+  const handleCloseDrawer = () => {
+    setSelectedTaskId(null)
+    if (searchParams.has('taskId')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('taskId')
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   // Stable reference time for queries
   const now = useMemo(() => new Date(), [currentView, params])
@@ -308,9 +326,7 @@ export function TasksPage() {
       {/* Task Detail Modal */}
       <TaskDrawer
         taskId={selectedTaskId}
-        onClose={() => {
-          setSelectedTaskId(null)
-        }}
+        onClose={handleCloseDrawer}
         onSelectTask={setSelectedTaskId}
       />
 

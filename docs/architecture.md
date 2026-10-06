@@ -81,8 +81,7 @@ High-level architecture:
 - React Router
 - TanStack Query
 - Zustand
-- Tailwind CSS
-- shadcn/ui
+- Custom CSS & accessible UI components
 
 ## Backend
 
@@ -175,7 +174,7 @@ Responsibilities:
 - Browser notifications
 - Quick task actions
 
-The extension communicates directly with Supabase using the same public client API and relies on RLS for data protection.
+The extension communicates directly with Supabase using the same public client API (`SUPABASE_URL` and `SUPABASE_ANON_KEY`) and relies on owner RLS for data protection. It requests only `storage`, `alarms`, and `notifications` permissions, along with one exact origin derived from `VITE_SUPABASE_URL` in `host_permissions` (no wildcards, no `activeTab`).
 
 Privileged administrative operations are not performed inside the extension.
 
@@ -394,17 +393,27 @@ The Browser Extension is responsible for local reminder execution.
 
 Architecture:
 
-    Supabase reminders
+    Supabase reminders (authoritative)
         ↓
-    Extension synchronization
+    Extension synchronization (startup, install, popup mutation, 15m periodic)
         ↓
-    chrome.storage.local
+    chrome.storage.local (session, per-user cache, metadata)
         ↓
-    chrome.alarms
+    chrome.alarms (reconciled reminder:<id> alarms)
         ↓
-    chrome.notifications
+    chrome.notifications (Done, Snooze 15m, body click)
+        ↓
+    remote mutation + reconciliation
 
-This avoids requiring a continuously running backend scheduler for the MVP.
+Reconciliation invariants:
+- Alarms are converged with the 7-day upcoming reminder projection.
+- Unchanged alarms remain untouched.
+- Changed alarm times clear the existing alarm and schedule a new alarm at the updated effective time.
+- Reminders that are completed, dismissed, or omitted remotely are cleared from local alarms.
+- Reserved periodic sync alarm (`tabdo:sync:periodic`) runs on a 15-minute interval and is never altered by reminder reconciliation.
+- Notification body click deep-links to `/tasks/today?taskId=<id>` in the Web app and opens the task drawer.
+- Notification Done and Snooze 15m actions perform remote mutations first; local alarms and cache are updated/reconciled only upon remote success.
+- Notification close is a no-op that preserves remote reminder state.
 
 ---
 
@@ -416,12 +425,13 @@ The extension uses:
 
 For:
 
-- Auth session persistence
-- Reminder cache
-- Local synchronization metadata
-- Extension preferences
+- Auth session persistence via Supabase storage adapter (`tabdo:auth:session`, `autoRefreshToken: false`)
+- Per-user reminder and Today cache (`tabdo:reminders:v1:<userId>`)
+- Local synchronization metadata (`lastSuccessfulSyncAt`, `lastSyncError`, `isStale`)
+- Notification context mapping (`tabdo:notifications`)
+- Active user tracking (`tabdo:auth:active_user_id`)
 
-The extension should treat Supabase as the remote source of truth.
+The extension treats Supabase as the remote source of truth. Upon sign-out or session invalidation, all per-user cache, active alarms, and notification contexts are purged.
 
 ---
 

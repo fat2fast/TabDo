@@ -29,7 +29,17 @@ export function LoginForm({ portal }: LoginFormProps) {
           })
         }
       } else {
-        const destination = (location.state as any)?.from?.pathname || '/dashboard'
+        const fromState = (location.state as any)?.from
+        let destination = '/dashboard'
+        if (fromState) {
+          if (typeof fromState === 'string') {
+            destination = fromState
+          } else if (fromState.pathname) {
+            const search = fromState.search || ''
+            const hash = fromState.hash || ''
+            destination = `${fromState.pathname}${search}${hash}`
+          }
+        }
         navigate(destination, { replace: true })
       }
     }
