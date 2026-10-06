@@ -25,7 +25,7 @@ TabDo is a personal productivity platform combining task management, calendar sc
 │   └── test-integration.ts# Live RLS and Edge Function integration tests
 └── supabase/
     ├── functions/         # Privileged Edge Functions (admin-create-user)
-    ├── migrations/        # Sequential SQL migrations (0001, 0002)
+    ├── migrations/        # Sequential SQL migrations (0001-0005)
     └── tests/             # pgTAP database security & RLS test suite
 ```
 
@@ -79,6 +79,9 @@ supabase db reset
 This applies:
 - `0001_init.sql`: Core schema, constraints, and baseline RLS policies.
 - `0002_phase_0_foundation.sql`: Profile roles (`admin`/`user`), user creation triggers, status normalization, personal data index additions, and client table grants.
+- `0003_phase_2_task_invariants.sql`: Task validation, checklist subtasks, categories, and owner isolation invariants.
+- `0004_phase_4_schedule_blocks.sql`: Schedule blocks table, same-owner validation triggers, and time range indexing.
+- `0005_phase_5_reminders.sql`: Reminder engine, absolute/relative calculations, snooze/dismiss states, and task completion triggers.
 
 ### 5. Provision Initial Admin
 
@@ -99,6 +102,8 @@ This ensures the user exists in Supabase Auth and their profile role is set to `
   Opens at `http://localhost:5173`.
   - `/login`: User portal sign-in.
   - `/admin/login`: Administrative portal sign-in.
+  - `/tasks`: Core task workspace with smart views (`Inbox`, `Today`, `Upcoming`, `Completed`, `Trash`).
+  - `/calendar`: Day and week calendar with task scheduling and block drag/resize.
   - `/admin/users`: Admin user creation and management.
   - `/settings`: User account preferences and password management.
 
@@ -106,6 +111,19 @@ This ensures the user exists in Supabase Auth and their profile role is set to `
   ```bash
   pnpm dev:extension
   ```
+
+## Implementation Status
+
+TabDo is following an incremental roadmap defined in [`docs/phases/README.md`](docs/phases/README.md):
+
+- ✅ **Phase 0:** Monorepo Foundation & Init (`@tabdo/*`, Supabase schema & migrations `0001`-`0002`)
+- ✅ **Phase 1:** Authentication, Portal Routing & Admin User Provisioning (`admin-create-user` Edge Function)
+- ✅ **Phase 2:** Core Task Management (Task CRUD, priorities, categories, checklist subtasks, markdown editor)
+- ✅ **Phase 3:** Smart Task Views & Organization (`Inbox`, `Today`, `Upcoming`, `Completed`, `Trash`, search/filter)
+- ✅ **Phase 4:** Scheduling & Calendar (Migration `0004`, FullCalendar Standard day/week views, schedule blocks)
+- ✅ **Phase 5:** Reminder Engine (Migration `0005`, absolute & relative-to-due triggers, presets, snooze/dismiss)
+- ⏳ **Phase 6 (Next Up):** Browser Extension (`chrome.storage.local` sync, `chrome.alarms` & `chrome.notifications`)
+- 📋 **Phases 7–10:** Recurring tasks, Dashboard, Summaries, and MVP Hardening
 
 ## Quality Gates & Verification
 

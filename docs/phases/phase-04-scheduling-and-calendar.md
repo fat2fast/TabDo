@@ -1,8 +1,9 @@
 # Phase 4 — Scheduling & Calendar
 
-**Status:** Planned  
+**Status:** Completed  
 **Depends on:** Phase 2; benefits from Phase 3  
-**Blocks:** Dashboard schedule section and richer planning workflow
+**Blocks:** Dashboard schedule section and richer planning workflow  
+**Completed via:** PR #3 (`plans/261006-0832-scheduling-calendar-reminder-engine`)
 
 ## 1. Goal
 

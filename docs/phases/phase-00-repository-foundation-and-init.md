@@ -1,8 +1,9 @@
 # Phase 0 — Repository Foundation & Project Init
 
-**Status:** Planned  
+**Status:** Completed  
 **Depends on:** None  
-**Blocks:** All later phases
+**Blocks:** All later phases  
+**Completed via:** PR #1 (`plans/261005-0925-repository-foundation-auth-provisioning`)
 
 ## 1. Goal
 

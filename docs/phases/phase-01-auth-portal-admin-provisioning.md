@@ -1,8 +1,9 @@
 # Phase 1 — Authentication, Portal Routing & Admin User Provisioning
 
-**Status:** Planned  
+**Status:** Completed  
 **Depends on:** Phase 0  
-**Blocks:** Phase 2+
+**Blocks:** Phase 2+  
+**Completed via:** PR #1 (`plans/261005-0925-repository-foundation-auth-provisioning`)
 
 ## 1. Goal
 

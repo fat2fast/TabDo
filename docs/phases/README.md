@@ -2,19 +2,21 @@
 
 This directory expands `docs/mvp-roadmap.md` into implementation-level phase documents.
 
-## Phase order
+## Phase status & execution order
 
-1. [Phase 0 — Repository Foundation & Project Init](./phase-00-repository-foundation-and-init.md)
-2. [Phase 1 — Authentication, Portal Routing & Admin User Provisioning](./phase-01-auth-portal-admin-provisioning.md)
-3. [Phase 2 — Core Task Management](./phase-02-core-task-management.md)
-4. [Phase 3 — Smart Task Views & Organization](./phase-03-smart-task-views-and-organization.md)
-5. [Phase 4 — Scheduling & Calendar](./phase-04-scheduling-and-calendar.md)
-6. [Phase 5 — Reminder Engine](./phase-05-reminder-engine.md)
-7. [Phase 6 — Browser Extension](./phase-06-browser-extension.md)
-8. [Phase 7 — Recurring Tasks](./phase-07-recurring-tasks.md)
-9. [Phase 8 — Dashboard](./phase-08-dashboard.md)
-10. [Phase 9 — Daily & Weekly Summary](./phase-09-daily-weekly-summary.md)
-11. [Phase 10 — MVP Hardening & Release Verification](./phase-10-hardening-and-release.md)
+| Phase | Title | Status | Delivered in / Evidence | Key Deliverables |
+|---|---|---|---|---|
+| [Phase 0](./phase-00-repository-foundation-and-init.md) | Repository Foundation & Project Init | **Completed** | PR #1 (`plans/261005-0925-...`) | `@tabdo/*` monorepo, pnpm workspaces, migrations `0001` & `0002`, admin bootstrap, CI |
+| [Phase 1](./phase-01-auth-portal-admin-provisioning.md) | Authentication, Portal Routing & Admin User Provisioning | **Completed** | PR #1 (`plans/261005-0925-...`) | Shared auth session, `/login` & `/admin/login`, `admin-create-user` Edge Function, `/settings` |
+| [Phase 2](./phase-02-core-task-management.md) | Core Task Management | **Completed** | PR #2 (`plans/261005-1305-...`) | Migration `0003`, Task CRUD, priority, checklist subtasks, categories, task drawer, markdown editor |
+| [Phase 3](./phase-03-smart-task-views-and-organization.md) | Smart Task Views & Organization | **Completed** | PR #2 (`plans/261005-1305-...`) | Views: Inbox, Today, Upcoming, Completed, Trash; search, filters, sorting, category manager |
+| [Phase 4](./phase-04-scheduling-and-calendar.md) | Scheduling & Calendar | **Completed** | PR #3 (`plans/261006-0832-...`) | Migration `0004`, FullCalendar Standard day/week views, schedule blocks, drag/resize, drawer integration |
+| [Phase 5](./phase-05-reminder-engine.md) | Reminder Engine | **Completed** | PR #3 (`plans/261006-0832-...`) | Migration `0005`, absolute & relative reminders, presets, snooze/dismiss, auto-dismiss on completion |
+| [Phase 6](./phase-06-browser-extension.md) | Browser Extension | **Planned (Next up)** | In queue | WXT MV3 popup, Today sync via `chrome.storage.local`, alarms via `chrome.alarms` & notifications |
+| [Phase 7](./phase-07-recurring-tasks.md) | Recurring Tasks | **Planned** | Planned | Recurrence rule schema, auto-regeneration on completion |
+| [Phase 8](./phase-08-dashboard.md) | Dashboard | **Planned** | Planned | Productive day metrics, today's agenda, overdue tracking |
+| [Phase 9](./phase-09-daily-weekly-summary.md) | Daily & Weekly Summary | **Planned** | Planned | AI/Rule summary of completed vs carried over work |
+| [Phase 10](./phase-10-hardening-and-release.md) | MVP Hardening & Release Verification | **Planned** | Planned | Cross-client smoke tests, performance, end-to-end verification |
 
 ## Product constraints shared by all phases
 

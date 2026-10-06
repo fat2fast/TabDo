@@ -1,8 +1,9 @@
 # Phase 5 — Reminder Engine
 
-**Status:** Planned  
+**Status:** Completed  
 **Depends on:** Phase 2  
-**Blocks:** Phase 6 extension notifications
+**Blocks:** Phase 6 extension notifications  
+**Completed via:** PR #3 (`plans/261006-0832-scheduling-calendar-reminder-engine`)
 
 ## 1. Goal
 

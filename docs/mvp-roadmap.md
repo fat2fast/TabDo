@@ -34,6 +34,26 @@ These may be introduced after the personal productivity workflow has been valida
 
 ---
 
+## 1.1 Phase Implementation Status
+
+Current progress across the 11 MVP implementation phases:
+
+| Phase | Name | Status | Evidence / Artifacts |
+|---|---|---|---|
+| [Phase 0](#phase-0--repository-foundation--project-init) | Repository Foundation & Project Init | **Completed** | PR #1 (`plans/261005-0925-...`), migrations `0001` & `0002`, `@tabdo/*` monorepo |
+| [Phase 1](#phase-1--authentication-portal-routing--admin-user-provisioning) | Authentication, Portal Routing & Admin User Provisioning | **Completed** | PR #1 (`plans/261005-0925-...`), `/login` & `/admin/login`, `admin-create-user` |
+| [Phase 2](#phase-2--core-task-management) | Core Task Management | **Completed** | PR #2 (`plans/261005-1305-...`), migration `0003`, Task CRUD, checklist subtasks |
+| [Phase 3](#phase-3--smart-task-views--organization) | Smart Task Views & Organization | **Completed** | PR #2 (`plans/261005-1305-...`), `Inbox`, `Today`, `Upcoming`, filters, categories |
+| [Phase 4](#phase-4--scheduling--calendar) | Scheduling & Calendar | **Completed** | PR #3 (`plans/261006-0832-...`), migration `0004`, FullCalendar day/week, schedule blocks |
+| [Phase 5](#phase-5--reminder-engine) | Reminder Engine | **Completed** | PR #3 (`plans/261006-0832-...`), migration `0005`, absolute/relative triggers, drawer UI |
+| [Phase 6](#phase-6--browser-extension) | Browser Extension | **Planned (Next up)** | WXT MV3 popup, Today sync via `chrome.storage.local`, alarm runtime |
+| [Phase 7](#phase-7--recurring-tasks) | Recurring Tasks | **Planned** | Recurrence rules, auto-regeneration |
+| [Phase 8](#phase-8--dashboard) | Dashboard | **Planned** | Daily agenda, overdue alerts, productivity metrics |
+| [Phase 9](#phase-9--daily--weekly-summary) | Daily & Weekly Summary | **Planned** | Completed vs rolled over review |
+| [Phase 10](#phase-10--mvp-hardening--release-verification) | MVP Hardening & Release Verification | **Planned** | Cross-client smoke tests, performance, security gates |
+
+---
+
 # 2. User Model
 
 TabDo MVP has two roles:

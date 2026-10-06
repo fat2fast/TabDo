@@ -12,10 +12,10 @@ pnpm install
 ```
 
 ## 3. Supabase
-1. Create a Supabase project.
+1. Create a Supabase project (or run local `supabase start`).
 2. Copy Project URL and anon/public key.
-3. Apply `supabase/migrations/0001_init.sql`.
-4. Enable Email/Password auth first.
+3. Apply sequential migrations (`0001_init.sql` through `0005_phase_5_reminders.sql`) or run `supabase db reset`.
+4. Enable Email/Password auth.
 
 ## 4. Environment
 Create `apps/web/.env`:
@@ -32,13 +32,15 @@ pnpm dev:web
 pnpm dev:extension
 ```
 
-## 6. Recommended implementation order
-1. Auth
-2. Task CRUD
-3. Today / Upcoming / Overdue
-4. Category + priority + subtask
-5. Schedule/calendar
-6. Reminder data model
-7. Extension sync + chrome.alarms
-8. Dashboard
-9. Daily/weekly summary
+## 6. Implementation progress
+1. [x] Auth & Monorepo Foundation (Phase 0 & 1)
+2. [x] Task CRUD (Phase 2)
+3. [x] Category + priority + subtask (Phase 2)
+4. [x] Today / Upcoming / Inbox / Smart Views (Phase 3)
+5. [x] Schedule / calendar (Phase 4)
+6. [x] Reminder data model & web UI (Phase 5)
+7. [ ] Extension sync + chrome.alarms & notifications (Phase 6 — Next up)
+8. [ ] Recurring tasks (Phase 7)
+9. [ ] Dashboard (Phase 8)
+10. [ ] Daily/weekly summary (Phase 9)
+11. [ ] MVP Hardening & Release (Phase 10)

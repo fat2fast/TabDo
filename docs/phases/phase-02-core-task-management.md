@@ -1,8 +1,9 @@
 # Phase 2 — Core Task Management
 
-**Status:** Planned  
+**Status:** Completed  
 **Depends on:** Phase 1  
-**Blocks:** Smart Views, Calendar, Reminders, Dashboard, Summary
+**Blocks:** Smart Views, Calendar, Reminders, Dashboard, Summary  
+**Completed via:** PR #2 (`plans/261005-1305-core-task-management-smart-views`)
 
 ## 1. Goal
 

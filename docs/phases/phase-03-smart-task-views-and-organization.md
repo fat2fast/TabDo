@@ -1,8 +1,9 @@
 # Phase 3 — Smart Task Views & Organization
 
-**Status:** Planned  
+**Status:** Completed  
 **Depends on:** Phase 2  
-**Blocks:** Dashboard and summary UX quality
+**Blocks:** Dashboard and summary UX quality  
+**Completed via:** PR #2 (`plans/261005-1305-core-task-management-smart-views`)
 
 ## 1. Goal
 
