@@ -38,11 +38,11 @@ export function ScheduleEditor({
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
 
   const { createMutation, updateMutation, deleteMutation } = useScheduleBlockMutations()
-  const { data: schedulableTasks = [] } = useSchedulableTasks(100)
+  const { data: schedulableTasks = [] } = useSchedulableTasks(100) ?? {}
 
   // Explicitly fetch task detail for target linked task if block or prop has taskId
   const targetTaskId = initialBlock?.taskId || initialTask?.id
-  const { data: directLinkedTask } = useTaskDetail(targetTaskId)
+  const { data: directLinkedTask } = useTaskDetail(targetTaskId) ?? {}
 
   const taskOptions: DropdownOption<string>[] = React.useMemo(() => {
     const list: DropdownOption<string>[] = [

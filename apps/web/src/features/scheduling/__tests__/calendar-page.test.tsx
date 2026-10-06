@@ -7,7 +7,12 @@ import { CalendarPage } from '../../../pages/CalendarPage'
 import { useAuth } from '../../auth/auth-provider'
 import { useScheduleBlockMutations } from '../hooks/use-schedule-block-mutations'
 import { useScheduleBlocksInRange } from '../hooks/use-schedule-blocks'
-import { useSchedulableTasks, useTaskList } from '../../tasks/hooks/use-tasks'
+import {
+  useSchedulableTasks,
+  useSubtasks,
+  useTaskDetail,
+  useTaskList,
+} from '../../tasks/hooks/use-tasks'
 
 // Mock DayWeekCalendar to easily test interaction and revert without FullCalendar canvas
 vi.mock('../components/day-week-calendar', () => ({
@@ -115,6 +120,16 @@ describe('CalendarPage', () => {
 
     vi.mocked(useSchedulableTasks).mockReturnValue({
       data: [{ id: 't-1', title: 'Task to Schedule', status: 'todo' }] as any,
+      isLoading: false,
+    } as any)
+
+    vi.mocked(useTaskDetail).mockReturnValue({
+      data: null,
+      isLoading: false,
+    } as any)
+
+    vi.mocked(useSubtasks).mockReturnValue({
+      data: [],
       isLoading: false,
     } as any)
   })
