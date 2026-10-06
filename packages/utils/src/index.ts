@@ -1,3 +1,7 @@
-export function isOverdue(dueAt: string | null | undefined, status: string) {
-  return Boolean(dueAt && status !== 'done' && new Date(dueAt).getTime() < Date.now())
+import { isTaskOverdue } from './task-datetime.js'
+
+export function isOverdue(dueAt: string | null | undefined, status: string, now: Date = new Date()) {
+  return isTaskOverdue(dueAt, status, now)
 }
+
+export * from './task-datetime.js'
