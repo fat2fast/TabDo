@@ -25,8 +25,12 @@ export function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/tasks/:id" element={<TasksPage />} />
+          <Route path="/tasks" element={<Navigate to="/tasks/inbox" replace />} />
+          <Route path="/tasks/inbox" element={<TasksPage />} />
+          <Route path="/tasks/today" element={<TasksPage />} />
+          <Route path="/tasks/upcoming" element={<TasksPage />} />
+          <Route path="/tasks/overdue" element={<TasksPage />} />
+          <Route path="/tasks/completed" element={<TasksPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/summary" element={<SummaryPage />} />
           <Route path="/settings" element={<SettingsPage />} />

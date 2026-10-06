@@ -30,8 +30,8 @@ export function AppLayout() {
             Dashboard
           </NavLink>
           <NavLink
-            to="/tasks"
-            className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+            to="/tasks/inbox"
+            className={() => (location.pathname.startsWith('/tasks') ? 'nav-item active' : 'nav-item')}
           >
             Tasks
           </NavLink>

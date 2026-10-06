@@ -11,6 +11,7 @@ export interface UserProfile {
 
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high'
+export type DueDateKind = 'date_only' | 'date_time'
 
 export interface Task {
   id: string
@@ -21,6 +22,7 @@ export interface Task {
   description?: string | null
   status: TaskStatus
   priority: TaskPriority
+  dueDateKind: DueDateKind
   startAt?: string | null
   dueAt?: string | null
   sourceUrl?: string | null
@@ -28,6 +30,33 @@ export interface Task {
   recurrenceRule?: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface CreateTaskInput {
+  title: string
+  description?: string | null
+  categoryId?: string | null
+  parentId?: string | null
+  status?: TaskStatus
+  priority?: TaskPriority
+  dueDateKind?: DueDateKind
+  startAt?: string | null
+  dueAt?: string | null
+  sourceUrl?: string | null
+}
+
+export interface UpdateTaskInput {
+  title?: string
+  description?: string | null
+  categoryId?: string | null
+  parentId?: string | null
+  status?: TaskStatus
+  priority?: TaskPriority
+  dueDateKind?: DueDateKind
+  startAt?: string | null
+  dueAt?: string | null
+  sourceUrl?: string | null
+  completedAt?: string | null
 }
 
 export interface Category {
@@ -38,6 +67,18 @@ export interface Category {
   color?: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface CreateCategoryInput {
+  name: string
+  icon?: string | null
+  color?: string | null
+}
+
+export interface UpdateCategoryInput {
+  name?: string
+  icon?: string | null
+  color?: string | null
 }
 
 export type ReminderStatus = 'pending' | 'triggered' | 'snoozed' | 'dismissed'
