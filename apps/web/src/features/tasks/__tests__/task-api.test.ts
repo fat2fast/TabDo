@@ -37,7 +37,7 @@ describe('task-api functions', () => {
   })
 
   describe('getTaskList query predicates', () => {
-    it('applies correct predicates for inbox view (active, no due date, no category)', async () => {
+    it('applies correct predicates for inbox view (active, no due date)', async () => {
       const mockQueryBuilder: any = {
         select: vi.fn().mockReturnThis(),
         neq: vi.fn().mockReturnThis(),
@@ -64,6 +64,29 @@ describe('task-api functions', () => {
       expect(supabase.from).toHaveBeenCalledWith('tasks')
       expect(mockQueryBuilder.neq).toHaveBeenCalledWith('status', 'done')
       expect(mockQueryBuilder.is).toHaveBeenCalledWith('due_at', null)
+      expect(mockQueryBuilder.is).not.toHaveBeenCalledWith('category_id', null)
+    })
+
+    it('applies category_id IS NULL when categoryId is none or null', async () => {
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }
+
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder)
+
+      const input: TaskListQueryInput = {
+        view: 'inbox',
+        categoryId: 'none',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        now: new Date('2026-10-05T12:00:00Z'),
+      }
+
+      await getTaskList(input)
+
       expect(mockQueryBuilder.is).toHaveBeenCalledWith('category_id', null)
     })
 
@@ -302,6 +325,54 @@ describe('task-api functions', () => {
       expect(tasksBuilder.eq).toHaveBeenCalledWith('id', 'task-to-delete-id')
       // Must NOT log activity because foreign key cascades on delete
       expect(activitiesBuilder.insert).not.toHaveBeenCalled()
+    })
+
+    it('rejects update with concurrent modification conflict when previousUpdatedAt does not match', async () => {
+      const tasksBuilder: any = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+        }),
+      }
+
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table === 'tasks') return tasksBuilder
+        return {} as any
+      })
+
+      await expect(
+        updateTask('existing-task-id', {
+          dueAt: '2026-10-10T12:00:00Z',
+          previousUpdatedAt: '2026-10-01T00:00:00Z',
+        })
+      ).rejects.toThrow(/concurrent modification conflict/i)
+
+      expect(tasksBuilder.eq).toHaveBeenCalledWith('id', 'existing-task-id')
+      expect(tasksBuilder.eq).toHaveBeenCalledWith('updated_at', '2026-10-01T00:00:00Z')
+    })
+
+    it('rejects completeTask when task was updated concurrently', async () => {
+      const tasksBuilder: any = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+        }),
+      }
+
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table === 'tasks') return tasksBuilder
+        return {} as any
+      })
+
+      await expect(completeTask(existingTask)).rejects.toThrow(/concurrent modification conflict/i)
+      expect(tasksBuilder.eq).toHaveBeenCalledWith('id', existingTask.id)
+      expect(tasksBuilder.eq).toHaveBeenCalledWith('updated_at', existingTask.updatedAt)
     })
   })
 })

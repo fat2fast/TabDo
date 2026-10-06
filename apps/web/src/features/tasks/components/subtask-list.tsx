@@ -20,8 +20,11 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
   const totalCount = subtasks.length
   const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
-  const handleAddSubtask = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleAddSubtask = async (e?: React.SyntheticEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
     setErrorMsg(null)
     const trimmed = newTitle.trim()
     if (!trimmed) {
@@ -130,25 +133,33 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
         </ul>
       )}
 
-      <form onSubmit={handleAddSubtask} className="subtask-add-form">
+      <div className="subtask-add-form">
         <div className="subtask-input-wrapper">
           <input
             type="text"
             placeholder="Thêm công việc con..."
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                e.stopPropagation()
+                handleAddSubtask()
+              }
+            }}
             className="subtask-add-input"
             disabled={createTaskMutation.isPending}
           />
           <button
-            type="submit"
+            type="button"
+            onClick={handleAddSubtask}
             className="subtask-add-btn"
             disabled={createTaskMutation.isPending || !newTitle.trim()}
           >
             Thêm
           </button>
         </div>
-      </form>
+      </div>
     </div>
   )
 }

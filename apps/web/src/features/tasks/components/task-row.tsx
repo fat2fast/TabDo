@@ -6,6 +6,7 @@ import { useTaskMutations } from '../hooks/use-task-mutations'
 import { useSubtasks } from '../hooks/use-tasks'
 import type { Task } from '../types'
 import { extractTaskAttachments } from '../utils/task-attachments'
+import { extractTaskChecklist } from '../utils/task-checklist'
 import { extractLinkedTaskIds } from '../utils/task-linking'
 
 export interface TaskRowProps {
@@ -29,21 +30,12 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
   const totalSubtasks = subtaskCount ?? subtasks.length
   const doneSubtasks = subtasks.filter((s) => s.status === 'done').length
 
-  // Parse checklist progress from markdown description
+  // Parse checklist progress from task description (supports modern decoupled comment and legacy markdown)
   const checklistStats = useMemo(() => {
-    if (!task.description) return null
-    const lines = task.description.split('\n')
-    let total = 0
-    let done = 0
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('- [ ] ')) total++
-      else if (trimmed.startsWith('- [x] ') || trimmed.startsWith('- [X] ')) {
-        total++
-        done++
-      }
-    }
-    return total > 0 ? { total, done } : null
+    const items = extractTaskChecklist(task.description)
+    if (items.length === 0) return null
+    const done = items.filter((i) => i.completed).length
+    return { total: items.length, done }
   }, [task.description])
 
   // Attachments count

@@ -3,9 +3,11 @@ import { useLocation } from 'react-router-dom'
 import {
   getThisWeekEnd,
   getTomorrowBoundaries,
+  getVisibleRangeForDay,
   isTaskOverdue,
 } from '@tabdo/utils'
 import { useAuth } from '../features/auth/auth-provider'
+import { useScheduleBlocksInRange } from '../features/scheduling/hooks/use-schedule-blocks'
 import { CategoryManager } from '../features/tasks/components/category-manager'
 import { QuickAddTask } from '../features/tasks/components/quick-add-task'
 import { TaskDrawer } from '../features/tasks/components/task-drawer'
@@ -16,7 +18,7 @@ import { TaskSearch } from '../features/tasks/components/task-search'
 import { TaskSort } from '../features/tasks/components/task-sort'
 import { TaskViewEmptyState } from '../features/tasks/components/task-view-empty-state'
 import { TaskViewHeader } from '../features/tasks/components/task-view-header'
-import { useTaskList } from '../features/tasks/hooks/use-tasks'
+import { useLinkedTasks, useTaskList } from '../features/tasks/hooks/use-tasks'
 import { useTaskViewSearchParams } from '../features/tasks/hooks/use-task-view-search-params'
 import type { Task, TaskView } from '../features/tasks/types'
 
@@ -59,13 +61,49 @@ export function TasksPage() {
     now,
   })
 
-  // Grouping for Today view
+  // Visible range for Today view to fetch scheduled blocks
+  const todayRange = useMemo(() => {
+    if (currentView !== 'today') return null
+    return getVisibleRangeForDay(now, timeZone)
+  }, [currentView, now, timeZone])
+
+  const { data: scheduleBlocks = [], isLoading: isLoadingSchedules } = useScheduleBlocksInRange({
+    startAt: todayRange?.startAt,
+    endAt: todayRange?.endAt,
+    enabled: currentView === 'today',
+  })
+
+  // Derive unique task IDs linked to schedule blocks today
+  const scheduledTaskIds = useMemo(() => {
+    if (currentView !== 'today') return []
+    const ids = new Set<string>()
+    for (const block of scheduleBlocks) {
+      if (block.taskId) {
+        ids.add(block.taskId)
+      }
+    }
+    return Array.from(ids)
+  }, [currentView, scheduleBlocks])
+
+  const { data: scheduledTasks = [], isLoading: isLoadingScheduledTasks } = useLinkedTasks(scheduledTaskIds)
+
+  // Combined loading state for page
+  const isPageLoading =
+    isLoading ||
+    (currentView === 'today' &&
+      (isLoadingSchedules || (scheduledTaskIds.length > 0 && isLoadingScheduledTasks)))
+
+  // Grouping for Today view: Overdue -> Due Today -> Scheduled Today
   const todayGroups = useMemo(() => {
     if (currentView !== 'today') return null
     const overdueTasks: Task[] = []
     const dueTodayTasks: Task[] = []
+    const scheduledTodayTasks: Task[] = []
+    const seenTaskIds = new Set<string>()
 
+    // 1. Overdue and Due Today from tasks
     for (const task of tasks) {
+      seenTaskIds.add(task.id)
       if (isTaskOverdue(task.dueAt, task.status, now)) {
         overdueTasks.push(task)
       } else {
@@ -73,8 +111,38 @@ export function TasksPage() {
       }
     }
 
-    return { overdueTasks, dueTodayTasks }
-  }, [currentView, tasks, now])
+    // 2. Scheduled Today from scheduledTasks
+    // Exclude tasks already shown in earlier groups (seenTaskIds)
+    // Exclude completed tasks (must be active: task.status !== 'done')
+    // Filter matching current params (search, priority, status, categoryId)
+    for (const task of scheduledTasks) {
+      if (seenTaskIds.has(task.id)) continue
+      if (task.status === 'done') continue
+
+      if (params.search && params.search.trim()) {
+        const term = params.search.trim().toLowerCase()
+        if (!task.title.toLowerCase().includes(term)) continue
+      }
+      if (params.status && task.status !== params.status) {
+        continue
+      }
+      if (params.priority && task.priority !== params.priority) {
+        continue
+      }
+      if (params.categoryId !== undefined) {
+        if (params.categoryId === null || params.categoryId === 'none') {
+          if (task.categoryId !== null) continue
+        } else if (params.categoryId !== '') {
+          if (task.categoryId !== params.categoryId) continue
+        }
+      }
+
+      seenTaskIds.add(task.id)
+      scheduledTodayTasks.push(task)
+    }
+
+    return { overdueTasks, dueTodayTasks, scheduledTodayTasks }
+  }, [currentView, tasks, scheduledTasks, now, params])
 
   // Grouping for Upcoming view
   const upcomingGroups = useMemo(() => {
@@ -156,53 +224,79 @@ export function TasksPage() {
 
       {/* Main Task List Area */}
       <div className="tasks-content-area">
-        {isLoading ? (
+        {isPageLoading ? (
           <div className="task-list-loading" data-testid="tasks-loading">
             <div className="loading-spinner" />
             <span>Đang tải danh sách công việc...</span>
           </div>
+        ) : currentView === 'today' && todayGroups ? (
+          todayGroups.overdueTasks.length > 0 ||
+          todayGroups.dueTodayTasks.length > 0 ||
+          todayGroups.scheduledTodayTasks.length > 0 ? (
+            <div className="grouped-tasks-container">
+              <TaskGroup
+                title="Quá hạn"
+                tasks={todayGroups.overdueTasks}
+                onSelectTask={setSelectedTaskId}
+                badgeVariant="danger"
+              />
+              <TaskGroup
+                title="Hôm nay"
+                tasks={todayGroups.dueTodayTasks}
+                onSelectTask={setSelectedTaskId}
+                badgeVariant="primary"
+              />
+              <TaskGroup
+                title="Lên lịch hôm nay"
+                tasks={todayGroups.scheduledTodayTasks}
+                onSelectTask={setSelectedTaskId}
+                badgeVariant="default"
+              />
+            </div>
+          ) : (
+            <TaskViewEmptyState
+              view={currentView}
+              hasFilters={hasFilters}
+              onClearFilters={clearFilters}
+            />
+          )
+        ) : currentView === 'upcoming' && upcomingGroups ? (
+          upcomingGroups.tomorrowTasks.length > 0 ||
+          upcomingGroups.thisWeekTasks.length > 0 ||
+          upcomingGroups.laterTasks.length > 0 ? (
+            <div className="grouped-tasks-container">
+              <TaskGroup
+                title="Ngày mai"
+                tasks={upcomingGroups.tomorrowTasks}
+                onSelectTask={setSelectedTaskId}
+                badgeVariant="primary"
+              />
+              <TaskGroup
+                title="Tuần này"
+                tasks={upcomingGroups.thisWeekTasks}
+                onSelectTask={setSelectedTaskId}
+                badgeVariant="warning"
+              />
+              <TaskGroup
+                title="Sau này"
+                tasks={upcomingGroups.laterTasks}
+                onSelectTask={setSelectedTaskId}
+                badgeVariant="default"
+              />
+            </div>
+          ) : (
+            <TaskViewEmptyState
+              view={currentView}
+              hasFilters={hasFilters}
+              onClearFilters={clearFilters}
+            />
+          )
         ) : tasks.length === 0 ? (
           <TaskViewEmptyState
             view={currentView}
             hasFilters={hasFilters}
             onClearFilters={clearFilters}
           />
-        ) : currentView === 'today' && todayGroups ? (
-          <div className="grouped-tasks-container">
-            <TaskGroup
-              title="Quá hạn"
-              tasks={todayGroups.overdueTasks}
-              onSelectTask={setSelectedTaskId}
-              badgeVariant="danger"
-            />
-            <TaskGroup
-              title="Hôm nay"
-              tasks={todayGroups.dueTodayTasks}
-              onSelectTask={setSelectedTaskId}
-              badgeVariant="primary"
-            />
-          </div>
-        ) : currentView === 'upcoming' && upcomingGroups ? (
-          <div className="grouped-tasks-container">
-            <TaskGroup
-              title="Ngày mai"
-              tasks={upcomingGroups.tomorrowTasks}
-              onSelectTask={setSelectedTaskId}
-              badgeVariant="primary"
-            />
-            <TaskGroup
-              title="Tuần này"
-              tasks={upcomingGroups.thisWeekTasks}
-              onSelectTask={setSelectedTaskId}
-              badgeVariant="warning"
-            />
-            <TaskGroup
-              title="Sau này"
-              tasks={upcomingGroups.laterTasks}
-              onSelectTask={setSelectedTaskId}
-              badgeVariant="default"
-            />
-          </div>
         ) : (
           <TaskList
             tasks={tasks}
@@ -214,11 +308,8 @@ export function TasksPage() {
       {/* Task Detail Modal */}
       <TaskDrawer
         taskId={selectedTaskId}
-        onClose={(savedTask) => {
+        onClose={() => {
           setSelectedTaskId(null)
-          if (savedTask?.categoryId && currentView === 'inbox' && !params.categoryId) {
-            setParams({ categoryId: savedTask.categoryId })
-          }
         }}
         onSelectTask={setSelectedTaskId}
       />

@@ -9,3 +9,5 @@ export interface CreateTabDoClientParams {
 export function createTabDoClient({ url, anonKey, options }: CreateTabDoClientParams) {
   return createClient(url, anonKey, options)
 }
+
+export * from './reminders.js'

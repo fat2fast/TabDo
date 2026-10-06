@@ -11,6 +11,22 @@ export interface TaskDrawerProps {
 export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
   const { data: task, isLoading, error } = useTaskDetail(taskId)
 
+  // Support hotkey Escape to close the drawer
+  React.useEffect(() => {
+    if (!taskId) return
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [taskId, onClose])
+
   if (!taskId) return null
 
   return (
@@ -57,7 +73,7 @@ export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
               Không tìm thấy công việc hoặc công việc đã bị xóa.
               <button
                 type="button"
-                className="btn-secondary"
+                className="btn btn-secondary"
                 style={{ marginTop: '12px' }}
                 onClick={() => onClose()}
               >

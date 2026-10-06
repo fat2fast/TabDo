@@ -57,6 +57,7 @@ export interface UpdateTaskInput {
   dueAt?: string | null
   sourceUrl?: string | null
   completedAt?: string | null
+  previousUpdatedAt?: string
 }
 
 export interface Category {
@@ -82,6 +83,7 @@ export interface UpdateCategoryInput {
 }
 
 export type ReminderStatus = 'pending' | 'triggered' | 'snoozed' | 'dismissed'
+export type ReminderKind = 'absolute' | 'relative_due'
 
 export interface Reminder {
   id: string
@@ -90,8 +92,48 @@ export interface Reminder {
   remindAt: string
   status: ReminderStatus
   snoozedUntil?: string | null
+  reminderKind: ReminderKind
+  offsetMinutes?: number | null
+  effectiveAt: string
   createdAt: string
   updatedAt: string
+}
+
+export interface CreateReminderInput {
+  taskId: string
+  reminderKind: ReminderKind
+  remindAt?: string
+  offsetMinutes?: number | null
+}
+
+export interface UpdateReminderInput {
+  remindAt?: string
+  reminderKind?: ReminderKind
+  offsetMinutes?: number | null
+  status?: ReminderStatus
+  snoozedUntil?: string | null
+  previousUpdatedAt: string
+}
+
+export interface DeleteReminderInput {
+  id: string
+  previousUpdatedAt: string
+}
+
+export interface UpcomingReminder {
+  id: string
+  taskId: string
+  taskTitle: string
+  taskStatus: TaskStatus
+  dueAt?: string | null
+  reminderKind: ReminderKind
+  offsetMinutes?: number | null
+  remindAt: string
+  effectiveAt: string
+  status: ReminderStatus
+  snoozedUntil?: string | null
+  updatedAt: string
+  taskUpdatedAt: string
 }
 
 export interface ScheduleBlock {
@@ -103,6 +145,26 @@ export interface ScheduleBlock {
   endAt: string
   createdAt: string
   updatedAt: string
+}
+
+export interface CreateScheduleBlockInput {
+  title: string
+  startAt: string
+  endAt: string
+  taskId?: string | null
+}
+
+export interface UpdateScheduleBlockInput {
+  title?: string
+  startAt?: string
+  endAt?: string
+  taskId?: string | null
+  previousUpdatedAt: string
+}
+
+export interface DeleteScheduleBlockInput {
+  id: string
+  previousUpdatedAt: string
 }
 
 export interface TaskActivity {

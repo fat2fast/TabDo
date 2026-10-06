@@ -328,4 +328,263 @@ describe('smart-task-views', () => {
       expect(eqMock).toHaveBeenCalledWith('priority', 'high')
     })
   })
+
+  it('Today view groups Scheduled Today with precedence and avoids duplicates when task is already due today', async () => {
+    const taskDueToday: TaskRow = {
+      id: 'task-due-1',
+      user_id: 'u-1',
+      category_id: null,
+      parent_id: null,
+      title: 'Task due and scheduled today',
+      description: null,
+      status: 'todo',
+      priority: 'high',
+      due_date_kind: 'date_time',
+      due_at: new Date(Date.now() + 3600000).toISOString(),
+      start_at: null,
+      source_url: null,
+      completed_at: null,
+      recurrence_rule: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const taskScheduledLater: TaskRow = {
+      id: 'task-scheduled-only-1',
+      user_id: 'u-1',
+      category_id: null,
+      parent_id: null,
+      title: 'Task due next week but scheduled today',
+      description: null,
+      status: 'todo',
+      priority: 'medium',
+      due_date_kind: 'date_time',
+      due_at: new Date(Date.now() + 86400000 * 7).toISOString(),
+      start_at: null,
+      source_url: null,
+      completed_at: null,
+      recurrence_rule: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const scheduleBlocks = [
+      {
+        id: 'block-1',
+        user_id: 'u-1',
+        task_id: 'task-due-1',
+        title: 'Session for task due today',
+        start_at: new Date().toISOString(),
+        end_at: new Date(Date.now() + 3600000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'block-2',
+        user_id: 'u-1',
+        task_id: 'task-scheduled-only-1',
+        title: 'Session for task due later',
+        start_at: new Date().toISOString(),
+        end_at: new Date(Date.now() + 3600000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ]
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'tasks') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          neq: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue({
+            data: [taskDueToday],
+            error: null,
+          }),
+          in: vi.fn().mockImplementation((col: string, ids: string[]) => {
+            return Promise.resolve({
+              data: [taskDueToday, taskScheduledLater].filter((t) => ids.includes(t.id)),
+              error: null,
+            })
+          }),
+        } as any
+      }
+      if (table === 'schedule_blocks') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          lt: vi.fn().mockReturnThis(),
+          gt: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({
+            data: scheduleBlocks,
+            error: null,
+          }),
+        } as any
+      }
+      if (table === 'categories') {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        } as any
+      }
+      return {} as any
+    })
+
+    renderTasksPage('/tasks/today')
+
+    // Task due today should appear in "Hôm nay"
+    expect(await screen.findByText('Task due and scheduled today')).toBeInTheDocument()
+    // Task scheduled later should appear in "Lên lịch hôm nay"
+    expect(await screen.findByText('Task due next week but scheduled today')).toBeInTheDocument()
+
+    // Assert group containers
+    expect(screen.getByTestId('task-group-hôm-nay')).toBeInTheDocument()
+    expect(screen.getByTestId('task-group-lên-lịch-hôm-nay')).toBeInTheDocument()
+
+    // Verify deduplication: taskDueToday only appears once in the entire page
+    const dueTodayElements = screen.getAllByText('Task due and scheduled today')
+    expect(dueTodayElements).toHaveLength(1)
+  })
+
+  it('Today view ignores unlinked schedule blocks (task_id is null)', async () => {
+    const unlinkedScheduleBlock = {
+      id: 'block-adhoc-1',
+      user_id: 'u-1',
+      task_id: null,
+      title: 'Ad-hoc Focus Session',
+      start_at: new Date().toISOString(),
+      end_at: new Date(Date.now() + 3600000).toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'tasks') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          neq: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue({
+            data: [],
+            error: null,
+          }),
+          in: vi.fn().mockResolvedValue({
+            data: [],
+            error: null,
+          }),
+        } as any
+      }
+      if (table === 'schedule_blocks') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          lt: vi.fn().mockReturnThis(),
+          gt: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({
+            data: [unlinkedScheduleBlock],
+            error: null,
+          }),
+        } as any
+      }
+      if (table === 'categories') {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        } as any
+      }
+      return {} as any
+    })
+
+    renderTasksPage('/tasks/today')
+
+    // Unlinked block does not create task, empty state is displayed
+    expect(await screen.findByText('Hôm nay chưa có công việc đến hạn.')).toBeInTheDocument()
+    expect(screen.queryByText('Ad-hoc Focus Session')).not.toBeInTheDocument()
+  })
+
+  it('Today view with no due tasks but one scheduled task renders Scheduled Today group instead of empty state', async () => {
+    const taskScheduled: TaskRow = {
+      id: 'task-scheduled-only-2',
+      user_id: 'u-1',
+      category_id: null,
+      parent_id: null,
+      title: 'Only scheduled task for today',
+      description: null,
+      status: 'todo',
+      priority: 'high',
+      due_date_kind: 'date_time',
+      due_at: null,
+      start_at: null,
+      source_url: null,
+      completed_at: null,
+      recurrence_rule: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const scheduleBlock = {
+      id: 'block-2',
+      user_id: 'u-1',
+      task_id: 'task-scheduled-only-2',
+      title: 'Scheduled session',
+      start_at: new Date().toISOString(),
+      end_at: new Date(Date.now() + 3600000).toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'tasks') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          neq: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue({
+            data: [],
+            error: null,
+          }),
+          in: vi.fn().mockImplementation((col: string, ids: string[]) => {
+            return Promise.resolve({
+              data: [taskScheduled].filter((t) => ids.includes(t.id)),
+              error: null,
+            })
+          }),
+        } as any
+      }
+      if (table === 'schedule_blocks') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          lt: vi.fn().mockReturnThis(),
+          gt: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({
+            data: [scheduleBlock],
+            error: null,
+          }),
+        } as any
+      }
+      if (table === 'categories') {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        } as any
+      }
+      return {} as any
+    })
+
+    renderTasksPage('/tasks/today')
+
+    // Should NOT show empty state
+    expect(screen.queryByText('Hôm nay chưa có công việc đến hạn.')).not.toBeInTheDocument()
+
+    // Should show Scheduled Today group and the task
+    expect(await screen.findByText('Only scheduled task for today')).toBeInTheDocument()
+    expect(screen.getByTestId('task-group-lên-lịch-hôm-nay')).toBeInTheDocument()
+  })
 })

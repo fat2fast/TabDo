@@ -5,6 +5,7 @@ import {
   getCalendarMonthGrid,
   getDatePickerPresets,
 } from '@tabdo/utils'
+import { TimePicker24h } from '../../../../components/ui/time-picker-24h'
 
 export interface DatePickerPopoverProps {
   dueDate: string // YYYY-MM-DD
@@ -36,6 +37,8 @@ export function DatePickerPopover({
   className = '',
 }: DatePickerPopoverProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [openUpward, setOpenUpward] = useState(false)
+  const [alignRight, setAlignRight] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Track viewing year and month for custom calendar
@@ -49,6 +52,39 @@ export function DatePickerPopover({
 
   const [viewYear, setViewYear] = useState(initialYear)
   const [viewMonth, setViewMonth] = useState(initialMonth)
+
+  // Smart placement detection
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      const drawerBody = containerRef.current.closest('.drawer-body')
+      const isInSidebar = Boolean(containerRef.current.closest('.task-detail-sidebar-col'))
+
+      let spaceBelow = window.innerHeight - rect.bottom
+      let spaceAbove = rect.top
+
+      if (drawerBody) {
+        const drawerRect = drawerBody.getBoundingClientRect()
+        // Space above the sticky footer (footer is ~60px tall)
+        spaceBelow = (drawerRect.bottom - 60) - rect.bottom
+        spaceAbove = rect.top - drawerRect.top
+      }
+
+      // If space below is too small (< 240px) and there is sufficient space above (> 320px), open upward
+      if (spaceBelow < 240 && spaceAbove > 320) {
+        setOpenUpward(true)
+      } else {
+        setOpenUpward(false)
+      }
+
+      // Align right if in sidebar or near right edge of viewport
+      if (isInSidebar || rect.left + 320 > window.innerWidth || rect.left > window.innerWidth / 2) {
+        setAlignRight(true)
+      } else {
+        setAlignRight(false)
+      }
+    }
+  }, [isOpen])
 
   // Sync calendar view if dueDate changes externally
   useEffect(() => {
@@ -81,14 +117,15 @@ export function DatePickerPopover({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        e.stopPropagation()
         setIsOpen(false)
       }
     }
     if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown)
+      document.addEventListener('keydown', handleKeyDown, true)
     }
     return () => {
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', handleKeyDown, true)
     }
   }, [isOpen])
 
@@ -246,7 +283,11 @@ export function DatePickerPopover({
 
       {/* Popover Card */}
       {isOpen && (
-        <div className="date-picker-popover-card" role="dialog" aria-label="Bộ chọn ngày giờ">
+        <div
+          className={`date-picker-popover-card ${openUpward ? 'open-upward' : ''} ${alignRight ? 'align-right' : ''}`}
+          role="dialog"
+          aria-label="Bộ chọn ngày giờ"
+        >
           {/* Quick Shortcuts */}
           <div className="popover-section shortcuts-section">
             <span className="section-label">CHỌN NHANH:</span>
@@ -379,7 +420,7 @@ export function DatePickerPopover({
               {dueDateKind === 'date_time' && (
                 <div className="time-select-area">
                   <div className="time-chips">
-                    {['09:00', '12:00', '15:00', '18:00', '21:00'].map((timePreset) => (
+                    {['08:00', '09:00', '12:00', '14:00', '18:00', '21:00'].map((timePreset) => (
                       <button
                         key={timePreset}
                         type="button"
@@ -392,15 +433,15 @@ export function DatePickerPopover({
                   </div>
 
                   <div className="time-input-row">
-                    <span className="time-input-label">Giờ:</span>
-                    <input
-                      type="time"
-                      className="popover-time-input"
+                    <span className="time-input-label">Giờ (24h):</span>
+                    <TimePicker24h
                       value={dueTime}
-                      onChange={(e) => {
-                        onChangeTime(e.target.value)
+                      onChange={(timeStr) => {
+                        onChangeTime(timeStr)
                         onChangeKind('date_time')
                       }}
+                      placeholder="Chọn giờ (24h)..."
+                      className="popover-embedded-time-picker"
                     />
                   </div>
                 </div>

@@ -12,6 +12,8 @@ import {
   updateTask,
 } from '../api/tasks'
 import { categoryQueryKeys, taskQueryKeys } from '../query-keys'
+import { scheduleQueryKeys } from '../../scheduling/query-keys'
+import { reminderQueryKeys } from '../../reminders/query-keys'
 import type {
   CreateCategoryInput,
   CreateTaskInput,
@@ -50,6 +52,8 @@ export function useTaskMutations() {
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(updatedTask.id),
       })
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
       if (updatedTask.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(updatedTask.parentId),
@@ -66,6 +70,8 @@ export function useTaskMutations() {
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(variables.id),
       })
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
       if (variables.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(variables.parentId),
@@ -81,6 +87,8 @@ export function useTaskMutations() {
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(updatedTask.id),
       })
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
       if (updatedTask.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(updatedTask.parentId),
@@ -96,6 +104,8 @@ export function useTaskMutations() {
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(updatedTask.id),
       })
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
       if (updatedTask.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(updatedTask.parentId),
