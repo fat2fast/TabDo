@@ -66,7 +66,7 @@ export function AppLayout() {
           <AccountMenu />
         </div>
       </aside>
-      <main className="app-main">
+      <main className={`app-main ${location.pathname.startsWith('/calendar') ? 'app-main-fullwidth' : ''}`}>
         {accessDeniedMsg && (
           <div className="access-denied-banner" role="alert">
             <span>{accessDeniedMsg}</span>

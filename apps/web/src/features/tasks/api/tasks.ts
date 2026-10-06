@@ -17,9 +17,6 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
   switch (input.view) {
     case 'inbox': {
       query = query.neq('status', 'done').is('due_at', null)
-      if (input.categoryId === undefined) {
-        query = query.is('category_id', null)
-      }
       break
     }
     case 'today': {
@@ -261,15 +258,22 @@ export async function updateTask(
     throw new Error('Not authenticated')
   }
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single()
+  let query = supabase.from('tasks').update(updates).eq('id', id)
+  if (input.previousUpdatedAt) {
+    query = query.eq('updated_at', input.previousUpdatedAt)
+  }
+
+  const { data, error } = await query.select().single()
 
   if (error) {
+    if (error.code === 'PGRST116') {
+      throw new Error('Task was modified or does not exist (concurrent modification conflict)')
+    }
     throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new Error('Task was modified or does not exist (concurrent modification conflict)')
   }
 
   const task = rowToTask(data as TaskRow)
@@ -339,6 +343,7 @@ export async function completeTask(task: Task): Promise<Task> {
     {
       status: 'done',
       completedAt: nowIso,
+      previousUpdatedAt: task.updatedAt,
     },
     task
   )
@@ -350,6 +355,7 @@ export async function reopenTask(task: Task): Promise<Task> {
     {
       status: 'todo',
       completedAt: null,
+      previousUpdatedAt: task.updatedAt,
     },
     task
   )
@@ -417,6 +423,20 @@ export async function searchTasksCandidate(queryStr: string, currentTaskId: stri
 
   const { data, error } = await query
   if (error) return []
+  return ((data as TaskRow[]) || []).map(rowToTask)
+}
+
+export async function getSchedulableTasks(limit = 100): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
   return ((data as TaskRow[]) || []).map(rowToTask)
 }
 

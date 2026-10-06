@@ -12,11 +12,12 @@ export interface TaskAttachment {
   createdAt: string
 }
 
-const ATTACHMENTS_REGEX = /<!--\s*tabdo_attachments:\s*(\[.*?\])\s*-->/s
+const ATTACHMENTS_METADATA_REGEX = /<!--\s*tabdo_attachments:[\s\S]*?-->/gi
+const ATTACHMENTS_EXTRACT_REGEX = /<!--\s*tabdo_attachments:\s*(\[[\s\S]*?\])\s*-->/i
 
 export function extractTaskAttachments(description: string | null | undefined): TaskAttachment[] {
   if (!description) return []
-  const match = ATTACHMENTS_REGEX.exec(description)
+  const match = ATTACHMENTS_EXTRACT_REGEX.exec(description)
   if (!match || !match[1]) return []
   try {
     const parsed = JSON.parse(match[1])
@@ -34,7 +35,7 @@ export function extractTaskAttachments(description: string | null | undefined): 
 
 export function cleanDescriptionWithoutAttachments(description: string | null | undefined): string {
   if (!description) return ''
-  return description.replace(ATTACHMENTS_REGEX, '').trimEnd()
+  return description.replace(ATTACHMENTS_METADATA_REGEX, '').trim()
 }
 
 export function embedTaskAttachments(

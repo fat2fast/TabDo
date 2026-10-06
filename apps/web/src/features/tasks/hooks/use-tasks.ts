@@ -6,6 +6,7 @@ import {
   getTaskById,
   getTaskList,
   getTasksByIds,
+  getSchedulableTasks,
   searchTasksCandidate,
 } from '../api/tasks'
 import { taskQueryKeys } from '../query-keys'
@@ -65,3 +66,11 @@ export function useTaskCandidates(currentTaskId: string, query: string, enabled 
     enabled,
   })
 }
+
+export function useSchedulableTasks(limit = 100) {
+  return useQuery({
+    queryKey: taskQueryKeys.schedulable(limit),
+    queryFn: () => getSchedulableTasks(limit),
+  })
+}
+

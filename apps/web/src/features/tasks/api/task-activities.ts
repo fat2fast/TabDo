@@ -7,6 +7,9 @@ export type TaskActivityAction =
   | 'reopened'
   | 'deadline_changed'
   | 'priority_changed'
+  | 'schedule_created'
+  | 'schedule_updated'
+  | 'schedule_deleted'
 
 export interface RecordActivityParams {
   userId: string

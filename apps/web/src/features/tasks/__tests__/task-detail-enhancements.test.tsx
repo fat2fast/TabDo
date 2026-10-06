@@ -7,6 +7,12 @@ import { MarkdownDescriptionEditor } from '../components/ui/markdown-description
 import { TaskChecklist } from '../components/task-checklist'
 import { RelatedTasks } from '../components/related-tasks'
 import {
+  cleanDescriptionWithoutChecklist,
+  embedTaskChecklist,
+  extractTaskChecklist,
+  type TaskChecklistItem,
+} from '../utils/task-checklist'
+import {
   cleanDescriptionWithoutAttachments,
   embedTaskAttachments,
   extractTaskAttachments,
@@ -16,6 +22,7 @@ import {
   embedLinkedTaskIds,
   extractLinkedTaskIds,
 } from '../utils/task-linking'
+import { getCleanTaskDescription } from '../utils/task-description'
 import { TaskAttachments } from '../components/task-attachments'
 import { TaskForm } from '../components/task-form'
 import { TaskRow } from '../components/task-row'
@@ -159,6 +166,75 @@ describe('Task Detail Enhancements (UI/UX Pro Max)', () => {
       expect(onChange).toHaveBeenCalledWith(
         'Công việc A\n\n### Checklist\n- [ ] Kiểm tra chất lượng code'
       )
+    })
+
+    it('supports modern decoupled items and does not pollute description', async () => {
+      const user = userEvent.setup()
+      const items: TaskChecklistItem[] = [
+        { id: '1', text: 'Mục 1', completed: false },
+        { id: '2', text: 'Mục 2', completed: true },
+      ]
+      const onChangeItems = vi.fn()
+
+      render(<TaskChecklist items={items} onChangeItems={onChangeItems} />)
+
+      // Progress counter badge: 1/2 (50%)
+      expect(screen.getByText('1/2 (50%)')).toBeInTheDocument()
+
+      const checkboxes = screen.getAllByRole('checkbox')
+      expect(checkboxes[0]).not.toBeChecked()
+      expect(checkboxes[1]).toBeChecked()
+
+      // Toggle first item
+      await user.click(checkboxes[0])
+      expect(onChangeItems).toHaveBeenCalledWith([
+        { id: '1', text: 'Mục 1', completed: true },
+        { id: '2', text: 'Mục 2', completed: true },
+      ])
+    })
+  })
+
+  describe('Task Checklist Utilities (Decoupled from Description)', () => {
+    it('correctly embeds, extracts, and cleans checklist metadata without touching description text', () => {
+      const base = 'Đây là nội dung mô tả chi tiết của công việc'
+      const checklist: TaskChecklistItem[] = [
+        { id: 'c1', text: 'Viết test case', completed: true },
+        { id: 'c2', text: 'Review code', completed: false },
+      ]
+
+      const embedded = embedTaskChecklist(base, checklist)
+      expect(embedded).toContain('<!-- tabdo_checklist: [{"id":"c1","text":"Viết test case","completed":true},{"id":"c2","text":"Review code","completed":false}] -->')
+
+      const extracted = extractTaskChecklist(embedded)
+      expect(extracted).toEqual(checklist)
+
+      const cleaned = cleanDescriptionWithoutChecklist(embedded)
+      expect(cleaned).toBe(base)
+    })
+
+    it('extracts legacy markdown checklists and cleans them from description editor', () => {
+      const legacyDesc = 'Ghi chú công việc\n\n### Checklist\n- [ ] Việc 1\n- [x] Việc 2 đã xong'
+      const extracted = extractTaskChecklist(legacyDesc)
+      expect(extracted).toHaveLength(2)
+      expect(extracted[0].text).toBe('Việc 1')
+      expect(extracted[0].completed).toBe(false)
+      expect(extracted[1].text).toBe('Việc 2 đã xong')
+      expect(extracted[1].completed).toBe(true)
+
+      const cleaned = cleanDescriptionWithoutChecklist(legacyDesc)
+      expect(cleaned).toBe('Ghi chú công việc')
+    })
+
+    it('getCleanTaskDescription completely strips all metadata comments and legacy checklists', () => {
+      const descWithAll = 'Nội dung mô tả thực tế\n\n<!-- tabdo_checklist: [{"id":"chk-1","text":"test checklist","completed":false}] -->\n\n<!-- tabdo_linked: ["t-1","t-2"] -->\n\n<!-- tabdo_attachments: [{"id":"a-1","name":"file.png","size":123,"type":"image/png","url":"https://example.com/file.png","createdAt":"2026-10-06T00:00:00Z"}] -->'
+      expect(getCleanTaskDescription(descWithAll)).toBe('Nội dung mô tả thực tế')
+
+      // Case when description only contains checklist (no user text) - exactly as seen in the user report
+      const checklistOnly = '<!-- tabdo_checklist: [{"id":"chk-1791274266320-knvs","text":"aaaaaaaaaaaa","completed":false}] -->'
+      expect(getCleanTaskDescription(checklistOnly)).toBe('')
+      expect(extractTaskChecklist(checklistOnly)).toEqual([
+        { id: 'chk-1791274266320-knvs', text: 'aaaaaaaaaaaa', completed: false },
+      ])
     })
   })
 
@@ -347,6 +423,24 @@ describe('Task Detail Enhancements (UI/UX Pro Max)', () => {
       await user.click(relatedTab)
       expect(relatedTab).toHaveClass('active')
       expect(screen.getByRole('button', { name: /\+ liên kết công việc/i })).toBeInTheDocument()
+
+      // Switch to "Lịch làm việc" tab
+      const scheduleTab = screen.getByRole('tab', { name: /lịch làm việc/i })
+      await user.click(scheduleTab)
+      expect(scheduleTab).toHaveClass('active')
+      expect(screen.getByTestId('task-scheduled-sessions-section')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /\+ lên lịch làm việc/i })).toBeInTheDocument()
+
+      // Switch to "Lời nhắc" tab
+      const remindersTab = screen.getByRole('tab', { name: /lời nhắc/i })
+      await user.click(remindersTab)
+      expect(remindersTab).toHaveClass('active')
+      expect(screen.getByTestId('task-reminders-section')).toBeInTheDocument()
+
+      // Sticky action footer is rendered and accessible
+      expect(screen.getByTestId('task-form-sticky-footer')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /lưu thay đổi/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /xóa công việc/i })).toBeInTheDocument()
     })
   })
 })

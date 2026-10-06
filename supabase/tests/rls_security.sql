@@ -1,5 +1,5 @@
 begin;
-select plan(46);
+select plan(74);
 
 -- 1. Table existence and RLS active tests (12 tests)
 select has_table('public', 'profiles', 'Profiles table exists');
@@ -313,6 +313,283 @@ set local "request.jwt.claim.sub" to 'c0000000-0000-0000-0000-000000000003';
 select is_empty(
   'select * from public.task_activities where task_id = ''11111111-1111-1111-1111-111111111111''',
   'Admin cannot select User A task activities'
+);
+
+-- 12. Schedule Blocks domain constraints, ownership, RLS, and FK behavior (11 tests)
+set local role postgres;
+
+-- Domain constraints
+select throws_ok(
+  $$insert into public.schedule_blocks (user_id, title, start_at, end_at) values ('a0000000-0000-0000-0000-000000000001', '   ', '2026-10-06 09:00:00+00', '2026-10-06 10:00:00+00')$$,
+  '23514',
+  NULL,
+  'Blank schedule block title is rejected'
+);
+
+select throws_ok(
+  $$insert into public.schedule_blocks (user_id, title, start_at, end_at) values ('a0000000-0000-0000-0000-000000000001', repeat('s', 501), '2026-10-06 09:00:00+00', '2026-10-06 10:00:00+00')$$,
+  '23514',
+  NULL,
+  'Schedule block title over 500 characters is rejected'
+);
+
+select throws_ok(
+  $$insert into public.schedule_blocks (user_id, title, start_at, end_at) values ('a0000000-0000-0000-0000-000000000001', 'Invalid Time Order', '2026-10-06 10:00:00+00', '2026-10-06 09:00:00+00')$$,
+  '23514',
+  NULL,
+  'Schedule block with end_at <= start_at is rejected'
+);
+
+-- Cross-owner task reference
+select throws_ok(
+  $$insert into public.schedule_blocks (user_id, task_id, title, start_at, end_at) values ('b0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Cross Owner Task Block', '2026-10-06 09:00:00+00', '2026-10-06 10:00:00+00')$$,
+  '23503',
+  NULL,
+  'Cross-owner task reference on schedule block is rejected'
+);
+
+-- Insert valid schedule block for User A
+insert into public.schedule_blocks (id, user_id, task_id, title, start_at, end_at)
+values ('44444444-4444-4444-4444-444444444441', 'a0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'User A Study Session', '2026-10-06 09:00:00+00', '2026-10-06 10:00:00+00')
+on conflict (id) do nothing;
+
+-- Updated_at trigger test
+update public.schedule_blocks set title = 'User A Study Session Renamed' where id = '44444444-4444-4444-4444-444444444441';
+select ok(
+  (select updated_at from public.schedule_blocks where id = '44444444-4444-4444-4444-444444444441') is not null,
+  'Updating schedule block sets updated_at'
+);
+
+-- RLS: User A can see their own schedule block
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select is(
+  (select count(*)::int from public.schedule_blocks where id = '44444444-4444-4444-4444-444444444441'),
+  1,
+  'User A can see their own schedule block'
+);
+
+-- RLS: User B cannot select User A schedule block
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+select is_empty(
+  'select * from public.schedule_blocks where id = ''44444444-4444-4444-4444-444444444441''',
+  'User B cannot select User A schedule block'
+);
+
+-- RLS: User B cannot update User A schedule block
+update public.schedule_blocks set title = 'Hacked Schedule' where id = '44444444-4444-4444-4444-444444444441';
+set local role postgres;
+select is(
+  (select title from public.schedule_blocks where id = '44444444-4444-4444-4444-444444444441'),
+  'User A Study Session Renamed',
+  'User B cannot update User A schedule block'
+);
+
+-- RLS: User B cannot delete User A schedule block
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+delete from public.schedule_blocks where id = '44444444-4444-4444-4444-444444444441';
+set local role postgres;
+select ok(
+  exists(select 1 from public.schedule_blocks where id = '44444444-4444-4444-4444-444444444441'),
+  'User B cannot delete User A schedule block'
+);
+
+-- Admin cross-user denial
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'c0000000-0000-0000-0000-000000000003';
+select is_empty(
+  'select * from public.schedule_blocks where id = ''44444444-4444-4444-4444-444444444441''',
+  'Admin cannot select User A schedule block'
+);
+
+-- Task deletion sets schedule_blocks.task_id to null and preserves the schedule block
+set local role postgres;
+insert into public.tasks (id, user_id, title)
+values ('55555555-5555-5555-5555-555555555555', 'a0000000-0000-0000-0000-000000000001', 'Task to Delete')
+on conflict (id) do nothing;
+
+insert into public.schedule_blocks (id, user_id, task_id, title, start_at, end_at)
+values ('55555555-5555-5555-5555-555555555551', 'a0000000-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555555', 'Linked to Deleted Task', '2026-10-06 14:00:00+00', '2026-10-06 15:00:00+00')
+on conflict (id) do nothing;
+
+delete from public.tasks where id = '55555555-5555-5555-5555-555555555555';
+
+select is(
+  (select task_id from public.schedule_blocks where id = '55555555-5555-5555-5555-555555555551'),
+  NULL,
+  'Deleting task sets schedule_blocks.task_id to null and preserves schedule block'
+);
+
+-- 13. Reminder integrity, lifecycle triggers, RLS, and reconciliation (17 tests)
+set local role postgres;
+
+-- Fixture task for User A with timed due date
+insert into public.tasks (id, user_id, title, status, due_at, due_date_kind)
+values ('66666666-6666-6666-6666-666666666661', 'a0000000-0000-0000-0000-000000000001', 'Task for Reminders', 'todo', now() + interval '3 hours', 'date_time')
+on conflict (id) do nothing;
+
+-- 1. Cross-owner reminder task reference rejected
+select throws_ok(
+  $$insert into public.reminders (user_id, task_id, remind_at, status) values ('b0000000-0000-0000-0000-000000000002', '66666666-6666-6666-6666-666666666661', now() + interval '1 hour', 'pending')$$,
+  '23503',
+  NULL,
+  'Cross-owner task reference on reminder is rejected'
+);
+
+-- 2. Valid absolute reminder insert succeeds
+select lives_ok(
+  $$insert into public.reminders (id, user_id, task_id, remind_at, status, reminder_kind) values ('77777777-7777-7777-7777-777777777771', 'a0000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666661', now() + interval '1 hour', 'pending', 'absolute')$$,
+  'Valid absolute reminder inserts successfully'
+);
+
+-- 3. Duplicate active original time rejected by partial unique index
+select throws_ok(
+  $$insert into public.reminders (user_id, task_id, remind_at, status, reminder_kind) values ('a0000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666661', (select remind_at from public.reminders where id = '77777777-7777-7777-7777-777777777771'), 'pending', 'absolute')$$,
+  '23505',
+  NULL,
+  'Duplicate active original time rejected by partial unique index'
+);
+
+-- 4. Two snoozed reminders can share effective_at (effective-time snooze collision allowed)
+insert into public.reminders (id, user_id, task_id, remind_at, status, reminder_kind, snoozed_until)
+values
+  ('77777777-7777-7777-7777-777777777772', 'a0000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666661', now() + interval '40 minutes', 'snoozed', 'absolute', now() + interval '50 minutes'),
+  ('77777777-7777-7777-7777-777777777773', 'a0000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666661', now() + interval '45 minutes', 'snoozed', 'absolute', now() + interval '50 minutes')
+on conflict (id) do nothing;
+
+select is(
+  (select count(*)::int from public.reminders where id in ('77777777-7777-7777-7777-777777777772', '77777777-7777-7777-7777-777777777773') and status = 'snoozed'),
+  2,
+  'Two independently snoozed reminders can share effective_at'
+);
+
+-- 5. Relative reminder requires timed due_date on task
+insert into public.tasks (id, user_id, title, status, due_at, due_date_kind)
+values ('66666666-6666-6666-6666-666666666662', 'a0000000-0000-0000-0000-000000000001', 'Date-only task', 'todo', now() + interval '1 day', 'date_only')
+on conflict (id) do nothing;
+
+select throws_ok(
+  $$insert into public.reminders (user_id, task_id, remind_at, status, reminder_kind, offset_minutes) values ('a0000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666662', now() + interval '1 hour', 'pending', 'relative_due', 30)$$,
+  '23514',
+  NULL,
+  'Relative reminder on task with date_only is rejected'
+);
+
+-- 6. Relative reminder auto-derives remind_at = due_at - offset_minutes
+insert into public.reminders (id, user_id, task_id, remind_at, status, reminder_kind, offset_minutes)
+values ('77777777-7777-7777-7777-777777777774', 'a0000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666661', now() + interval '10 hours', 'pending', 'relative_due', 30)
+on conflict (id) do nothing;
+
+select is(
+  (select remind_at from public.reminders where id = '77777777-7777-7777-7777-777777777774'),
+  (select due_at - interval '30 minutes' from public.tasks where id = '66666666-6666-6666-6666-666666666661'),
+  'Relative reminder derives remind_at as due_at - 30 minutes'
+);
+
+-- 7. Updating task due_at recalculates active relative reminder
+update public.tasks set due_at = now() + interval '5 hours' where id = '66666666-6666-6666-6666-666666666661';
+
+select is(
+  (select remind_at from public.reminders where id = '77777777-7777-7777-7777-777777777774'),
+  (select due_at - interval '30 minutes' from public.tasks where id = '66666666-6666-6666-6666-666666666661'),
+  'Updating task due_at recalculates active relative reminder remind_at'
+);
+
+-- 8. Absolute reminder remind_at never moves when task due_at changes
+select is(
+  (select status from public.reminders where id = '77777777-7777-7777-7777-777777777771'),
+  'pending',
+  'Absolute reminder remains pending and unchanged after task due_at change'
+);
+
+-- 9. Clearing task due_at dismisses active relative reminder
+update public.tasks set due_at = null, due_date_kind = 'date_only' where id = '66666666-6666-6666-6666-666666666661';
+
+select is(
+  (select status from public.reminders where id = '77777777-7777-7777-7777-777777777774'),
+  'dismissed',
+  'Clearing task due_at dismisses active relative reminder'
+);
+
+-- 10. Completing task dismisses pending/snoozed reminders
+update public.tasks set status = 'done' where id = '66666666-6666-6666-6666-666666666661';
+
+select is(
+  (select count(*)::int from public.reminders where task_id = '66666666-6666-6666-6666-666666666661' and status in ('pending', 'snoozed')),
+  0,
+  'Completing task dismisses all active reminders'
+);
+
+-- 11. Reopening task does NOT revive dismissed reminders
+update public.tasks set status = 'todo' where id = '66666666-6666-6666-6666-666666666661';
+
+select is(
+  (select count(*)::int from public.reminders where task_id = '66666666-6666-6666-6666-666666666661' and status = 'pending'),
+  0,
+  'Reopening task does not revive dismissed reminders'
+);
+
+-- 12. Deleting task cascades and deletes reminders
+delete from public.tasks where id = '66666666-6666-6666-6666-666666666661';
+
+select is_empty(
+  'select * from public.reminders where task_id = ''66666666-6666-6666-6666-666666666661''',
+  'Deleting task cascades and deletes all linked reminders'
+);
+
+-- Setup a reminder for RLS tests
+insert into public.tasks (id, user_id, title, status)
+values ('66666666-6666-6666-6666-666666666663', 'a0000000-0000-0000-0000-000000000001', 'Task for Reminder RLS', 'todo')
+on conflict (id) do nothing;
+
+insert into public.reminders (id, user_id, task_id, remind_at, status, reminder_kind)
+values ('77777777-7777-7777-7777-777777777775', 'a0000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666663', now() + interval '2 hours', 'pending', 'absolute')
+on conflict (id) do nothing;
+
+-- 13. RLS: User A can select own reminders
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+
+select is(
+  (select count(*)::int from public.reminders where id = '77777777-7777-7777-7777-777777777775'),
+  1,
+  'User A can select their own reminder'
+);
+
+-- 14. RLS: User B cannot select User A reminder
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+
+select is_empty(
+  'select * from public.reminders where id = ''77777777-7777-7777-7777-777777777775''',
+  'User B cannot select User A reminder'
+);
+
+-- 15. RLS: User B cannot update User A reminder
+update public.reminders set status = 'dismissed' where id = '77777777-7777-7777-7777-777777777775';
+set local role postgres;
+select is(
+  (select status from public.reminders where id = '77777777-7777-7777-7777-777777777775'),
+  'pending',
+  'User B cannot update User A reminder'
+);
+
+-- 16. RLS: User B cannot delete User A reminder
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+delete from public.reminders where id = '77777777-7777-7777-7777-777777777775';
+set local role postgres;
+select ok(
+  exists(select 1 from public.reminders where id = '77777777-7777-7777-7777-777777777775'),
+  'User B cannot delete User A reminder'
+);
+
+-- 17. RLS: Admin cannot select User A reminder
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'c0000000-0000-0000-0000-000000000003';
+select is_empty(
+  'select * from public.reminders where id = ''77777777-7777-7777-7777-777777777775''',
+  'Admin cannot select User A reminder'
 );
 
 select * from finish();

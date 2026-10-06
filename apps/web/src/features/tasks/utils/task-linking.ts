@@ -3,11 +3,12 @@
  * Format: <!-- tabdo_linked: ["id1", "id2"] -->
  */
 
-const LINKED_REGEX = /<!--\s*tabdo_linked:\s*(\[.*?\])\s*-->/
+const LINKED_METADATA_REGEX = /<!--\s*tabdo_linked:[\s\S]*?-->/gi
+const LINKED_EXTRACT_REGEX = /<!--\s*tabdo_linked:\s*(\[[\s\S]*?\])\s*-->/i
 
 export function extractLinkedTaskIds(description: string | null | undefined): string[] {
   if (!description) return []
-  const match = LINKED_REGEX.exec(description)
+  const match = LINKED_EXTRACT_REGEX.exec(description)
   if (!match || !match[1]) return []
   try {
     const parsed = JSON.parse(match[1])
@@ -22,7 +23,7 @@ export function extractLinkedTaskIds(description: string | null | undefined): st
 
 export function cleanDescriptionWithoutLinks(description: string | null | undefined): string {
   if (!description) return ''
-  return description.replace(LINKED_REGEX, '').trimEnd()
+  return description.replace(LINKED_METADATA_REGEX, '').trim()
 }
 
 export function embedLinkedTaskIds(

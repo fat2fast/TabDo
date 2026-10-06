@@ -1,19 +1,26 @@
 import React, { useMemo, useState } from 'react'
+import type { TaskChecklistItem } from '../utils/task-checklist'
 
-export interface TaskChecklistProps {
-  description: string
-  onChangeDescription: (newDesc: string) => void
-  disabled?: boolean
-}
+export type { TaskChecklistItem }
 
 export interface ChecklistItem {
   id: string
-  lineIndex: number
+  lineIndex?: number
   text: string
   completed: boolean
 }
 
+export interface TaskChecklistProps {
+  items?: TaskChecklistItem[]
+  onChangeItems?: (newItems: TaskChecklistItem[]) => void
+  description?: string
+  onChangeDescription?: (newDesc: string) => void
+  disabled?: boolean
+}
+
 export function TaskChecklist({
+  items: directItems,
+  onChangeItems,
   description,
   onChangeDescription,
   disabled = false,
@@ -21,9 +28,22 @@ export function TaskChecklist({
   const [newItemText, setNewItemText] = useState('')
   const [isAdding, setIsAdding] = useState(false)
 
-  // Parse checklist items from description lines
+  // Parse items either from directItems or legacy description lines
   const { items, completedCount, totalCount, percent } = useMemo(() => {
-    const lines = description.split('\n')
+    if (directItems !== undefined) {
+      const completed = directItems.filter((i) => i.completed).length
+      const total = directItems.length
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+      return {
+        items: directItems.map((i) => ({ ...i, lineIndex: 0 })),
+        completedCount: completed,
+        totalCount: total,
+        percent: pct,
+      }
+    }
+
+    // Legacy fallback from description
+    const lines = (description || '').split('\n')
     const list: ChecklistItem[] = []
 
     lines.forEach((line, index) => {
@@ -55,39 +75,59 @@ export function TaskChecklist({
       totalCount: total,
       percent: pct,
     }
-  }, [description])
+  }, [directItems, description])
 
   // Toggle item completed state
   const handleToggleItem = (item: ChecklistItem) => {
     if (disabled) return
-    const lines = description.split('\n')
-    const line = lines[item.lineIndex]
-    if (!line) return
 
-    const newPrefix = item.completed ? '- [ ] ' : '- [x] '
-    const content = item.completed
-      ? line.replace(/-\s*\[[xX]\]\s*/, '- [ ] ')
-      : line.replace(/-\s*\[\s*\]\s*/, '- [x] ')
+    if (directItems !== undefined && onChangeItems) {
+      const updated = directItems.map((i) =>
+        i.id === item.id ? { ...i, completed: !i.completed } : i
+      )
+      onChangeItems(updated)
+      return
+    }
 
-    lines[item.lineIndex] = content
-    onChangeDescription(lines.join('\n'))
+    // Legacy description fallback
+    if (description !== undefined && onChangeDescription && item.lineIndex !== undefined) {
+      const lines = description.split('\n')
+      const line = lines[item.lineIndex]
+      if (!line) return
+
+      const content = item.completed
+        ? line.replace(/-\s*\[[xX]\]\s*/, '- [ ] ')
+        : line.replace(/-\s*\[\s*\]\s*/, '- [x] ')
+
+      lines[item.lineIndex] = content
+      onChangeDescription(lines.join('\n'))
+    }
   }
 
   // Delete item
   const handleDeleteItem = (item: ChecklistItem) => {
     if (disabled) return
-    const lines = description.split('\n')
-    lines.splice(item.lineIndex, 1)
 
-    // Clean up empty Checklist header if no items remain
-    const remainingChecklist = lines.filter((l) => l.trim().startsWith('- [ ] ') || l.trim().startsWith('- [x] '))
-    if (remainingChecklist.length === 0) {
-      const cleaned = lines.filter((l) => l.trim() !== '### Checklist')
-      onChangeDescription(cleaned.join('\n').trim())
+    if (directItems !== undefined && onChangeItems) {
+      const updated = directItems.filter((i) => i.id !== item.id)
+      onChangeItems(updated)
       return
     }
 
-    onChangeDescription(lines.join('\n'))
+    // Legacy description fallback
+    if (description !== undefined && onChangeDescription && item.lineIndex !== undefined) {
+      const lines = description.split('\n')
+      lines.splice(item.lineIndex, 1)
+
+      const remainingChecklist = lines.filter((l) => l.trim().startsWith('- [ ] ') || l.trim().startsWith('- [x] '))
+      if (remainingChecklist.length === 0) {
+        const cleaned = lines.filter((l) => l.trim() !== '### Checklist')
+        onChangeDescription(cleaned.join('\n').trim())
+        return
+      }
+
+      onChangeDescription(lines.join('\n'))
+    }
   }
 
   // Add new checklist item
@@ -99,22 +139,37 @@ export function TaskChecklist({
     const trimmed = newItemText.trim()
     if (!trimmed || disabled) return
 
-    let newDesc = description.trim()
-    const hasChecklistHeader = /###\s*Checklist/i.test(newDesc)
-
-    if (totalCount === 0 && !hasChecklistHeader) {
-      if (newDesc) {
-        newDesc += `\n\n### Checklist\n- [ ] ${trimmed}`
-      } else {
-        newDesc = `### Checklist\n- [ ] ${trimmed}`
+    if (directItems !== undefined && onChangeItems) {
+      const newItem: TaskChecklistItem = {
+        id: `chk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        text: trimmed,
+        completed: false,
       }
-    } else {
-      newDesc += `\n- [ ] ${trimmed}`
+      onChangeItems([...directItems, newItem])
+      setNewItemText('')
+      setIsAdding(false)
+      return
     }
 
-    onChangeDescription(newDesc)
-    setNewItemText('')
-    setIsAdding(false)
+    // Legacy description fallback
+    if (description !== undefined && onChangeDescription) {
+      let newDesc = description.trim()
+      const hasChecklistHeader = /###\s*Checklist/i.test(newDesc)
+
+      if (totalCount === 0 && !hasChecklistHeader) {
+        if (newDesc) {
+          newDesc += `\n\n### Checklist\n- [ ] ${trimmed}`
+        } else {
+          newDesc = `### Checklist\n- [ ] ${trimmed}`
+        }
+      } else {
+        newDesc += `\n- [ ] ${trimmed}`
+      }
+
+      onChangeDescription(newDesc)
+      setNewItemText('')
+      setIsAdding(false)
+    }
   }
 
   return (

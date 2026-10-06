@@ -12,7 +12,7 @@ export function MarkdownDescriptionEditor({
   value,
   onChange,
   disabled = false,
-  placeholder = 'Thêm mô tả chi tiết, ghi chú, liên kết hoặc checklist (hỗ trợ Markdown)...',
+  placeholder = 'Thêm mô tả chi tiết, ghi chú, liên kết (hỗ trợ Markdown)...',
   id = 'task-desc-input',
 }: MarkdownDescriptionEditorProps) {
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
@@ -291,16 +291,6 @@ export function MarkdownDescriptionEditor({
           >
             1.
           </button>
-          <button
-            type="button"
-            className="md-tool-btn"
-            onClick={() => insertLinePrefix('- [ ] ')}
-            disabled={disabled || mode === 'preview'}
-            title="Mục checklist"
-            aria-label="Mục checklist"
-          >
-            ☑
-          </button>
 
           <span className="md-tool-divider" />
 
@@ -380,7 +370,7 @@ export function MarkdownDescriptionEditor({
 
       {/* Footer Info */}
       <div className="markdown-editor-footer">
-        <span className="md-hint">💡 Hỗ trợ Markdown & Checklist</span>
+        <span className="md-hint">💡 Hỗ trợ định dạng Markdown</span>
         <span className="md-char-count">{value.length}/10000</span>
       </div>
     </div>

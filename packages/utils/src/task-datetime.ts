@@ -1,4 +1,4 @@
-import { addDays, endOfDay, endOfWeek, isBefore, nextMonday, nextSaturday, startOfDay } from 'date-fns'
+import { addDays, endOfDay, endOfWeek, isBefore, nextMonday, nextSaturday, startOfDay, startOfWeek } from 'date-fns'
 import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 import type { DueDateKind } from '@tabdo/types'
 
@@ -252,4 +252,98 @@ export function getCalendarMonthGrid(
   }
 }
 
+/**
+ * Parses local date (YYYY-MM-DD) and time (HH:mm) strings in the specified IANA timeZone
+ * into a UTC ISO string.
+ *
+ * DST handling:
+ * - Spring-forward gap (nonexistent wall time): throws an Error rejecting the invalid time.
+ * - Fall-back fold (ambiguous/repeated wall time): chooses the earlier occurrence and reports its UTC offset.
+ */
+export function parseScheduleLocalDateTime(
+  dateStr: string,
+  timeStr: string,
+  timeZone: string
+): { instant: string; offsetString: string; isAmbiguous: boolean } {
+  const trimmedTime = timeStr.trim()
+  const wallClock = `${dateStr}T${trimmedTime}:00`
+  const initialDate = fromZonedTime(wallClock, timeZone)
+  const expectedWall = `${dateStr}T${trimmedTime}`
+  const roundTripWall = formatInTimeZone(initialDate, timeZone, "yyyy-MM-dd'T'HH:mm")
 
+  // Check for spring-forward nonexistent wall time
+  if (roundTripWall !== expectedWall) {
+    throw new Error(
+      `Nonexistent local time '${dateStr} ${trimmedTime}' in time zone '${timeZone}' due to daylight saving change.`
+    )
+  }
+
+  // Check for fall-back repeated wall time
+  const earlierCandidate = new Date(initialDate.getTime() - 3600000)
+  const laterCandidate = new Date(initialDate.getTime() + 3600000)
+  const isEarlierSameWall =
+    formatInTimeZone(earlierCandidate, timeZone, "yyyy-MM-dd'T'HH:mm") === expectedWall
+  const isLaterSameWall =
+    formatInTimeZone(laterCandidate, timeZone, "yyyy-MM-dd'T'HH:mm") === expectedWall
+
+  // We choose the earlier occurrence on fall-back
+  const finalDate = isEarlierSameWall ? earlierCandidate : initialDate
+  const offsetString = formatInTimeZone(finalDate, timeZone, 'xxx')
+  const isAmbiguous = isEarlierSameWall || isLaterSameWall
+
+  return {
+    instant: finalDate.toISOString(),
+    offsetString,
+    isAmbiguous,
+  }
+}
+
+/**
+ * Converts a UTC instant into local date (YYYY-MM-DD), local time (HH:mm), and UTC offset string (e.g. +07:00, -04:00).
+ */
+export function fromScheduleInstant(
+  instant: string | Date,
+  timeZone: string
+): { dateStr: string; timeStr: string; offsetString: string } {
+  const date = typeof instant === 'string' ? new Date(instant) : instant
+  const dateStr = formatInTimeZone(date, timeZone, 'yyyy-MM-dd')
+  const timeStr = formatInTimeZone(date, timeZone, 'HH:mm')
+  const offsetString = formatInTimeZone(date, timeZone, 'xxx')
+  return { dateStr, timeStr, offsetString }
+}
+
+/**
+ * Returns [start, end) UTC ISO boundaries for a local day (00:00:00.000 to next day 00:00:00.000).
+ */
+export function getVisibleRangeForDay(
+  referenceDate: Date | string,
+  timeZone: string
+): { startAt: string; endAt: string } {
+  const dateObj = typeof referenceDate === 'string' ? new Date(referenceDate) : referenceDate
+  const zoned = toZonedTime(dateObj, timeZone)
+  const localStart = startOfDay(zoned)
+  const localEnd = startOfDay(addDays(zoned, 1))
+
+  return {
+    startAt: fromZonedTime(localStart, timeZone).toISOString(),
+    endAt: fromZonedTime(localEnd, timeZone).toISOString(),
+  }
+}
+
+/**
+ * Returns [start, end) UTC ISO boundaries for a local Monday–Sunday week (Monday 00:00:00.000 to next Monday 00:00:00.000).
+ */
+export function getVisibleRangeForWeek(
+  referenceDate: Date | string,
+  timeZone: string
+): { startAt: string; endAt: string } {
+  const dateObj = typeof referenceDate === 'string' ? new Date(referenceDate) : referenceDate
+  const zoned = toZonedTime(dateObj, timeZone)
+  const localStart = startOfWeek(zoned, { weekStartsOn: 1 })
+  const localEnd = addDays(localStart, 7)
+
+  return {
+    startAt: fromZonedTime(localStart, timeZone).toISOString(),
+    endAt: fromZonedTime(localEnd, timeZone).toISOString(),
+  }
+}
