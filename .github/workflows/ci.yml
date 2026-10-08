@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_SUPABASE_URL: https://tabdo-ci.invalid
+      VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-public-publishable-key
       VITE_SUPABASE_ANON_KEY: ci-placeholder-public-anon-key
     steps:
       - name: Checkout

@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/admin-auth.ts'
+import { resolveSupabaseKeys } from '../_shared/supabase-keys.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,19 +22,18 @@ Deno.serve(async (req) => {
     )
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  const resolved = resolveSupabaseKeys()
+  if (!resolved.ok) {
     return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
+      JSON.stringify({ error: resolved.error }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
+  const { supabaseUrl, publishableKey, secretKey } = resolved.keys
+
   // 1. Authenticate caller with caller-scoped client
-  const callerClient = createClient(supabaseUrl, supabaseAnonKey, {
+  const callerClient = createClient(supabaseUrl, publishableKey, {
     global: { headers: { Authorization: authHeader } },
     auth: { persistSession: false, autoRefreshToken: false },
   })
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
   }
 
   // 4. Update password in Auth using service-role client
-  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  const serviceClient = createClient(supabaseUrl, secretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 

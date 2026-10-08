@@ -10,7 +10,7 @@ Tài liệu hướng dẫn này (runbook) bao gồm môi trường UAT (User Acc
 Phát triển local → main (mã nguồn mới nhất) → merge đã qua review vào uat → UAT Supabase → UAT Vercel
 ```
 
-Supabase là nguồn chân lý (source of truth) của môi trường UAT. GitHub Actions sẽ thực thi migrations, deploy Edge Function `admin-create-user`, sau đó build và deploy Web SPA. Cần phải tắt tính năng tự động deploy qua Git của Vercel đối với dự án UAT để tránh việc triển khai đi tắt, phá vỡ thứ tự này.
+Supabase là nguồn chân lý (source of truth) của môi trường UAT. GitHub Actions sẽ thực thi migrations, deploy các Supabase Edge Functions (`admin-create-user`, `admin-users`, `complete-initial-password`), sau đó build và deploy Web SPA. Cần phải tắt tính năng tự động deploy qua Git của Vercel đối với dự án UAT để tránh việc triển khai đi tắt, phá vỡ thứ tự này.
 
 ## Điều kiện tiên quyết (Prerequisites)
 
@@ -23,8 +23,8 @@ Supabase là nguồn chân lý (source of truth) của môi trường UAT. GitHu
   - `VERCEL_TOKEN`
   - `VERCEL_ORG_ID`
   - `VERCEL_PROJECT_ID`
-- Giới hạn phạm vi (scope) của Supabase access token vào riêng dự án UAT nếu có thể, và Vercel token vào team/project UAT. Tuyệt đối không thêm `SUPABASE_SERVICE_ROLE_KEY` vào GitHub hoặc Vercel.
-- Cấu hình dự án Vercel UAT với Root Directory là `apps/web`, Build Command là `pnpm build` (package này thực thi `tsc -b && vite build`), và Output Directory là `dist`. Chỉ thiết lập các biến môi trường client công khai tại đây: `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY`. Tắt tính năng tự động deploy qua Git; GitHub Actions là đường dẫn triển khai duy nhất.
+- Giới hạn phạm vi (scope) của Supabase access token vào riêng dự án UAT nếu có thể, và Vercel token vào team/project UAT. Tuyệt đối không thêm `SUPABASE_SECRET_KEY` hoặc `SUPABASE_SERVICE_ROLE_KEY` vào GitHub hoặc Vercel.
+- Cấu hình dự án Vercel UAT với Root Directory là `apps/web`, Build Command là `pnpm build` (package này thực thi `tsc -b && vite build`), và Output Directory là `dist`. Chỉ thiết lập các biến môi trường client công khai tại đây: `VITE_SUPABASE_URL` và `VITE_SUPABASE_PUBLISHABLE_KEY` (hoặc fallback tương thích ngược `VITE_SUPABASE_ANON_KEY`). Tắt tính năng tự động deploy qua Git; GitHub Actions là đường dẫn triển khai duy nhất.
 - Trong Supabase UAT Dashboard → Authentication → URL Configuration, đặt Site URL thành hostname UAT ổn định và chỉ thêm các URL chuyển hướng (redirect URLs) chính xác được ứng dụng Web sử dụng. Giữ các URL local trong `supabase/config.toml` phục vụ phát triển cục bộ.
 - Tạo và bảo vệ (protect) nhánh `uat` từ một commit đã được review trên nhánh `main`. Merge các cập nhật từ `main` thông qua quy trình review và kiểm tra CI của repository.
 
@@ -34,7 +34,7 @@ Supabase là nguồn chân lý (source of truth) của môi trường UAT. GitHu
 2. Merge thay đổi vào nhánh `main` sau khi đã hoàn thành review và vượt qua CI.
 3. Tạo và merge bản cập nhật đã được review từ `main` vào `uat`. Khi push vào `uat`, workflow `.github/workflows/deploy-uat.yml` sẽ được kích hoạt; nếu kích hoạt thủ công (manual dispatch), cũng phải chọn nhánh `uat`.
 4. Workflow sẽ chạy `pnpm install --frozen-lockfile`, lint, typecheck, tests, và build trước khi cấp quyền truy cập các deployment credentials.
-5. Deploy job liên kết với dự án Supabase thông qua `SUPABASE_UAT_PROJECT_REF`, in ra lịch sử migration, áp dụng các migration đang chờ xử lý bằng `supabase db push`, và deploy Edge Function `admin-create-user`. Job này không seed database và không sửa đổi lịch sử migration (`migration repair`).
+5. Deploy job liên kết với dự án Supabase thông qua `SUPABASE_UAT_PROJECT_REF`, in ra lịch sử migration, áp dụng các migration đang chờ xử lý bằng `supabase db push`, và deploy các Edge Functions (`admin-create-user`, `admin-users`, `complete-initial-password`). Job này không seed database và không sửa đổi lịch sử migration (`migration repair`).
 6. Tiếp theo, job lấy cấu hình môi trường production của dự án Vercel UAT, build dự án được cấu hình với Root Directory `apps/web`, và deploy artifact đã build sẵn dưới dạng một bản production deployment cho dự án Vercel UAT độc lập. Giá trị của các biến Supabase công khai được lấy từ cấu hình của chính dự án Vercel đó.
 7. Xem lại tóm tắt workflow để kiểm tra commit, deployment URL, và kết quả các bước thực hiện. Truy cập `/login` cùng một liên kết được bảo vệ như `/tasks`; chỉ đăng nhập bằng tài khoản test UAT và xác nhận rằng các network request từ trình duyệt sử dụng đúng hostname của Supabase UAT.
 

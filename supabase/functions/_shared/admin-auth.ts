@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from 'jsr:@supabase/supabase-js@2'
+import { resolveSupabaseKeys } from './supabase-keys.ts'
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,6 +22,8 @@ export type AdminAuthResult =
       serviceClient: SupabaseClient
       callerClient: SupabaseClient
       supabaseUrl: string
+      publishableKey: string
+      secretKey: string
       supabaseAnonKey: string
       supabaseServiceRoleKey: string
     }
@@ -41,22 +44,21 @@ export async function verifyAdminCaller(req: Request): Promise<AdminAuthResult> 
     }
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  const resolved = resolveSupabaseKeys()
+  if (!resolved.ok) {
     return {
       ok: false,
       response: new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
+        JSON.stringify({ error: resolved.error }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       ),
     }
   }
 
-  // 1. Authenticate caller with caller-scoped anon client
-  const callerClient = createClient(supabaseUrl, supabaseAnonKey, {
+  const { supabaseUrl, publishableKey, secretKey } = resolved.keys
+
+  // 1. Authenticate caller with caller-scoped publishable client
+  const callerClient = createClient(supabaseUrl, publishableKey, {
     global: { headers: { Authorization: authHeader } },
     auth: { persistSession: false, autoRefreshToken: false },
   })
@@ -99,7 +101,7 @@ export async function verifyAdminCaller(req: Request): Promise<AdminAuthResult> 
   }
 
   // 3. Construct service client only after caller verification succeeds
-  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  const serviceClient = createClient(supabaseUrl, secretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
@@ -110,7 +112,9 @@ export async function verifyAdminCaller(req: Request): Promise<AdminAuthResult> 
     serviceClient,
     callerClient,
     supabaseUrl,
-    supabaseAnonKey,
-    supabaseServiceRoleKey,
+    publishableKey,
+    secretKey,
+    supabaseAnonKey: publishableKey,
+    supabaseServiceRoleKey: secretKey,
   }
 }

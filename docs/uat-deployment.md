@@ -10,7 +10,7 @@ This runbook covers the isolated TabDo User Acceptance Testing (UAT) environment
 Local development → main (latest source) → reviewed merge to uat → UAT Supabase → UAT Vercel
 ```
 
-Supabase is the UAT source of truth. GitHub Actions applies migrations, deploys the `admin-create-user` Edge Function, then builds and deploys the Web SPA. Vercel's automatic Git deployments must be disabled for the UAT project so they cannot bypass this order.
+Supabase is the UAT source of truth. GitHub Actions applies migrations, deploys the Supabase Edge Functions (`admin-create-user`, `admin-users`, `complete-initial-password`), then builds and deploys the Web SPA. Vercel's automatic Git deployments must be disabled for the UAT project so they cannot bypass this order.
 
 ## Prerequisites
 
@@ -23,8 +23,8 @@ Supabase is the UAT source of truth. GitHub Actions applies migrations, deploys 
   - `VERCEL_TOKEN`
   - `VERCEL_ORG_ID`
   - `VERCEL_PROJECT_ID`
-- Scope the Supabase access token to the UAT project where possible, and the Vercel token to the UAT team/project. Do not add `SUPABASE_SERVICE_ROLE_KEY` to GitHub or Vercel.
-- Configure the Vercel UAT project Root Directory as `apps/web`, Build Command as `pnpm build` (the package runs `tsc -b && vite build`), and Output Directory as `dist`. Set only the UAT public client variables there: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Disable automatic Git deployments; GitHub Actions is the only deployment path.
+- Scope the Supabase access token to the UAT project where possible, and the Vercel token to the UAT team/project. Do not add `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` to GitHub or Vercel.
+- Configure the Vercel UAT project Root Directory as `apps/web`, Build Command as `pnpm build` (the package runs `tsc -b && vite build`), and Output Directory as `dist`. Set only the UAT public client variables there: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (or legacy `VITE_SUPABASE_ANON_KEY`). Disable automatic Git deployments; GitHub Actions is the only deployment path.
 - In Supabase UAT Dashboard → Authentication → URL Configuration, set Site URL to the stable UAT hostname and add only the exact UAT redirect URLs used by the Web app. Keep local URLs in `supabase/config.toml` for local development.
 - Create and protect the `uat` branch from a reviewed `main` commit. Merge updates from `main` through the repository's review and CI policy.
 
@@ -34,7 +34,7 @@ Supabase is the UAT source of truth. GitHub Actions applies migrations, deploys 
 2. Merge the change into `main` after review and CI.
 3. Open and merge a reviewed update from `main` into `uat`. A push to `uat` starts `.github/workflows/deploy-uat.yml`; a manual dispatch must also select the `uat` branch.
 4. The workflow runs `pnpm install --frozen-lockfile`, lint, typecheck, tests, and builds before deployment credentials are made available.
-5. The deploy job links the Supabase project using `SUPABASE_UAT_PROJECT_REF`, prints migration history, applies pending migrations with `supabase db push`, and deploys `admin-create-user`. It does not seed the database or repair migration history.
+5. The deploy job links the Supabase project using `SUPABASE_UAT_PROJECT_REF`, prints migration history, applies pending migrations with `supabase db push`, and deploys Edge Functions (`admin-create-user`, `admin-users`, `complete-initial-password`). It does not seed the database or repair migration history.
 6. It then pulls the UAT Vercel project's production-environment settings, builds the project configured with Root Directory `apps/web`, and deploys the prebuilt artifact as a production deployment of the isolated UAT Vercel project. The values of public Supabase variables come from that Vercel project's settings.
 7. Review the workflow summary for the commit, deployment URL, and step outcomes. Visit `/login` and a protected deep link such as `/tasks`; sign in only with a UAT test account and confirm browser requests use the UAT Supabase hostname.
 

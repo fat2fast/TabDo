@@ -94,9 +94,9 @@ Normal user account creation is restricted to administrators and performed throu
 To initialize or repair the first administrator account in an environment:
 
 - **Script**: `scripts/bootstrap-admin.ts` (`pnpm bootstrap:admin`).
-- **Configuration**: Uses `.env.bootstrap` (containing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TABDO_ADMIN_EMAIL`, `TABDO_ADMIN_PASSWORD`).
+- **Configuration**: Uses `.env.bootstrap` (containing `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (or legacy `SUPABASE_SERVICE_ROLE_KEY`), `TABDO_ADMIN_EMAIL`, `TABDO_ADMIN_PASSWORD`).
 - **Idempotence**: Finds the configured admin by email. Creates it if missing, or updates its profile to `role = 'admin'` if already present. Multiple runs succeed and output `admin verified`.
-- **Security**: Service role keys and passwords are never printed or committed.
+- **Security**: Secret/service-role keys and passwords are never printed or committed.
 
 ## 11. Local Verification Commands
 
