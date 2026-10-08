@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useCategories } from '../hooks/use-categories'
 import { useTaskMutations } from '../hooks/use-task-mutations'
 import { useConfirm } from '../../../components/ui'
+import { useI18n } from '../../i18n/i18n-provider'
 import type { Category } from '../types'
 
 export interface CategoryManagerProps {
@@ -24,6 +25,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
   const { createCategoryMutation, updateCategoryMutation, deleteCategoryMutation } =
     useTaskMutations()
   const confirm = useConfirm()
+  const { t } = useI18n()
 
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(PRESET_COLORS[0])
@@ -39,7 +41,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
     setErrorMsg(null)
     const trimmed = newName.trim()
     if (!trimmed) {
-      setErrorMsg('Tên danh mục không được để trống.')
+      setErrorMsg(t('categories.nameRequired'))
       return
     }
 
@@ -50,7 +52,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
       })
       setNewName('')
     } catch (err: any) {
-      setErrorMsg(err.message || 'Không thể tạo danh mục.')
+      setErrorMsg(err.message || t('categories.createError'))
     }
   }
 
@@ -71,7 +73,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
     setErrorMsg(null)
     const trimmed = editName.trim()
     if (!trimmed) {
-      setErrorMsg('Tên danh mục không được để trống.')
+      setErrorMsg(t('categories.nameRequired'))
       return
     }
 
@@ -82,20 +84,22 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
       })
       cancelEdit()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Không thể cập nhật danh mục.')
+      setErrorMsg(err.message || t('categories.updateError'))
     }
   }
 
   const handleDelete = async (id: string, name: string) => {
     const confirmed = await confirm({
-      title: 'Xóa danh mục?',
+      title: t('categories.deleteConfirmTitle'),
       message: (
         <span>
-          Bạn có chắc chắn muốn xóa danh mục <strong>"{name}"</strong>? Các công việc thuộc danh mục này sẽ được chuyển thành <em>"Không phân loại"</em> và KHÔNG bị xóa.
+          {t('categories.deleteConfirmMessagePart1')}{' '}
+          <strong>"{name}"</strong>
+          {t('categories.deleteConfirmMessagePart2')}
         </span>
       ),
-      confirmText: 'Xóa danh mục',
-      cancelText: 'Hủy',
+      confirmText: t('categories.deleteConfirmButton'),
+      cancelText: t('common.cancel'),
       variant: 'danger',
     })
     if (!confirmed) {
@@ -105,7 +109,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
     try {
       await deleteCategoryMutation.mutateAsync(id)
     } catch (err: any) {
-      setErrorMsg(err.message || 'Không thể xóa danh mục.')
+      setErrorMsg(err.message || t('categories.deleteError'))
     }
   }
 
@@ -118,7 +122,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
         aria-labelledby="category-manager-title"
       >
         <div className="modal-header">
-          <h3 id="category-manager-title">Quản lý danh mục</h3>
+          <h3 id="category-manager-title">{t('categories.title')}</h3>
           <button type="button" className="modal-close-btn" onClick={onClose}>
             &times;
           </button>
@@ -132,12 +136,14 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
 
         <form onSubmit={handleCreate} className="category-create-form">
           <div className="form-group">
-            <label htmlFor="new-cat-name" className="category-section-label">Thêm danh mục mới:</label>
+            <label htmlFor="new-cat-name" className="category-section-label">
+              {t('categories.addSectionLabel')}
+            </label>
             <div className="category-input-group">
               <input
                 id="new-cat-name"
                 type="text"
-                placeholder="Nhập tên danh mục (ví dụ: Công việc, Cá nhân...)"
+                placeholder={t('categories.inputPlaceholder')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 disabled={createCategoryMutation.isPending}
@@ -148,11 +154,11 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
                 className="btn-primary category-add-btn"
                 disabled={createCategoryMutation.isPending || !newName.trim()}
               >
-                Thêm
+                {t('categories.addButton')}
               </button>
             </div>
             <div className="category-color-picker-row">
-              <span className="color-picker-label">Màu sắc:</span>
+              <span className="color-picker-label">{t('categories.colorLabel')}</span>
               <div className="color-presets">
                 {PRESET_COLORS.map((color) => (
                   <button
@@ -161,7 +167,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
                     className={`color-dot-btn ${newColor === color ? 'selected' : ''}`}
                     style={{ backgroundColor: color }}
                     onClick={() => setNewColor(color)}
-                    aria-label={`Chọn màu ${color}`}
+                    aria-label={`${t('categories.selectColorAria')} ${color}`}
                   />
                 ))}
               </div>
@@ -170,13 +176,15 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
         </form>
 
         <div className="category-list-section">
-          <h4 className="category-section-label">Danh sách danh mục ({categories.length})</h4>
+          <h4 className="category-section-label">
+            {t('categories.listSectionLabel')} ({categories.length})
+          </h4>
           {isLoading ? (
-            <div className="category-loading">Đang tải danh mục...</div>
+            <div className="category-loading">{t('categories.loading')}</div>
           ) : categories.length === 0 ? (
             <div className="category-empty-state">
               <span className="empty-icon">📁</span>
-              <p>Chưa có danh mục nào. Tạo danh mục phía trên để phân loại công việc dễ dàng hơn.</p>
+              <p>{t('categories.emptyState')}</p>
             </div>
           ) : (
             <ul className="category-list">
@@ -192,7 +200,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
                             className="category-edit-input"
-                            placeholder="Tên danh mục..."
+                            placeholder={t('categories.editPlaceholder')}
                             autoFocus
                           />
                           <div className="category-edit-btns">
@@ -201,15 +209,19 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
                               className="btn-primary btn-save-sm"
                               onClick={() => handleUpdate(cat.id)}
                             >
-                              Lưu
+                              {t('common.save')}
                             </button>
-                            <button type="button" className="btn-secondary btn-cancel-sm" onClick={cancelEdit}>
-                              Hủy
+                            <button
+                              type="button"
+                              className="btn-secondary btn-cancel-sm"
+                              onClick={cancelEdit}
+                            >
+                              {t('common.cancel')}
                             </button>
                           </div>
                         </div>
                         <div className="category-edit-color-row">
-                          <span className="color-picker-label">Đổi màu:</span>
+                          <span className="color-picker-label">{t('categories.changeColorLabel')}</span>
                           <div className="color-presets">
                             {PRESET_COLORS.map((color) => (
                               <button
@@ -218,7 +230,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
                                 className={`color-dot-btn ${editColor === color ? 'selected' : ''}`}
                                 style={{ backgroundColor: color }}
                                 onClick={() => setEditColor(color)}
-                                aria-label={`Chọn màu ${color}`}
+                                aria-label={`${t('categories.selectColorAria')} ${color}`}
                               />
                             ))}
                           </div>
@@ -238,8 +250,8 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
                             type="button"
                             className="btn-icon"
                             onClick={() => startEdit(cat)}
-                            title="Sửa tên"
-                            aria-label="Sửa danh mục"
+                            title={t('categories.editTooltip')}
+                            aria-label={t('categories.editTooltip')}
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
@@ -249,8 +261,8 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
                             type="button"
                             className="btn-icon-danger"
                             onClick={() => handleDelete(cat.id, cat.name)}
-                            title="Xóa danh mục"
-                            aria-label="Xóa danh mục"
+                            title={t('categories.deleteTooltip')}
+                            aria-label={t('categories.deleteTooltip')}
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="3 6 5 6 21 6" />

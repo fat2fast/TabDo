@@ -16,7 +16,10 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
   // Apply smart view predicates
   switch (input.view) {
     case 'inbox': {
-      query = query.neq('status', 'done').is('due_at', null)
+      // 'All Tasks' view: displays all tasks without restricting due_at
+      if (!input.status) {
+        query = query.neq('status', 'done')
+      }
       break
     }
     case 'today': {
@@ -48,6 +51,15 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
       query = query.eq('status', 'done')
       break
     }
+  }
+
+  // Scope filter (e.g. Unorganized / No due date / Uncategorized)
+  if (input.scope === 'unorganized') {
+    query = query.or('category_id.is.null,due_at.is.null')
+  } else if (input.scope === 'no_due') {
+    query = query.is('due_at', null)
+  } else if (input.scope === 'uncategorized') {
+    query = query.is('category_id', null)
   }
 
   // Filter overrides if provided

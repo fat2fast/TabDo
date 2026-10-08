@@ -1,5 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
+import { useI18n } from '../../i18n/i18n-provider'
 import type { TaskView } from '../types'
 
 export interface TaskViewHeaderProps {
@@ -7,48 +8,64 @@ export interface TaskViewHeaderProps {
   onOpenCategoryManager: () => void
 }
 
-const VIEW_METADATA: Record<TaskView, { title: string; subtitle: string; icon: string }> = {
-  inbox: {
-    title: 'Hộp thư đến (Inbox)',
-    subtitle: 'Công việc mới chưa phân loại hoặc chưa có hạn chót',
-    icon: '📥',
-  },
-  today: {
-    title: 'Hôm nay (Today)',
-    subtitle: 'Các công việc cần sự chú ý trong ngày hôm nay',
-    icon: '☀️',
-  },
-  upcoming: {
-    title: 'Sắp tới (Upcoming)',
-    subtitle: 'Các công việc có hạn chót sau hôm nay',
-    icon: '📅',
-  },
-  overdue: {
-    title: 'Quá hạn (Overdue)',
-    subtitle: 'Các công việc chưa hoàn thành đã quá hạn chót',
-    icon: '⚠️',
-  },
-  completed: {
-    title: 'Đã hoàn thành (Completed)',
-    subtitle: 'Lịch sử các công việc bạn đã hoàn thành gần đây',
-    icon: '✅',
-  },
+const VIEW_ICONS: Record<TaskView, string> = {
+  inbox: '📋',
+  today: '☀️',
+  upcoming: '📅',
+  overdue: '⚠️',
+  completed: '✅',
 }
 
 export function TaskViewHeader({
   currentView,
   onOpenCategoryManager,
 }: TaskViewHeaderProps) {
-  const meta = VIEW_METADATA[currentView] || VIEW_METADATA.inbox
+  const { t } = useI18n()
+
+  const getTitle = (view: TaskView) => {
+    switch (view) {
+      case 'inbox':
+        return t('tasks.viewInboxTitle')
+      case 'today':
+        return t('tasks.viewTodayTitle')
+      case 'upcoming':
+        return t('tasks.viewUpcomingTitle')
+      case 'overdue':
+        return t('tasks.viewOverdueTitle')
+      case 'completed':
+        return t('tasks.viewCompletedTitle')
+      default:
+        return t('tasks.viewInboxTitle')
+    }
+  }
+
+  const getSubtitle = (view: TaskView) => {
+    switch (view) {
+      case 'inbox':
+        return t('tasks.viewInboxSubtitle')
+      case 'today':
+        return t('tasks.viewTodaySubtitle')
+      case 'upcoming':
+        return t('tasks.viewUpcomingSubtitle')
+      case 'overdue':
+        return t('tasks.viewOverdueSubtitle')
+      case 'completed':
+        return t('tasks.viewCompletedSubtitle')
+      default:
+        return t('tasks.viewInboxSubtitle')
+    }
+  }
+
+  const icon = VIEW_ICONS[currentView] || VIEW_ICONS.inbox
 
   return (
     <div className="task-view-header" data-testid="task-view-header">
       <div className="header-top-row">
         <div className="view-title-block">
           <h2>
-            <span className="view-icon">{meta.icon}</span> {meta.title}
+            <span className="view-icon">{icon}</span> {getTitle(currentView)}
           </h2>
-          <p className="view-subtitle">{meta.subtitle}</p>
+          <p className="view-subtitle">{getSubtitle(currentView)}</p>
         </div>
 
         <button
@@ -68,7 +85,7 @@ export function TaskViewHeader({
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
-          Quản lý danh mục
+          {t('tasks.manageCategories')}
         </button>
       </div>
 
@@ -79,7 +96,7 @@ export function TaskViewHeader({
             `view-tab ${isActive || currentView === 'inbox' ? 'active' : ''}`
           }
         >
-          Inbox
+          {t('tasks.tabInbox')}
         </NavLink>
         <NavLink
           to="/tasks/today"
@@ -87,7 +104,7 @@ export function TaskViewHeader({
             `view-tab ${isActive ? 'active' : ''}`
           }
         >
-          Hôm nay
+          {t('tasks.tabToday')}
         </NavLink>
         <NavLink
           to="/tasks/upcoming"
@@ -95,7 +112,7 @@ export function TaskViewHeader({
             `view-tab ${isActive ? 'active' : ''}`
           }
         >
-          Sắp tới
+          {t('tasks.tabUpcoming')}
         </NavLink>
         <NavLink
           to="/tasks/overdue"
@@ -103,7 +120,7 @@ export function TaskViewHeader({
             `view-tab ${isActive ? 'active' : ''}`
           }
         >
-          Quá hạn
+          {t('tasks.tabOverdue')}
         </NavLink>
         <NavLink
           to="/tasks/completed"
@@ -111,7 +128,7 @@ export function TaskViewHeader({
             `view-tab ${isActive ? 'active' : ''}`
           }
         >
-          Đã xong
+          {t('tasks.tabCompleted')}
         </NavLink>
       </nav>
     </div>

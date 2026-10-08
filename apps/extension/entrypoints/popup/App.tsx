@@ -167,6 +167,58 @@ export function App() {
     )
   }
 
+  if (state?.status === 'inactive') {
+    return (
+      <div className="tabdo-popup-blocked" style={{ padding: '1.5rem', textAlign: 'center' }}>
+        <h3 style={{ color: 'var(--tabdo-danger, #ef4444)', marginBottom: '0.5rem' }}>Tài khoản bị vô hiệu hóa</h3>
+        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
+          Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.
+        </p>
+        <button
+          type="button"
+          className="tabdo-btn tabdo-btn-secondary"
+          onClick={handleSignOut}
+          disabled={isSubmitting}
+        >
+          Đăng xuất
+        </button>
+      </div>
+    )
+  }
+
+  if (state?.status === 'password_change_required') {
+    return (
+      <div className="tabdo-popup-blocked" style={{ padding: '1.5rem', textAlign: 'center' }}>
+        <h3 style={{ color: 'var(--tabdo-primary, #4f46e5)', marginBottom: '0.5rem' }}>Cần đổi mật khẩu</h3>
+        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
+          Bạn cần đổi mật khẩu khởi tạo trên Web trước khi tiếp tục sử dụng TabDo Extension.
+        </p>
+        <button
+          type="button"
+          className="tabdo-btn tabdo-btn-primary"
+          onClick={() => {
+            const webUrl = (import.meta.env.VITE_TABDO_WEB_URL || 'http://localhost:5173').replace(/\/+$/, '')
+            if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+              chrome.tabs.create({ url: `${webUrl}/change-password` })
+            }
+          }}
+          style={{ width: '100%', marginBottom: '0.5rem' }}
+        >
+          Đổi mật khẩu trên Web
+        </button>
+        <button
+          type="button"
+          className="tabdo-btn tabdo-btn-secondary"
+          onClick={handleSignOut}
+          disabled={isSubmitting}
+          style={{ width: '100%' }}
+        >
+          Đăng xuất
+        </button>
+      </div>
+    )
+  }
+
   if (!state || state.status === 'unauthenticated' || !state.user) {
     return (
       <SignInView

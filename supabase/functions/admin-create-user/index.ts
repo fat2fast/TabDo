@@ -1,9 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, verifyAdminCaller } from '../_shared/admin-auth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,54 +12,14 @@ Deno.serve(async (req) => {
     )
   }
 
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized: Missing or invalid Authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  const authResult = await verifyAdminCaller(req)
+  if (!authResult.ok) {
+    return authResult.response
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const { serviceClient } = authResult
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  // 1. Authenticate caller with caller-scoped client
-  const callerClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  })
-
-  const { data: { user: callerUser }, error: userError } = await callerClient.auth.getUser()
-  if (userError || !callerUser) {
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized: Invalid token' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  // 2. Authorize caller - must be admin
-  const { data: callerProfile, error: profileError } = await callerClient
-    .from('profiles')
-    .select('role')
-    .eq('id', callerUser.id)
-    .maybeSingle()
-
-  if (profileError || !callerProfile || callerProfile.role !== 'admin') {
-    return new Response(
-      JSON.stringify({ error: 'Forbidden: Admin access required' }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  // 3. Parse and validate body
+  // 1. Parse and validate body
   let body: any
   try {
     body = await req.json()
@@ -109,28 +64,45 @@ Deno.serve(async (req) => {
 
   const cleanDisplayName = typeof displayName === 'string' ? displayName.trim() : null
 
-  if (typeof initialPassword !== 'string' || initialPassword.length < 8) {
-    return new Response(
-      JSON.stringify({ error: 'Initial password must be at least 8 characters' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  // Resolve password: from body or from deployment secret
+  let resolvedPassword = ''
+  if (typeof initialPassword === 'string' && initialPassword.length > 0) {
+    if (initialPassword.length < 8) {
+      return new Response(
+        JSON.stringify({ error: 'Initial password must be at least 8 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    resolvedPassword = initialPassword
+  } else {
+    const defaultPassword = Deno.env.get('TABDO_DEFAULT_USER_PASSWORD')
+    if (!defaultPassword || defaultPassword.length < 8) {
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    resolvedPassword = defaultPassword
   }
 
-  // 4. Create user with server-only service-role client
-  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  })
-
+  // 2. Create user with server-only service-role client
   const { data: createdData, error: createError } = await serviceClient.auth.admin.createUser({
     email: trimmedEmail,
-    password: initialPassword,
+    password: resolvedPassword,
     email_confirm: true,
-    user_metadata: cleanDisplayName ? { displayName: cleanDisplayName } : {}
+    user_metadata: {
+      ...(cleanDisplayName ? { displayName: cleanDisplayName } : {}),
+      mustChangePassword: true,
+    },
   })
 
   if (createError) {
     const errorMsg = createError.message.toLowerCase()
-    if (errorMsg.includes('already registered') || errorMsg.includes('already exists') || createError.status === 422) {
+    if (
+      errorMsg.includes('already registered') ||
+      errorMsg.includes('already exists') ||
+      createError.status === 422
+    ) {
       return new Response(
         JSON.stringify({ error: 'A user with this email address already exists.' }),
         { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -149,13 +121,21 @@ Deno.serve(async (req) => {
     )
   }
 
-  // 5. Ensure created profile role is explicitly 'user'
+  const userId = createdData.user.id
+
+  // 3. Ensure created profile is active, forced to change password, and role is strictly 'user'
   const { error: updateError } = await serviceClient
     .from('profiles')
-    .update({ role: 'user' })
-    .eq('id', createdData.user.id)
+    .update({
+      role: 'user',
+      is_active: true,
+      must_change_password: true,
+    })
+    .eq('id', userId)
 
   if (updateError) {
+    // Compensate: Delete user account to prevent orphaned profile/auth mismatches
+    await serviceClient.auth.admin.deleteUser(userId).catch(() => {})
     return new Response(
       JSON.stringify({ error: 'Failed to configure user profile' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -164,11 +144,18 @@ Deno.serve(async (req) => {
 
   const { data: verifiedProfile, error: verifyError } = await serviceClient
     .from('profiles')
-    .select('id, role, display_name')
-    .eq('id', createdData.user.id)
+    .select('id, role, display_name, is_active, must_change_password')
+    .eq('id', userId)
     .maybeSingle()
 
-  if (verifyError || !verifiedProfile || verifiedProfile.role !== 'user') {
+  if (
+    verifyError ||
+    !verifiedProfile ||
+    verifiedProfile.role !== 'user' ||
+    verifiedProfile.must_change_password !== true
+  ) {
+    // Compensate
+    await serviceClient.auth.admin.deleteUser(userId).catch(() => {})
     return new Response(
       JSON.stringify({ error: 'Failed to verify created user profile guarantee' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -180,7 +167,9 @@ Deno.serve(async (req) => {
       id: createdData.user.id,
       email: createdData.user.email,
       displayName: verifiedProfile.display_name ?? cleanDisplayName,
-      role: 'user'
+      role: 'user',
+      isActive: true,
+      mustChangePassword: true,
     }),
     { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )

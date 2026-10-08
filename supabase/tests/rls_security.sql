@@ -1,5 +1,5 @@
 begin;
-select plan(74);
+select plan(89);
 
 -- 1. Table existence and RLS active tests (12 tests)
 select has_table('public', 'profiles', 'Profiles table exists');
@@ -590,6 +590,154 @@ set local "request.jwt.claim.sub" to 'c0000000-0000-0000-0000-000000000003';
 select is_empty(
   'select * from public.reminders where id = ''77777777-7777-7777-7777-777777777775''',
   'Admin cannot select User A reminder'
+);
+
+-- 18. Phase 2 Account policies & update_my_profile with locale
+-- User A updates locale to en
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select public.update_my_profile(null, null, 'en');
+select is(
+  (select locale from public.profiles where id = 'a0000000-0000-0000-0000-000000000001'),
+  'en',
+  'User A can update profile locale to en'
+);
+
+-- User A invalid locale throws error
+select throws_ok(
+  $$select public.update_my_profile(null, null, 'invalid_locale')$$,
+  'Invalid locale: must be vi or en',
+  'Updating profile with invalid locale throws error'
+);
+
+-- Setup Inactive User D, Forced User E, and Multi-task User F
+set local role postgres;
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+values
+  ('d0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'userd@tabdo.local', crypt('Password123!', gen_salt('bf')), now(), now(), now()),
+  ('e0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'usere@tabdo.local', crypt('Password123!', gen_salt('bf')), now(), now(), now()),
+  ('f0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'userf@tabdo.local', crypt('Password123!', gen_salt('bf')), now(), now(), now())
+on conflict do nothing;
+
+update public.profiles set is_active = false where id = 'd0000000-0000-0000-0000-000000000004';
+update public.profiles set must_change_password = true where id = 'e0000000-0000-0000-0000-000000000005';
+
+-- User D (inactive) cannot call update_my_profile
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'd0000000-0000-0000-0000-000000000004';
+select throws_ok(
+  $$select public.update_my_profile('New Name', null, null)$$,
+  'Account is inactive',
+  'Inactive user cannot call update_my_profile'
+);
+
+-- User E (forced) cannot call update_my_profile
+set local "request.jwt.claim.sub" to 'e0000000-0000-0000-0000-000000000005';
+select throws_ok(
+  $$select public.update_my_profile('New Name', null, null)$$,
+  'Password change required',
+  'Forced password change user cannot call update_my_profile'
+);
+
+-- User D (inactive) can read own profile
+set local "request.jwt.claim.sub" to 'd0000000-0000-0000-0000-000000000004';
+select is(
+  (select is_active from public.profiles where id = 'd0000000-0000-0000-0000-000000000004'),
+  false,
+  'Inactive user can select own profile to view account state'
+);
+
+-- User E (forced) can read own profile
+set local "request.jwt.claim.sub" to 'e0000000-0000-0000-0000-000000000005';
+select is(
+  (select must_change_password from public.profiles where id = 'e0000000-0000-0000-0000-000000000005'),
+  true,
+  'Forced user can select own profile to view password change flag'
+);
+
+-- Populate task for User D as postgres
+set local role postgres;
+insert into public.tasks (id, user_id, title, status)
+values ('66666666-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'Inactive Task', 'todo')
+on conflict (id) do nothing;
+
+-- User D (inactive) cannot select own tasks
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'd0000000-0000-0000-0000-000000000004';
+select is_empty(
+  'select * from public.tasks where id = ''66666666-0000-0000-0000-000000000001''',
+  'Inactive user cannot select tasks due to RLS'
+);
+
+-- User D (inactive) cannot insert task
+select throws_matching(
+  $$insert into public.tasks (user_id, title) values ('d0000000-0000-0000-0000-000000000004', 'New Task')$$,
+  'row-level security',
+  'Inactive user cannot insert tasks due to RLS'
+);
+
+-- User E (forced) cannot select or insert tasks
+set local "request.jwt.claim.sub" to 'e0000000-0000-0000-0000-000000000005';
+select throws_matching(
+  $$insert into public.tasks (user_id, title) values ('e0000000-0000-0000-0000-000000000005', 'Forced User Task')$$,
+  'row-level security',
+  'Forced user cannot insert tasks due to RLS'
+);
+
+-- Setup User F with 1 parent task and 2 subtasks (total 3 tasks)
+set local role postgres;
+insert into public.tasks (id, user_id, title, status)
+values ('66666666-0000-0000-0000-000000000010', 'f0000000-0000-0000-0000-000000000006', 'Parent Task', 'todo')
+on conflict (id) do nothing;
+
+insert into public.tasks (id, user_id, parent_id, title, status)
+values
+  ('66666666-0000-0000-0000-000000000011', 'f0000000-0000-0000-0000-000000000006', '66666666-0000-0000-0000-000000000010', 'Subtask 1', 'in_progress'),
+  ('66666666-0000-0000-0000-000000000012', 'f0000000-0000-0000-0000-000000000006', '66666666-0000-0000-0000-000000000010', 'Subtask 2', 'done')
+on conflict (id) do nothing;
+
+-- 19. Private aggregate function tests
+-- Authenticated caller cannot execute get_user_task_counts
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'c0000000-0000-0000-0000-000000000003';
+select throws_matching(
+  $$select * from public.get_user_task_counts()$$,
+  'permission denied',
+  'Authenticated caller cannot execute get_user_task_counts'
+);
+
+-- Anon caller cannot execute get_user_task_counts
+set local role anon;
+select throws_matching(
+  $$select * from public.get_user_task_counts()$$,
+  'permission denied',
+  'Anon caller cannot execute get_user_task_counts'
+);
+
+-- Service role can execute and accurately aggregates subtasks
+set local role service_role;
+select is(
+  (select task_count::int from public.get_user_task_counts(array['f0000000-0000-0000-0000-000000000006'::uuid])),
+  3,
+  'get_user_task_counts counts all tasks including subtasks for service_role'
+);
+
+select is(
+  (select todo_count::int from public.get_user_task_counts(array['f0000000-0000-0000-0000-000000000006'::uuid])),
+  1,
+  'get_user_task_counts returns correct todo_count'
+);
+
+select is(
+  (select in_progress_count::int from public.get_user_task_counts(array['f0000000-0000-0000-0000-000000000006'::uuid])),
+  1,
+  'get_user_task_counts returns correct in_progress_count'
+);
+
+select is(
+  (select done_count::int from public.get_user_task_counts(array['f0000000-0000-0000-0000-000000000006'::uuid])),
+  1,
+  'get_user_task_counts returns correct done_count'
 );
 
 select * from finish();

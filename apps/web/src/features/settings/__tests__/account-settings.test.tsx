@@ -105,6 +105,7 @@ describe('account-settings', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('update_my_profile', {
       new_display_name: 'Phat Phan',
       new_timezone: 'Asia/Ho_Chi_Minh',
+      new_locale: 'vi',
     })
 
     expect(await screen.findByText(/cập nhật thông tin thành công/i)).toBeInTheDocument()
@@ -141,6 +142,9 @@ describe('account-settings', () => {
         <AccountSettings />
       </AuthProvider>
     )
+
+    const securityTab = await screen.findByRole('tab', { name: /đổi mật khẩu/i })
+    await user.click(securityTab)
 
     const newPassInput = await screen.findByLabelText(/^mật khẩu mới/i)
     const confirmPassInput = screen.getByLabelText(/xác nhận mật khẩu mới/i)

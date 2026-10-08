@@ -30,6 +30,7 @@ describe('portal-layout', () => {
   })
 
   it('renders "Quản trị" link for admin users in user portal', async () => {
+    const user = userEvent.setup()
     vi.mocked(supabase.auth.getSession).mockResolvedValue({
       data: { session: { user: { id: 'admin-1', email: 'admin@tabdo.local' } } },
       error: null,
@@ -58,10 +59,13 @@ describe('portal-layout', () => {
     )
 
     expect(await screen.findByRole('link', { name: /quản trị/i })).toBeInTheDocument()
+    const avatarBtn = screen.getByTestId('topbar-avatar-btn')
+    await user.click(avatarBtn)
     expect(screen.getByText('Quản trị viên')).toBeInTheDocument()
   })
 
   it('hides "Quản trị" link for normal users', async () => {
+    const user = userEvent.setup()
     vi.mocked(supabase.auth.getSession).mockResolvedValue({
       data: { session: { user: { id: 'user-1', email: 'user@tabdo.local' } } },
       error: null,
@@ -89,8 +93,10 @@ describe('portal-layout', () => {
       </MemoryRouter>
     )
 
-    await screen.findByRole('heading', { name: 'Dashboard' })
+    await screen.findByRole('heading', { name: /bảng điều khiển|dashboard/i })
     expect(screen.queryByRole('link', { name: /quản trị/i })).not.toBeInTheDocument()
+    const avatarBtn = screen.getByTestId('topbar-avatar-btn')
+    await user.click(avatarBtn)
     expect(screen.getByText('Người dùng')).toBeInTheDocument()
   })
 
@@ -123,7 +129,9 @@ describe('portal-layout', () => {
       </MemoryRouter>
     )
 
-    const logoutButton = await screen.findByRole('button', { name: /đăng xuất/i })
+    const avatarBtn = await screen.findByTestId('topbar-avatar-btn')
+    await user.click(avatarBtn)
+    const logoutButton = await screen.findByRole('menuitem', { name: /đăng xuất/i })
     await user.click(logoutButton)
 
     expect(supabase.auth.signOut).toHaveBeenCalled()

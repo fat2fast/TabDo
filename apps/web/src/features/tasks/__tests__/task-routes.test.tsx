@@ -91,31 +91,31 @@ describe('task-routes', () => {
   it('redirects /tasks to /tasks/inbox when authenticated', async () => {
     renderRoute('/tasks')
 
-    expect(await screen.findByRole('heading', { name: /hộp thư đến \(inbox\)/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /tất cả|all|hộp thư đến|inbox/i })).toBeInTheDocument()
   })
 
   it('renders smart views on static paths /tasks/today, /tasks/upcoming, /tasks/overdue, /tasks/completed', async () => {
     const { unmount: unmountToday } = renderRoute('/tasks/today')
-    expect(await screen.findByRole('heading', { name: /hôm nay \(today\)/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /hôm nay|today/i })).toBeInTheDocument()
     unmountToday()
 
     const { unmount: unmountUpcoming } = renderRoute('/tasks/upcoming')
-    expect(await screen.findByRole('heading', { name: /sắp tới \(upcoming\)/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /sắp tới|upcoming/i })).toBeInTheDocument()
     unmountUpcoming()
 
     const { unmount: unmountOverdue } = renderRoute('/tasks/overdue')
-    expect(await screen.findByRole('heading', { name: /quá hạn \(overdue\)/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /quá hạn|overdue/i })).toBeInTheDocument()
     unmountOverdue()
 
     const { unmount: unmountCompleted } = renderRoute('/tasks/completed')
-    expect(await screen.findByRole('heading', { name: /đã hoàn thành \(completed\)/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /đã hoàn thành|completed/i })).toBeInTheDocument()
     unmountCompleted()
   })
 
   it('redirects obsolete /tasks/:id route safely to /dashboard without collision', async () => {
     renderRoute('/tasks/some-legacy-uuid-1234')
 
-    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /bảng điều khiển|dashboard/i })).toBeInTheDocument()
   })
 
   it('opens task drawer on /tasks/today?taskId=<id> and removes taskId on close', async () => {
@@ -124,7 +124,7 @@ describe('task-routes', () => {
 
     renderRoute('/tasks/today?taskId=123e4567-e89b-12d3-a456-426614174000')
 
-    expect(await screen.findByRole('heading', { name: /hôm nay \(today\)/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /hôm nay|today/i })).toBeInTheDocument()
     expect(await screen.findByTestId('task-drawer')).toBeInTheDocument()
 
     // Click close button

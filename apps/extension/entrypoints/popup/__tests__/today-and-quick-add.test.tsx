@@ -17,6 +17,9 @@ describe('Today and Quick Add popup flows', () => {
         email: 'phat@example.com',
         displayName: 'Phat Phung',
         timezone: 'Asia/Ho_Chi_Minh',
+        isActive: true,
+        mustChangePassword: false,
+        locale: 'vi',
       },
       todayTasks: [
         {
