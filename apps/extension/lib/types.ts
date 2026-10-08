@@ -37,9 +37,17 @@ export interface ExtensionAuthUser {
   email: string
   displayName: string | null
   timezone: string
+  isActive: boolean
+  mustChangePassword: boolean
+  locale: 'vi' | 'en'
 }
 
-export type ExtensionAuthStatus = 'loading' | 'unauthenticated' | 'authenticated'
+export type ExtensionAuthStatus =
+  | 'loading'
+  | 'unauthenticated'
+  | 'authenticated'
+  | 'inactive'
+  | 'password_change_required'
 
 export interface ExtensionState {
   status: ExtensionAuthStatus

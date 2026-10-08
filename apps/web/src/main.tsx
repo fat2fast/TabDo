@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './features/auth/auth-provider'
+import { I18nProvider } from './features/i18n/i18n-provider'
 import { ConfirmProvider } from './components/ui/confirm-dialog'
 import { App } from './app/App'
 import './styles.css'
@@ -14,9 +15,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <ConfirmProvider>
-            <App />
-          </ConfirmProvider>
+          <I18nProvider>
+            <ConfirmProvider>
+              <App />
+            </ConfirmProvider>
+          </I18nProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

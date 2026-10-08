@@ -10,8 +10,8 @@ export interface TaskViewEmptyStateProps {
 
 const VIEW_EMPTY_TEXT: Record<TaskView, { title: string; description: string }> = {
   inbox: {
-    title: 'Inbox trống. Các công việc đã được sắp xếp.',
-    description: 'Bất kỳ công việc nào chưa có hạn chót sẽ xuất hiện ở đây.',
+    title: 'Danh sách công việc trống.',
+    description: 'Bắt đầu bằng cách tạo công việc mới ở thanh nhập phía trên.',
   },
   today: {
     title: 'Hôm nay chưa có công việc đến hạn.',

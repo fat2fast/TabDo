@@ -47,6 +47,7 @@ describe('task-api functions', () => {
         gt: vi.fn().mockReturnThis(),
         lt: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         limit: vi.fn().mockResolvedValue({ data: [], error: null }),
       }
@@ -63,8 +64,16 @@ describe('task-api functions', () => {
 
       expect(supabase.from).toHaveBeenCalledWith('tasks')
       expect(mockQueryBuilder.neq).toHaveBeenCalledWith('status', 'done')
+      // By default all active tasks are returned in Tất cả view
+      expect(mockQueryBuilder.is).not.toHaveBeenCalledWith('due_at', null)
+
+      // When scope is unorganized, applies or condition
+      await getTaskList({ ...input, scope: 'unorganized' })
+      expect(mockQueryBuilder.or).toHaveBeenCalledWith('category_id.is.null,due_at.is.null')
+
+      // When scope is no_due, applies is null condition
+      await getTaskList({ ...input, scope: 'no_due' })
       expect(mockQueryBuilder.is).toHaveBeenCalledWith('due_at', null)
-      expect(mockQueryBuilder.is).not.toHaveBeenCalledWith('category_id', null)
     })
 
     it('applies category_id IS NULL when categoryId is none or null', async () => {

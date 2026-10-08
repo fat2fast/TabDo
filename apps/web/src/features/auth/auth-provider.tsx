@@ -37,6 +37,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: data.role as 'admin' | 'user',
         displayName: data.display_name,
         timezone: data.timezone,
+        isActive: data.is_active ?? true,
+        mustChangePassword: data.must_change_password ?? false,
+        locale: (data.locale as 'vi' | 'en') || 'vi',
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       }

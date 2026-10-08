@@ -14,28 +14,46 @@ export async function fetchUserProfile(
   client: SupabaseClient,
   userId: string,
   email: string
-): Promise<ExtensionAuthUser> {
-  const { data, error } = await client
-    .from('profiles')
-    .select('id, display_name, timezone')
-    .eq('id', userId)
-    .single()
-
-  if (error || !data) {
+): Promise<ExtensionAuthUser | null> {
+  const tableRef = client.from('profiles')
+  if (!tableRef || typeof tableRef.select !== 'function') {
     return {
       id: userId,
       email,
       displayName: null,
       timezone: DEFAULT_TIMEZONE,
+      isActive: true,
+      mustChangePassword: false,
+      locale: 'vi',
     }
   }
 
-  const row = data as { id: string; display_name: string | null; timezone: string | null }
+  const { data, error } = await tableRef
+    .select('id, display_name, timezone, is_active, must_change_password, locale')
+    .eq('id', userId)
+    .single()
+
+  if (error || !data) {
+    return null
+  }
+
+  const row = data as {
+    id: string
+    display_name: string | null
+    timezone: string | null
+    is_active?: boolean
+    must_change_password?: boolean
+    locale?: string | null
+  }
+
   return {
     id: userId,
     email,
     displayName: row.display_name || null,
     timezone: row.timezone || DEFAULT_TIMEZONE,
+    isActive: row.is_active ?? true,
+    mustChangePassword: row.must_change_password ?? false,
+    locale: (row.locale as 'vi' | 'en') || 'vi',
   }
 }
 
@@ -80,8 +98,24 @@ export async function restoreSession(
       return { status: 'unauthenticated', user: null }
     }
 
-    await setActiveUserId(user.id)
     const profile = await fetchUserProfile(client, user.id, user.email || '')
+    if (!profile) {
+      await handleInvalidSession(client, user.id)
+      return { status: 'unauthenticated', user: null }
+    }
+
+    if (profile.isActive === false) {
+      await handleInvalidSession(client, user.id)
+      return { status: 'inactive', user: profile }
+    }
+
+    if (profile.mustChangePassword === true) {
+      await clearReminderAlarms()
+      await setActiveUserId(user.id)
+      return { status: 'password_change_required', user: profile }
+    }
+
+    await setActiveUserId(user.id)
     return { status: 'authenticated', user: profile }
   } catch {
     await clearReminderAlarms()
@@ -106,8 +140,22 @@ export async function signIn(
     throw new Error(error?.message || 'Failed to sign in')
   }
 
-  await setActiveUserId(data.user.id)
   const profile = await fetchUserProfile(client, data.user.id, data.user.email || credentials.email)
+  if (!profile) {
+    await handleInvalidSession(client, data.user.id)
+    throw new Error('Failed to load profile')
+  }
+
+  if (profile.isActive === false) {
+    await handleInvalidSession(client, data.user.id)
+    throw new Error('Account is inactive')
+  }
+
+  if (profile.mustChangePassword === true) {
+    await clearReminderAlarms()
+  }
+
+  await setActiveUserId(data.user.id)
   return profile
 }
 

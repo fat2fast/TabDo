@@ -88,8 +88,75 @@ describe('auth lifecycle', () => {
       email: 'test@example.com',
       displayName: 'Phat Phung',
       timezone: 'Asia/Ho_Chi_Minh',
+      isActive: true,
+      mustChangePassword: false,
+      locale: 'vi',
     })
     expect(await getActiveUserId()).toBe('user-123')
+  })
+
+  it('1b. inactive account: clears alarms, storage, and returns inactive status', async () => {
+    registeredAlarms.push({ name: 'reminder:user-123-alarm', scheduledTime: 12345 })
+    const mockClient = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { user: { id: 'user-123', email: 'test@example.com' } } },
+          error: null,
+        })),
+        getUser: vi.fn(async () => ({
+          data: { user: { id: 'user-123', email: 'test@example.com' } },
+          error: null,
+        })),
+        signOut: vi.fn(async () => ({ error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: { id: 'user-123', display_name: 'Phat', timezone: 'Asia/Ho_Chi_Minh', is_active: false, must_change_password: false },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    } as unknown as SupabaseClient
+
+    const result = await restoreSession(mockClient)
+    expect(result.status).toBe('inactive')
+    expect(result.user?.isActive).toBe(false)
+    expect(registeredAlarms.find((a) => a.name === 'reminder:user-123-alarm')).toBeUndefined()
+  })
+
+  it('1c. password change required: clears alarms and returns password_change_required status', async () => {
+    registeredAlarms.push({ name: 'reminder:user-123-alarm', scheduledTime: 12345 })
+    const mockClient = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { user: { id: 'user-123', email: 'test@example.com' } } },
+          error: null,
+        })),
+        getUser: vi.fn(async () => ({
+          data: { user: { id: 'user-123', email: 'test@example.com' } },
+          error: null,
+        })),
+        signOut: vi.fn(async () => ({ error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({
+              data: { id: 'user-123', display_name: 'Phat', timezone: 'Asia/Ho_Chi_Minh', is_active: true, must_change_password: true },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    } as unknown as SupabaseClient
+
+    const result = await restoreSession(mockClient)
+    expect(result.status).toBe('password_change_required')
+    expect(result.user?.mustChangePassword).toBe(true)
+    expect(registeredAlarms.find((a) => a.name === 'reminder:user-123-alarm')).toBeUndefined()
   })
 
   it('2. refresh-failure cleanup: clears user storage, reminder alarms, and returns unauthenticated state', async () => {

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './auth-provider'
+import { useI18n } from '../i18n/i18n-provider'
+import { QuickLanguageButton } from '../layout/QuickLanguageButton'
 
 interface LoginFormProps {
   portal: 'user' | 'admin'
@@ -8,6 +10,7 @@ interface LoginFormProps {
 
 export function LoginForm({ portal }: LoginFormProps) {
   const { signIn, session, profile, isAuthLoading, isProfileLoading } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -25,7 +28,7 @@ export function LoginForm({ portal }: LoginFormProps) {
         } else {
           navigate('/dashboard', {
             replace: true,
-            state: { accessDenied: 'Bạn không có quyền truy cập khu vực quản trị.' },
+            state: { accessDenied: t('auth.accessDenied') },
           })
         }
       } else {
@@ -43,7 +46,7 @@ export function LoginForm({ portal }: LoginFormProps) {
         navigate(destination, { replace: true })
       }
     }
-  }, [session, profile, isAuthLoading, isProfileLoading, portal, navigate, location])
+  }, [session, profile, isAuthLoading, isProfileLoading, portal, navigate, location, t])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,22 +62,22 @@ export function LoginForm({ portal }: LoginFormProps) {
       }
       // Post-login redirect is handled by useEffect when session and profile settle
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Đăng nhập không thành công.')
+      setErrorMessage(err?.message || t('auth.loginFailed'))
       setIsSubmitting(false)
     }
   }
 
-  const title = portal === 'admin' ? 'Đăng nhập Quản trị viên' : 'Đăng nhập TabDo'
+  const title = portal === 'admin' ? t('auth.adminLoginTitle') : t('auth.loginTitle')
+  const subtitle = portal === 'admin' ? t('auth.adminSubtitle') : t('auth.userSubtitle')
 
   return (
     <div className="login-container">
       <div className="login-card">
+        <div className="login-card-top-bar">
+          <QuickLanguageButton />
+        </div>
         <h1>{title}</h1>
-        {portal === 'admin' ? (
-          <p className="login-subtitle">Cổng quản trị hệ thống TabDo</p>
-        ) : (
-          <p className="login-subtitle">Đăng nhập vào tài khoản cá nhân của bạn</p>
-        )}
+        <p className="login-subtitle">{subtitle}</p>
 
         {errorMessage && (
           <div className="login-error-banner" role="alert">
@@ -84,7 +87,7 @@ export function LoginForm({ portal }: LoginFormProps) {
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('auth.email')}</label>
             <input
               id="email"
               type="email"
@@ -98,7 +101,7 @@ export function LoginForm({ portal }: LoginFormProps) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Mật khẩu</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               id="password"
               type="password"
@@ -116,10 +119,11 @@ export function LoginForm({ portal }: LoginFormProps) {
             className="login-submit-button"
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Đang xử lý...' : 'Đăng nhập'}
+            {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
           </button>
         </form>
       </div>
     </div>
   )
 }
+

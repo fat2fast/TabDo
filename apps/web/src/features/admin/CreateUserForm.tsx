@@ -1,18 +1,31 @@
 import React, { useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { useAdminCreateUser } from './api/admin-users'
+import { useI18n } from '../i18n/i18n-provider'
 
 interface CreatedUserResult {
   id: string
   email: string
   displayName: string | null
   role: string
+  mustChangePassword?: boolean
+  isActive?: boolean
 }
 
-export function CreateUserForm() {
+export function CreateUserForm({
+  onUserCreated,
+  isModal = false,
+  onClose,
+}: {
+  onUserCreated?: () => void
+  isModal?: boolean
+  onClose?: () => void
+}) {
+  const { t } = useI18n()
+  const createUserMutation = useAdminCreateUser()
+
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [initialPassword, setInitialPassword] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [successResult, setSuccessResult] = useState<CreatedUserResult | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -23,82 +36,66 @@ export function CreateUserForm() {
 
     const trimmedEmail = email.trim()
     const trimmedDisplayName = displayName.trim()
+    const trimmedPassword = initialPassword.trim()
 
     if (!trimmedEmail) {
-      setErrorMessage('Vui lòng nhập địa chỉ email hợp lệ.')
+      setErrorMessage(t('auth.invalidEmail'))
       return
     }
 
-    if (initialPassword.length < 8) {
-      setErrorMessage('Mật khẩu khởi tạo phải có ít nhất 8 ký tự.')
+    if (trimmedPassword && trimmedPassword.length < 8) {
+      setErrorMessage(t('admin.initialPasswordTooShort'))
       return
     }
-
-    setIsSubmitting(true)
 
     try {
-      const { data, error } = await supabase.functions.invoke('admin-create-user', {
-        body: {
-          email: trimmedEmail,
-          displayName: trimmedDisplayName || undefined,
-          initialPassword,
-        },
+      const data = await createUserMutation.mutateAsync({
+        email: trimmedEmail,
+        displayName: trimmedDisplayName || undefined,
+        initialPassword: trimmedPassword || undefined,
       })
 
-      if (error) {
-        let msg = error.message
-        // If error response body was returned
-        if (typeof (error as any).context?.json === 'function') {
-          try {
-            const json = await (error as any).context.json()
-            if (json?.error) msg = json.error
-          } catch {
-            // ignore
-          }
-        }
-        setErrorMessage(msg || 'Không thể tạo tài khoản người dùng.')
-        return
-      }
-
       setSuccessResult(data as CreatedUserResult)
-      // Reset form and clear password
       setDisplayName('')
       setEmail('')
       setInitialPassword('')
+      onUserCreated?.()
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Đã có lỗi xảy ra khi tạo người dùng.')
-    } finally {
-      setIsSubmitting(false)
+      setErrorMessage(err?.message || t('admin.createUserError'))
     }
   }
 
+  const isSubmitting = createUserMutation.isPending
+
   return (
-    <div className="card create-user-card">
-      <h3>Cấp tài khoản người dùng mới</h3>
-      <p className="form-description">
-        Tạo tài khoản người dùng thông thường. Mọi tài khoản mới được tạo sẽ tự động mang vai trò "Người dùng".
-      </p>
+    <div className={isModal ? 'create-user-modal-body' : 'card create-user-card'}>
+      {!isModal && (
+        <div className="card-header">
+          <h3 className="card-title">{t('admin.createUser')}</h3>
+          <p className="card-subtitle">{t('admin.createUserDesc')}</p>
+        </div>
+      )}
 
       {successResult && (
-        <div className="alert-success" role="status">
-          <strong>Tạo tài khoản thành công!</strong>
-          <ul>
+        <div className="alert-success" role="status" style={{ marginTop: '1rem' }}>
+          <strong>{t('admin.createSuccess')}</strong>
+          <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem' }}>
             <li>Email: {successResult.email}</li>
-            {successResult.displayName && <li>Họ tên: {successResult.displayName}</li>}
-            <li>Vai trò: Người dùng</li>
+            {successResult.displayName && <li>{t('admin.fullName')}: {successResult.displayName}</li>}
+            <li>{t('common.role')}: {t('admin.user')}</li>
           </ul>
         </div>
       )}
 
       {errorMessage && (
-        <div className="alert-error" role="alert">
+        <div className="alert-error" role="alert" style={{ marginTop: '1rem' }}>
           {errorMessage}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="admin-create-user-form">
+      <form onSubmit={handleSubmit} className="admin-create-user-form" style={{ marginTop: '1rem' }}>
         <div className="form-group">
-          <label htmlFor="create-display-name">Tên hiển thị (tùy chọn)</label>
+          <label htmlFor="create-display-name">{t('admin.displayName')}</label>
           <input
             id="create-display-name"
             type="text"
@@ -110,7 +107,7 @@ export function CreateUserForm() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="create-email">Địa chỉ Email *</label>
+          <label htmlFor="create-email">{t('auth.email')} *</label>
           <input
             id="create-email"
             type="email"
@@ -123,27 +120,41 @@ export function CreateUserForm() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="create-password">Mật khẩu khởi tạo * (tối thiểu 8 ký tự)</label>
+          <label htmlFor="create-password">
+            {t('admin.initialPasswordOptional')}
+          </label>
           <input
             id="create-password"
             type="password"
             value={initialPassword}
             onChange={(e) => setInitialPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            minLength={8}
+            placeholder={t('admin.initialPasswordPlaceholder')}
             autoComplete="new-password"
             disabled={isSubmitting}
           />
         </div>
 
-        <button
-          type="submit"
-          className="admin-submit-button"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Đang tạo...' : 'Tạo tài khoản'}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: isModal ? 'flex-end' : 'flex-start', marginTop: '1.25rem' }}>
+          {isModal && onClose && (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={onClose}
+              disabled={isSubmitting}
+              style={{ padding: '0.625rem 1.25rem', borderRadius: '8px' }}
+            >
+              {t('common.cancel')}
+            </button>
+          )}
+          <button
+            type="submit"
+            className="admin-submit-button"
+            disabled={isSubmitting}
+            style={{ padding: '0.625rem 1.25rem', borderRadius: '8px' }}
+          >
+            {isSubmitting ? t('common.loading') : t('admin.createUserButton')}
+          </button>
+        </div>
       </form>
     </div>
   )

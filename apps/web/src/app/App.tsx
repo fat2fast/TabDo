@@ -12,6 +12,8 @@ import { CalendarPage } from '../pages/CalendarPage'
 import { SummaryPage } from '../pages/SummaryPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { AdminUsersPage } from '../pages/AdminUsersPage'
+import { AdminDashboardPage } from '../pages/AdminDashboardPage'
+import { ChangeInitialPasswordPage } from '../pages/ChangeInitialPasswordPage'
 
 export function App() {
   return (
@@ -19,6 +21,7 @@ export function App() {
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/change-password" element={<ChangeInitialPasswordPage />} />
 
       {/* Protected User Portal */}
       <Route element={<AuthenticatedRoute />}>
@@ -40,7 +43,8 @@ export function App() {
       {/* Protected Admin Portal */}
       <Route element={<AdminRoute />}>
         <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
         </Route>
       </Route>
