@@ -25,23 +25,27 @@ function loadEnvBootstrap() {
 loadEnvBootstrap()
 
 const supabaseUrl = process.env.SUPABASE_URL || 'http://127.0.0.1:54321'
-const anonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const publishableKey =
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!serviceRoleKey) {
-  console.error('[FAIL] SUPABASE_SERVICE_ROLE_KEY is required for integration tests.')
-  console.error('Configure SUPABASE_SERVICE_ROLE_KEY in .env.bootstrap or the process environment.')
+if (!secretKey) {
+  console.error('[FAIL] SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required for integration tests.')
+  console.error('Configure SUPABASE_SECRET_KEY in .env.bootstrap or the process environment.')
   console.error('Missing prerequisites are a failure condition, not a skipped pass.')
   process.exit(1)
 }
 
-const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+const adminClient = createClient(supabaseUrl, secretKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-const anonClient = createClient(supabaseUrl, anonKey, {
+const publicClient = createClient(supabaseUrl, publishableKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
+const anonClient = publicClient
 
 const itRunId = Date.now().toString(36)
 const testUsers = {
@@ -180,15 +184,15 @@ async function runIntegration() {
 
     // 3. Test RLS Personal-Data Owner Isolation & Role Immutability
     console.log('[3/4] Testing RLS Owner Isolation & Role Immutability...')
-    const userAClient = createClient(supabaseUrl, anonKey, {
+    const userAClient = createClient(supabaseUrl, publishableKey, {
       global: { headers: { Authorization: `Bearer ${testUsers.userA.token}` } },
       auth: { autoRefreshToken: false, persistSession: false }
     })
-    const userBClient = createClient(supabaseUrl, anonKey, {
+    const userBClient = createClient(supabaseUrl, publishableKey, {
       global: { headers: { Authorization: `Bearer ${testUsers.userB.token}` } },
       auth: { autoRefreshToken: false, persistSession: false }
     })
-    const adminUserClient = createClient(supabaseUrl, anonKey, {
+    const adminUserClient = createClient(supabaseUrl, publishableKey, {
       global: { headers: { Authorization: `Bearer ${testUsers.admin.token}` } },
       auth: { autoRefreshToken: false, persistSession: false }
     })

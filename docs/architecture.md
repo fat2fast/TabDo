@@ -174,7 +174,7 @@ Responsibilities:
 - Browser notifications
 - Quick task actions
 
-The extension communicates directly with Supabase using the same public client API (`SUPABASE_URL` and `SUPABASE_ANON_KEY`) and relies on owner RLS for data protection. It requests only `storage`, `alarms`, and `notifications` permissions, along with one exact origin derived from `VITE_SUPABASE_URL` in `host_permissions` (no wildcards, no `activeTab`).
+The extension communicates directly with Supabase using the same public client API (`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` / legacy `SUPABASE_ANON_KEY`) and relies on owner RLS for data protection. It requests only `storage`, `alarms`, and `notifications` permissions, along with one exact origin derived from `VITE_SUPABASE_URL` in `host_permissions` (no wildcards, no `activeTab`).
 
 Privileged administrative operations are not performed inside the extension.
 
@@ -266,7 +266,7 @@ Recommended component:
 
 The bootstrap process may use:
 
-    SUPABASE_SERVICE_ROLE_KEY
+    SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
 
 This credential must never be exposed to clients.
 
@@ -526,13 +526,13 @@ Client applications are considered untrusted.
 Client-safe:
 
     SUPABASE_URL
-    SUPABASE_ANON_KEY
+    SUPABASE_PUBLISHABLE_KEY (legacy fallback: SUPABASE_ANON_KEY)
 
 Trusted only:
 
-    SUPABASE_SERVICE_ROLE_KEY
+    SUPABASE_SECRET_KEY (legacy fallback: SUPABASE_SERVICE_ROLE_KEY)
 
-The Service Role key may only exist in:
+The Secret / Service Role key may only exist in:
 
 - Trusted bootstrap scripts
 - Supabase Edge Functions
