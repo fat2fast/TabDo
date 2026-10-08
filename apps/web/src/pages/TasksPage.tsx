@@ -7,6 +7,7 @@ import {
   isTaskOverdue,
 } from '@tabdo/utils'
 import { useAuth } from '../features/auth/auth-provider'
+import { useI18n } from '../features/i18n/i18n-provider'
 import { useScheduleBlocksInRange } from '../features/scheduling/hooks/use-schedule-blocks'
 import { CategoryManager } from '../features/tasks/components/category-manager'
 import { QuickAddTask } from '../features/tasks/components/quick-add-task'
@@ -23,6 +24,7 @@ import { useTaskViewSearchParams } from '../features/tasks/hooks/use-task-view-s
 import type { Task, TaskView } from '../features/tasks/types'
 
 export function TasksPage() {
+  const { t } = useI18n()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const taskIdParam = searchParams.get('taskId')
@@ -75,6 +77,7 @@ export function TasksPage() {
     dueFrom: params.dueFrom,
     dueTo: params.dueTo,
     sort: params.sort,
+    scope: params.scope,
     timeZone,
     now,
   })
@@ -193,7 +196,8 @@ export function TasksPage() {
       params.priority ||
       params.categoryId !== undefined ||
       params.dueFrom ||
-      params.dueTo
+      params.dueTo ||
+      params.scope
   )
 
   return (
@@ -232,10 +236,13 @@ export function TasksPage() {
           status={params.status}
           priority={params.priority}
           categoryId={params.categoryId}
-          showStatusFilter={currentView !== 'completed' && currentView !== 'inbox'}
+          scope={params.scope}
+          showStatusFilter={currentView !== 'completed'}
+          showScopeFilter={currentView === 'inbox'}
           onStatusChange={(status) => setParams({ status })}
           onPriorityChange={(priority) => setParams({ priority })}
           onCategoryChange={(categoryId) => setParams({ categoryId })}
+          onScopeChange={(scope) => setParams({ scope })}
           onClear={clearFilters}
         />
       </div>
@@ -253,19 +260,19 @@ export function TasksPage() {
           todayGroups.scheduledTodayTasks.length > 0 ? (
             <div className="grouped-tasks-container">
               <TaskGroup
-                title="Quá hạn"
+                title={t('tasks.groupOverdue')}
                 tasks={todayGroups.overdueTasks}
                 onSelectTask={setSelectedTaskId}
                 badgeVariant="danger"
               />
               <TaskGroup
-                title="Hôm nay"
+                title={t('tasks.groupDueToday')}
                 tasks={todayGroups.dueTodayTasks}
                 onSelectTask={setSelectedTaskId}
                 badgeVariant="primary"
               />
               <TaskGroup
-                title="Lên lịch hôm nay"
+                title={t('tasks.groupScheduledToday')}
                 tasks={todayGroups.scheduledTodayTasks}
                 onSelectTask={setSelectedTaskId}
                 badgeVariant="default"
@@ -284,19 +291,19 @@ export function TasksPage() {
           upcomingGroups.laterTasks.length > 0 ? (
             <div className="grouped-tasks-container">
               <TaskGroup
-                title="Ngày mai"
+                title={t('tasks.groupTomorrow')}
                 tasks={upcomingGroups.tomorrowTasks}
                 onSelectTask={setSelectedTaskId}
                 badgeVariant="primary"
               />
               <TaskGroup
-                title="Tuần này"
+                title={t('tasks.groupThisWeek')}
                 tasks={upcomingGroups.thisWeekTasks}
                 onSelectTask={setSelectedTaskId}
                 badgeVariant="warning"
               />
               <TaskGroup
-                title="Sau này"
+                title={t('tasks.groupLater')}
                 tasks={upcomingGroups.laterTasks}
                 onSelectTask={setSelectedTaskId}
                 badgeVariant="default"

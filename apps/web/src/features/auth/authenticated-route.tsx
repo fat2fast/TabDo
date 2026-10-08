@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './auth-provider'
 
 export function AuthenticatedRoute({ children }: { children?: React.ReactNode }) {
-  const { session, isAuthLoading, isProfileLoading, profileError, refreshProfile } = useAuth()
+  const { session, profile, isAuthLoading, isProfileLoading, profileError, refreshProfile, signOut } = useAuth()
   const location = useLocation()
 
   if (isAuthLoading || isProfileLoading) {
@@ -28,6 +28,22 @@ export function AuthenticatedRoute({ children }: { children?: React.ReactNode })
         </button>
       </div>
     )
+  }
+
+  if (profile?.isActive === false) {
+    return (
+      <div className="auth-error-state" role="alert">
+        <h2>Tài khoản đã bị vô hiệu hóa</h2>
+        <p>Tài khoản của bạn hiện đang bị khóa hoặc chưa được kích hoạt. Vui lòng liên hệ quản trị viên.</p>
+        <button type="button" onClick={() => signOut()}>
+          Đăng xuất
+        </button>
+      </div>
+    )
+  }
+
+  if (profile?.mustChangePassword === true) {
+    return <Navigate to="/change-password" replace state={{ from: location }} />
   }
 
   return children ? <>{children}</> : <Outlet />

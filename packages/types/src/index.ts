@@ -1,10 +1,14 @@
 export type UserRole = 'admin' | 'user'
+export type SupportedLocale = 'vi' | 'en'
 
 export interface UserProfile {
   id: string
   role: UserRole
   displayName: string | null
   timezone: string
+  isActive: boolean
+  mustChangePassword: boolean
+  locale: SupportedLocale
   createdAt: string
   updatedAt: string
 }
@@ -184,4 +188,58 @@ export interface ExtensionTodayTask {
   dueDateKind: DueDateKind
   dueAt: string | null
   updatedAt: string
+}
+
+export interface AdminUserListItem {
+  id: string
+  email: string
+  displayName: string | null
+  role: UserRole
+  isActive: boolean
+  mustChangePassword: boolean
+  locale: SupportedLocale
+  createdAt: string
+  updatedAt: string
+  bannedUntil: string | null
+  taskCount: number
+  todoCount: number
+  inProgressCount: number
+  doneCount: number
+}
+
+export interface AdminUsersQueryParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  role?: UserRole | 'all'
+  status?: 'active' | 'inactive' | 'all'
+  sortBy?: 'createdAt' | 'email' | 'displayName' | 'taskCount'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export interface AdminUsersResponse {
+  users: AdminUserListItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+export interface AdminDashboardStats {
+  totalUsers: number
+  activeUsers: number
+  inactiveUsers: number
+  totalTasks: number
+  todoTasks: number
+  inProgressTasks: number
+  doneTasks: number
+}
+
+export interface AdminUserLifecycleInput {
+  userId: string
+  action: 'activate' | 'deactivate'
+}
+
+export interface CompleteInitialPasswordInput {
+  newPassword: string
 }

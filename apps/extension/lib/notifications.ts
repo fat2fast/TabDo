@@ -34,6 +34,15 @@ export async function showReminderNotification(
   client: SupabaseClient = supabase
 ): Promise<void> {
   const reminderId = alarmName.replace(/^reminder:/, '')
+  if (client.auth && typeof client.auth.getSession === 'function') {
+    const auth = await restoreSession(client)
+    if (auth.status !== 'authenticated' || !auth.user) {
+      console.warn('[TabDo Notification] Account not authenticated or inactive for alarm:', alarmName)
+      await syncExtensionState(client)
+      return
+    }
+  }
+
   const activeUserId = await getActiveUserId()
   if (!activeUserId) {
     console.warn('[TabDo Notification] No active user ID for alarm:', alarmName)
@@ -111,6 +120,18 @@ export async function handleNotificationButtonClick(
   return controllerMutex.runExclusive(async () => {
     const context = await getNotificationContext(notificationId)
     if (!context) return
+
+    if (client.auth && typeof client.auth.getSession === 'function') {
+      const auth = await restoreSession(client)
+      if (auth.status !== 'authenticated' || !auth.user) {
+        const err = auth.status === 'inactive'
+          ? 'Account is inactive'
+          : auth.status === 'password_change_required'
+          ? 'Password change required'
+          : 'Not authenticated'
+        throw new Error(err)
+      }
+    }
 
     try {
       if (buttonIndex === NOTIFICATION_BUTTON_DONE) {

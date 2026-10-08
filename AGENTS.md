@@ -7,8 +7,8 @@ workflow; they do not replace a user's accepted scope.
 ## Architecture boundaries
 
 - Treat both `apps/web` and `apps/extension` as untrusted clients. They may use
-  only `SUPABASE_URL` and `SUPABASE_ANON_KEY`; never expose, import, log, or
-  bundle `SUPABASE_SERVICE_ROLE_KEY`.
+  only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (or legacy `SUPABASE_ANON_KEY`); never expose, import, log, or
+  bundle `SUPABASE_SECRET_KEY` (or legacy `SUPABASE_SERVICE_ROLE_KEY`).
 - Keep normal user-owned CRUD on the Supabase client API and enforce it with
   RLS. Use an Edge Function or trusted bootstrap script only for an operation
   that genuinely requires server-side privilege, such as admin user creation.

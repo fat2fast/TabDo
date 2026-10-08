@@ -69,8 +69,8 @@ async function defaultSync(
   const auth = await restoreSession(client)
   if (auth.status !== 'authenticated' || !auth.user) {
     return {
-      status: 'unauthenticated',
-      user: null,
+      status: auth.status,
+      user: auth.user,
       todayTasks: [],
       syncMetadata: {
         lastSuccessfulSyncAt: null,
@@ -149,8 +149,8 @@ export async function handleExtensionMessage(
             return {
               ok: true,
               data: {
-                status: 'unauthenticated',
-                user: null,
+                status: auth.status,
+                user: auth.user,
                 todayTasks: [],
                 syncMetadata: {
                   lastSuccessfulSyncAt: null,
@@ -196,6 +196,15 @@ export async function handleExtensionMessage(
         }
 
         case 'sync': {
+          const auth = await restoreSession(client)
+          if (auth.status !== 'authenticated' || !auth.user) {
+            const errorMsg = auth.status === 'inactive'
+              ? 'Account is inactive'
+              : auth.status === 'password_change_required'
+              ? 'Password change required'
+              : 'Not authenticated'
+            return { ok: false, error: errorMsg }
+          }
           const state = await runSync(client)
           return { ok: true, data: state }
         }
@@ -203,7 +212,12 @@ export async function handleExtensionMessage(
         case 'quick-add': {
           const auth = await restoreSession(client)
           if (auth.status !== 'authenticated' || !auth.user) {
-            return { ok: false, error: 'Not authenticated' }
+            const errorMsg = auth.status === 'inactive'
+              ? 'Account is inactive'
+              : auth.status === 'password_change_required'
+              ? 'Password change required'
+              : 'Not authenticated'
+            return { ok: false, error: errorMsg }
           }
           const task = await quickAddTask(
             client,
@@ -225,7 +239,12 @@ export async function handleExtensionMessage(
         case 'complete-task': {
           const auth = await restoreSession(client)
           if (auth.status !== 'authenticated' || !auth.user) {
-            return { ok: false, error: 'Not authenticated' }
+            const errorMsg = auth.status === 'inactive'
+              ? 'Account is inactive'
+              : auth.status === 'password_change_required'
+              ? 'Password change required'
+              : 'Not authenticated'
+            return { ok: false, error: errorMsg }
           }
           const res = await completeTask(
             client,
@@ -238,6 +257,15 @@ export async function handleExtensionMessage(
         }
 
         case 'snooze-reminder': {
+          const auth = await restoreSession(client)
+          if (auth.status !== 'authenticated' || !auth.user) {
+            const errorMsg = auth.status === 'inactive'
+              ? 'Account is inactive'
+              : auth.status === 'password_change_required'
+              ? 'Password change required'
+              : 'Not authenticated'
+            return { ok: false, error: errorMsg }
+          }
           const res = await snoozeReminder(
             client,
             message.payload.reminderId,

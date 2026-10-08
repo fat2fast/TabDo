@@ -57,8 +57,8 @@ export async function syncExtensionState(
   if (auth.status !== 'authenticated' || !auth.user) {
     await clearReminderAlarms()
     return {
-      status: 'unauthenticated',
-      user: null,
+      status: auth.status,
+      user: auth.user,
       todayTasks: [],
       syncMetadata: {
         lastSuccessfulSyncAt: null,

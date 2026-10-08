@@ -1,5 +1,6 @@
 import React from 'react'
 import { useCategories } from '../hooks/use-categories'
+import { useI18n } from '../../i18n/i18n-provider'
 import type { TaskPriority, TaskStatus } from '../types'
 import { CustomDropdown, type DropdownOption } from './ui/custom-dropdown'
 
@@ -7,23 +8,30 @@ export interface TaskFiltersProps {
   status?: TaskStatus
   priority?: TaskPriority
   categoryId?: string | null
+  scope?: string
   onStatusChange: (status: TaskStatus | undefined) => void
   onPriorityChange: (priority: TaskPriority | undefined) => void
   onCategoryChange: (categoryId: string | null | undefined) => void
+  onScopeChange?: (scope: string | undefined) => void
   onClear: () => void
   showStatusFilter?: boolean
+  showScopeFilter?: boolean
 }
 
 export function TaskFilters({
   status,
   priority,
   categoryId,
+  scope,
   onStatusChange,
   onPriorityChange,
   onCategoryChange,
+  onScopeChange,
   onClear,
   showStatusFilter = true,
+  showScopeFilter = false,
 }: TaskFiltersProps) {
+  const { t } = useI18n()
   const { data: categories = [] } = useCategories()
 
   const statusOptions: DropdownOption<string>[] = [
@@ -51,7 +59,14 @@ export function TaskFilters({
     })),
   ]
 
-  const hasActiveFilters = Boolean(status || priority || categoryId !== undefined)
+  const scopeOptions: DropdownOption<string>[] = [
+    { value: '', label: t('tasks.filterScopeAll') },
+    { value: 'unorganized', label: t('tasks.filterScopeUnorganized') },
+    { value: 'no_due', label: t('tasks.filterScopeNoDue') },
+    { value: 'uncategorized', label: t('tasks.filterScopeUncategorized') },
+  ]
+
+  const hasActiveFilters = Boolean(status || priority || categoryId !== undefined || scope)
 
   return (
     <div className="task-filters-bar" data-testid="task-filters">
@@ -61,6 +76,21 @@ export function TaskFilters({
         </svg>
         <span>Lọc:</span>
       </div>
+
+      {showScopeFilter && onScopeChange && (
+        <CustomDropdown
+          value={scope || ''}
+          options={scopeOptions}
+          onChange={(val) => onScopeChange(val || undefined)}
+          ariaLabel="Lọc phạm vi công việc"
+          buttonClassName="filter-dropdown-btn"
+          icon={
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          }
+        />
+      )}
 
       {showStatusFilter && (
         <CustomDropdown

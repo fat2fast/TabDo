@@ -174,7 +174,7 @@ Responsibilities:
 - Browser notifications
 - Quick task actions
 
-The extension communicates directly with Supabase using the same public client API (`SUPABASE_URL` and `SUPABASE_ANON_KEY`) and relies on owner RLS for data protection. It requests only `storage`, `alarms`, and `notifications` permissions, along with one exact origin derived from `VITE_SUPABASE_URL` in `host_permissions` (no wildcards, no `activeTab`).
+The extension communicates directly with Supabase using the same public client API (`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` / legacy `SUPABASE_ANON_KEY`) and relies on owner RLS for data protection. It requests only `storage`, `alarms`, and `notifications` permissions, along with one exact origin derived from `VITE_SUPABASE_URL` in `host_permissions` (no wildcards, no `activeTab`).
 
 Privileged administrative operations are not performed inside the extension.
 
@@ -242,13 +242,21 @@ User-owned records are protected using:
 
     auth.uid() = user_id
 
-Admin role does not automatically bypass personal-data RLS.
+In addition, access to personal records requires an active and non-forced account:
 
-Privileged administrative operations are handled separately through trusted server-side logic.
+    is_active = true AND must_change_password = false
+
+When an account is deactivated (`is_active = false`), RLS immediately blocks data queries and mutations on subsequent requests. Concurrently, an Auth ban prevents session refresh.
+
+When an account requires password change (`must_change_password = true`), RLS blocks personal records and the client redirects to `/change-password`. Initial password change must be performed through the trusted `complete-initial-password` Edge Function.
+
+Admin role does not automatically bypass personal-data RLS. Reporting aggregates return counts only (`user_id, task_count, todo_count, in_progress_count, done_count`) and never expose task details.
+
+Privileged administrative operations are handled separately through trusted server-side logic (Edge Functions).
 
 ---
 
-# 8. Admin Provisioning
+# 8. Admin Provisioning & Edge Functions
 
 The initial admin is created through a trusted bootstrap process.
 
@@ -258,21 +266,26 @@ Recommended component:
 
 The bootstrap process may use:
 
-    SUPABASE_SERVICE_ROLE_KEY
+    SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)
 
 This credential must never be exposed to clients.
 
-Administrative user creation is performed through:
+Administrative user creation and lifecycle management are performed through:
 
-    Supabase Edge Function
+    Supabase Edge Functions:
         admin-create-user
+        admin-users
+        complete-initial-password
 
-The Edge Function:
+The Edge Functions:
 
-- Validates the current authenticated user
-- Verifies admin role
-- Uses the Supabase Admin API
-- Creates a normal application user
+- Validate the current authenticated user's token
+- Verify active admin role via caller-scoped client before using service client
+- Resolve optional initial password from server deployment secret (`TABDO_DEFAULT_USER_PASSWORD`)
+- Enforce `must_change_password = true` on provisioned accounts
+- Execute fail-closed lifecycle transitions (profile deactivated before Auth ban; Auth unbanned before profile activated)
+- Return safe aggregate counts without exposing task details
+
 
 ---
 
@@ -513,13 +526,13 @@ Client applications are considered untrusted.
 Client-safe:
 
     SUPABASE_URL
-    SUPABASE_ANON_KEY
+    SUPABASE_PUBLISHABLE_KEY (legacy fallback: SUPABASE_ANON_KEY)
 
 Trusted only:
 
-    SUPABASE_SERVICE_ROLE_KEY
+    SUPABASE_SECRET_KEY (legacy fallback: SUPABASE_SERVICE_ROLE_KEY)
 
-The Service Role key may only exist in:
+The Secret / Service Role key may only exist in:
 
 - Trusted bootstrap scripts
 - Supabase Edge Functions

@@ -52,20 +52,20 @@ TabDo strictly enforces untrusted client boundaries: client apps only receive pu
   ```bash
   cp apps/web/.env.example apps/web/.env
   ```
-  Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+  Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (or legacy `VITE_SUPABASE_ANON_KEY`).
 
 - **Extension client:**
   ```bash
   cp apps/extension/.env.example apps/extension/.env
   ```
-  Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+  Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (or legacy `VITE_SUPABASE_ANON_KEY`).
 
 - **Trusted operational bootstrap (server/admin only):**
   ```bash
   cp .env.bootstrap.example .env.bootstrap
   ```
-  Configure `SUPABASE_SERVICE_ROLE_KEY`, `TABDO_ADMIN_EMAIL`, and `TABDO_ADMIN_PASSWORD`.  
-  *Never commit `.env.bootstrap` or bundle service-role credentials into client packages.*
+  Configure `SUPABASE_SECRET_KEY` (or legacy `SUPABASE_SERVICE_ROLE_KEY`), `TABDO_ADMIN_EMAIL`, and `TABDO_ADMIN_PASSWORD`.  
+  *Never commit `.env.bootstrap` or bundle secret/service-role credentials into client packages.*
 
 ### 4. Local Database & Migrations
 
@@ -152,7 +152,7 @@ pnpm test:integration
 
 ## Security & Architecture Invariants
 
-1. **Untrusted Clients:** Neither `apps/web` nor `apps/extension` may import, expose, or log `SUPABASE_SERVICE_ROLE_KEY`.
+1. **Untrusted Clients:** Neither `apps/web` nor `apps/extension` may import, expose, or log `SUPABASE_SECRET_KEY` (or legacy `SUPABASE_SERVICE_ROLE_KEY`).
 2. **Single Auth Session:** All portals (`/login`, `/admin/login`) authenticate against the same Supabase Auth instance.
 3. **Data Boundary:** UI route guards do not substitute for authorization. Personal tables (`tasks`, `reminders`, `categories`, `schedule_blocks`, `task_activities`) enforce `auth.uid() = user_id` via RLS.
 4. **Admin Role Isolation:** An `admin` profile role does not grant access to another user's personal data.

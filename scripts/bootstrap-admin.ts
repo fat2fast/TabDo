@@ -25,16 +25,19 @@ function loadEnvBootstrap() {
 loadEnvBootstrap()
 
 const supabaseUrl = process.env.SUPABASE_URL
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 const adminEmail = process.env.TABDO_ADMIN_EMAIL
 const adminPassword = process.env.TABDO_ADMIN_PASSWORD
 
-if (!supabaseUrl || !serviceRoleKey || !adminEmail || !adminPassword) {
-  console.error('Error: Missing required environment variables (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TABDO_ADMIN_EMAIL, TABDO_ADMIN_PASSWORD)')
+if (!supabaseUrl || !secretKey || !adminEmail || !adminPassword) {
+  console.error('Error: Missing required environment variables (SUPABASE_URL, SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY, TABDO_ADMIN_EMAIL, TABDO_ADMIN_PASSWORD)')
   process.exit(1)
 }
 
-const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+const targetEmail: string = adminEmail
+const targetPassword: string = adminPassword
+
+const adminClient = createClient(supabaseUrl, secretKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -58,13 +61,13 @@ async function findUserByEmail(email: string) {
 
 async function main() {
   try {
-    let existingUser = await findUserByEmail(adminEmail)
+    let existingUser = await findUserByEmail(targetEmail)
     let isCreated = false
 
     if (!existingUser) {
       const { data, error } = await adminClient.auth.admin.createUser({
-        email: adminEmail,
-        password: adminPassword,
+        email: targetEmail,
+        password: targetPassword,
         email_confirm: true,
         user_metadata: {
           displayName: 'Admin'
@@ -110,7 +113,7 @@ async function main() {
     process.exit(0)
   } catch (err: any) {
     let msg = err?.message || 'Unknown error'
-    if (serviceRoleKey) msg = msg.replaceAll(serviceRoleKey, '[REDACTED]')
+    if (secretKey) msg = msg.replaceAll(secretKey, '[REDACTED]')
     if (adminPassword) msg = msg.replaceAll(adminPassword, '[REDACTED]')
     console.error(`Bootstrap failed: ${msg}`)
     process.exit(1)

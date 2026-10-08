@@ -10,6 +10,7 @@ export interface TaskViewSearchParams {
   dueFrom: string | undefined
   dueTo: string | undefined
   sort: TaskSortOption
+  scope: string | undefined
 }
 
 const VALID_STATUSES: TaskStatus[] = ['todo', 'in_progress', 'done']
@@ -34,6 +35,7 @@ export function useTaskViewSearchParams() {
     const rawDueFrom = searchParams.get('dueFrom')
     const rawDueTo = searchParams.get('dueTo')
     const rawSort = searchParams.get('sort')
+    const rawScope = searchParams.get('scope') || undefined
 
     const status = VALID_STATUSES.includes(rawStatus as TaskStatus)
       ? (rawStatus as TaskStatus)
@@ -62,6 +64,7 @@ export function useTaskViewSearchParams() {
       dueFrom: rawDueFrom || undefined,
       dueTo: rawDueTo || undefined,
       sort,
+      scope: rawScope,
     }
   }, [searchParams])
 
@@ -119,6 +122,11 @@ export function useTaskViewSearchParams() {
       } else {
         updated.delete('sort')
       }
+    }
+
+    if ('scope' in newParams) {
+      if (newParams.scope) updated.set('scope', newParams.scope)
+      else updated.delete('scope')
     }
 
     setSearchParams(updated, { replace: true })

@@ -9,6 +9,7 @@
   "scripts": {
     "dev:web": "pnpm --filter @tabdo/web dev",
     "dev:extension": "pnpm --filter @tabdo/extension dev",
+    "dev:functions": "supabase functions serve --no-verify-jwt",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm --filter @tabdo/web lint",

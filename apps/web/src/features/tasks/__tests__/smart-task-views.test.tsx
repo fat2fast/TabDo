@@ -82,7 +82,7 @@ describe('smart-task-views', () => {
     renderTasksPage('/tasks/inbox')
 
     expect(
-      await screen.findByText('Inbox trống. Các công việc đã được sắp xếp.')
+      await screen.findByText(/danh sách công việc trống|inbox trống/i)
     ).toBeInTheDocument()
   })
 

@@ -94,9 +94,9 @@ export function TaskForm({
   const checklistCount = checklistItems.length
 
   const statusOptions: DropdownOption<TaskStatus>[] = [
-    { value: 'todo', label: 'Cần làm (Todo)', color: '#64748b' },
-    { value: 'in_progress', label: 'Đang thực hiện (In Progress)', color: '#0284c7' },
-    { value: 'done', label: 'Đã hoàn thành (Done)', color: '#16a34a' },
+    { value: 'todo', label: 'Cần làm', color: '#64748b' },
+    { value: 'in_progress', label: 'Đang thực hiện', color: '#0284c7' },
+    { value: 'done', label: 'Đã hoàn thành', color: '#16a34a' },
   ]
 
   const priorityOptions: DropdownOption<TaskPriority>[] = [
@@ -106,7 +106,7 @@ export function TaskForm({
   ]
 
   const categoryOptions: DropdownOption<string>[] = [
-    { value: '', label: 'Không phân loại (Inbox)' },
+    { value: '', label: 'Không phân loại' },
     ...categories.map((c) => ({
       value: c.id,
       label: c.name,

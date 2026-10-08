@@ -6,3 +6,4 @@ export function isOverdue(dueAt: string | null | undefined, status: string, now:
 
 export * from './task-datetime.js'
 export * from './reminder-time.js'
+export * from './locale.js'

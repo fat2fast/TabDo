@@ -29,6 +29,7 @@ export interface TaskListQueryInput {
   dueFrom?: string
   dueTo?: string
   sort?: TaskSortOption
+  scope?: string
   limit?: number
   timeZone: string
   now: Date
