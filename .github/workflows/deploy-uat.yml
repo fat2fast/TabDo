@@ -1,0 +1,144 @@
+name: Deploy UAT
+
+on:
+  push:
+    branches: [uat]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tabdo-uat-deployment
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      # Public, inert values required by WXT during install and by client builds.
+      VITE_SUPABASE_URL: https://tabdo-ci.invalid
+      VITE_SUPABASE_ANON_KEY: ci-placeholder-public-anon-key
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  deploy-uat:
+    if: github.ref == 'refs/heads/uat'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: uat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Install dependencies
+        env:
+          VITE_SUPABASE_URL: https://tabdo-ci.invalid
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-public-anon-key
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Apply UAT database migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_UAT_DB_PASSWORD }}
+          SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_UAT_PROJECT_REF"
+          supabase migration list --linked
+          supabase db push --linked --yes
+
+      - name: Deploy admin-create-user Edge Function to UAT
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          supabase functions deploy admin-create-user \
+            --project-ref "$SUPABASE_UAT_PROJECT_REF"
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@63.0.2
+
+      - name: Pull UAT project build settings
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          vercel pull --yes --environment=production --cwd apps/web \
+            --token "$VERCEL_TOKEN"
+
+      - name: Build UAT web deployment
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          vercel build --prod --cwd apps/web --token "$VERCEL_TOKEN"
+
+      - name: Deploy UAT web and check SPA route
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          deployment_url="$(vercel deploy --prebuilt --prod --cwd apps/web \
+            --token "$VERCEL_TOKEN")"
+          deployment_url="${deployment_url%/}"
+          response="$(curl --fail --location --silent --show-error \
+            "$deployment_url/login")"
+          printf '%s' "$response" | grep --fixed-strings --quiet '<div id="root"></div>'
+          {
+            printf '### UAT deployment\n\n'
+            printf '%s\n' "- Commit: \`$GITHUB_SHA\`"
+            printf '%s\n' "- Deployment: $deployment_url"
+            printf '%s\n' '- Supabase migration history inspected; pending migrations applied successfully.'
+            printf '%s\n' '- `admin-create-user` Edge Function deployment succeeded.'
+            printf '%s\n' '- `/login` returned the SPA entry document.'
+          } >> "$GITHUB_STEP_SUMMARY"

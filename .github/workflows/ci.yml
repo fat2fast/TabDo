@@ -2,13 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main, master, 'feat/**']
+    branches: [main, master, uat, 'feat/**']
   pull_request:
     branches: [main, master]
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: https://tabdo-ci.invalid
+      VITE_SUPABASE_ANON_KEY: ci-placeholder-public-anon-key
     steps:
       - name: Checkout
         uses: actions/checkout@v4

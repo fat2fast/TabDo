@@ -36,7 +36,7 @@ describe('Reminder UI components', () => {
     status: 'todo',
     priority: 'high',
     dueDateKind: 'date_time',
-    dueAt: '2026-10-06T15:00:00.000Z',
+    dueAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
     createdAt: '2026-10-06T08:00:00.000Z',
     updatedAt: '2026-10-06T08:00:00.000Z',
   }
@@ -133,7 +133,11 @@ describe('Reminder UI components', () => {
     expect(screen.getByTestId('kind-absolute-radio')).toBeChecked()
 
     fireEvent.change(screen.getByTestId('reminder-date-input'), {
-      target: { value: '2026-10-10' },
+      target: {
+        value: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
+      },
     })
     fireEvent.change(screen.getByTestId('reminder-time-input'), {
       target: { value: '14:30' },
