@@ -13,6 +13,7 @@ import {
 } from '../notifications.js'
 import {
   getNotificationContext,
+  getUserCache,
   setActiveUserId,
   setUserCache,
 } from '../storage.js'
@@ -24,6 +25,7 @@ describe('notifications module', () => {
   let mockStore: Record<string, unknown> = {}
   let registeredNotifications: Record<string, unknown> = {}
   let clearedNotifications: string[] = []
+  let updatedNotifications: Record<string, unknown> = {}
   let createdTabs: unknown[] = []
   let registeredAlarms: Array<{ name: string; scheduledTime?: number }> = []
 
@@ -31,6 +33,7 @@ describe('notifications module', () => {
     mockStore = {}
     registeredNotifications = {}
     clearedNotifications = []
+    updatedNotifications = {}
     createdTabs = []
     registeredAlarms = []
 
@@ -57,6 +60,13 @@ describe('notifications module', () => {
       notifications: {
         create: vi.fn(async (id: string, options: unknown) => {
           registeredNotifications[id] = options
+        }),
+        update: vi.fn(async (id: string, options: unknown) => {
+          updatedNotifications[id] = options
+          if (registeredNotifications[id]) {
+            Object.assign(registeredNotifications[id], options)
+          }
+          return true
         }),
         clear: vi.fn(async (id: string) => {
           clearedNotifications.push(id)
@@ -125,10 +135,17 @@ describe('notifications module', () => {
           return {
             update: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(async () => {
-                  triggeredCalled = true
-                  return { error: null }
-                }),
+                eq: vi.fn(() => ({
+                  select: vi.fn(() => ({
+                    maybeSingle: vi.fn(async () => {
+                      triggeredCalled = true
+                      return {
+                        data: { id: 'rem-100', updated_at: '2026-10-06T08:05:00.000Z' },
+                        error: null,
+                      }
+                    }),
+                  })),
+                })),
               })),
             })),
           }
@@ -149,10 +166,11 @@ describe('notifications module', () => {
     expect(notif.buttons[0]?.title).toBe(BUTTON_DONE_LABEL)
     expect(notif.buttons[1]?.title).toBe(BUTTON_SNOOZE_LABEL)
 
-    // Context persisted in storage
+    // Context persisted in storage with refreshed reminderUpdatedAt
     const context = await getNotificationContext(notifKeys[0]!)
     expect(context?.taskId).toBe('task-100')
     expect(context?.reminderId).toBe('rem-100')
+    expect(context?.reminderUpdatedAt).toBe('2026-10-06T08:05:00.000Z')
 
     // Best-effort triggered executed
     expect(triggeredCalled).toBe(true)
@@ -412,5 +430,296 @@ describe('notifications module', () => {
     const updatedAlarm = registeredAlarms.find((a) => a.name === 'reminder:rem-1')
     expect(updatedAlarm).toBeDefined()
     expect(updatedAlarm?.scheduledTime).toBe(futureMs)
+  })
+
+  it('7. showReminderNotification then Snooze: models DB changed updated_at after markReminderTriggered and verifies Snooze succeeds', async () => {
+    await setActiveUserId('user-1')
+    const initialUpdatedAt = '2026-10-06T08:00:00.000Z'
+    const newDbUpdatedAt = '2026-10-06T08:05:00.000Z'
+    const futureSnoozeInstant = '2026-10-06T12:15:00.000Z'
+
+    const sampleReminder: UpcomingReminder = {
+      id: 'rem-snooze-test',
+      taskId: 'task-snooze-test',
+      taskTitle: 'Important meeting prep',
+      taskStatus: 'todo',
+      dueAt: '2026-10-06T12:00:00.000Z',
+      reminderKind: 'absolute',
+      offsetMinutes: null,
+      remindAt: '2026-10-06T12:00:00.000Z',
+      effectiveAt: '2026-10-06T12:00:00.000Z',
+      status: 'pending',
+      snoozedUntil: null,
+      updatedAt: initialUpdatedAt,
+      taskUpdatedAt: initialUpdatedAt,
+    }
+
+    await setUserCache('user-1', {
+      userId: 'user-1',
+      todayTasks: [],
+      upcomingReminders: [sampleReminder],
+      metadata: { lastSuccessfulSyncAt: null, lastSyncError: null, isStale: false },
+    })
+
+    let snoozeExecutedWithCorrectVersion = false
+    const mockClient = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { user: { id: 'user-1', email: 'test@example.com' } } },
+          error: null,
+        })),
+        getUser: vi.fn(async () => ({
+          data: { user: { id: 'user-1', email: 'test@example.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === 'reminders') {
+          return {
+            update: vi.fn((updatePayload: Record<string, unknown>) => ({
+              eq: vi.fn((field1: string, val1: string) => ({
+                eq: vi.fn((field2: string, val2: string) => {
+                  if (updatePayload.status === 'triggered') {
+                    // Triggered update matches initialUpdatedAt
+                    expect(val2).toBe(initialUpdatedAt)
+                    return {
+                      select: vi.fn(() => ({
+                        maybeSingle: vi.fn(async () => ({
+                          data: { id: 'rem-snooze-test', updated_at: newDbUpdatedAt },
+                          error: null,
+                        })),
+                      })),
+                    }
+                  }
+
+                  if (updatePayload.status === 'snoozed') {
+                    // SNOOZE UPDATE MUST MATCH THE NEW DB UPDATED_AT (not the stale initialUpdatedAt!)
+                    expect(val2).toBe(newDbUpdatedAt)
+                    snoozeExecutedWithCorrectVersion = true
+                    return {
+                      select: vi.fn(() => ({
+                        single: vi.fn(async () => ({
+                          data: {
+                            id: 'rem-snooze-test',
+                            snoozed_until: futureSnoozeInstant,
+                            effective_at: futureSnoozeInstant,
+                            updated_at: '2026-10-06T08:20:00.000Z',
+                          },
+                          error: null,
+                        })),
+                      })),
+                    }
+                  }
+
+                  return {}
+                }),
+              })),
+            })),
+            select: vi.fn(() => ({
+              in: vi.fn(() => ({
+                gte: vi.fn(() => ({
+                  lt: vi.fn(() => ({
+                    order: vi.fn(async () => ({ data: [], error: null })),
+                  })),
+                })),
+              })),
+            })),
+          }
+        }
+        if (table === 'profiles') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                single: vi.fn(async () => ({
+                  data: { id: 'user-1', display_name: 'Phat', timezone: 'Asia/Ho_Chi_Minh' },
+                  error: null,
+                })),
+              })),
+            })),
+          }
+        }
+        if (table === 'tasks') {
+          return {
+            select: vi.fn(() => ({
+              neq: vi.fn(() => ({
+                not: vi.fn(() => ({
+                  lte: vi.fn(() => ({
+                    order: vi.fn(() => ({
+                      limit: vi.fn(async () => ({ data: [], error: null })),
+                    })),
+                  })),
+                })),
+              })),
+            })),
+          }
+        }
+        return {}
+      }),
+    } as unknown as SupabaseClient
+
+    // 1. Show notification -> marks triggered and refreshes context with newDbUpdatedAt
+    await showReminderNotification('reminder:rem-snooze-test', mockClient)
+    const notifId = Object.keys(registeredNotifications)[0]!
+    const savedContext = await getNotificationContext(notifId)
+    expect(savedContext?.reminderUpdatedAt).toBe(newDbUpdatedAt)
+
+    // 2. User clicks Snooze 15m button
+    await handleNotificationButtonClick(notifId, NOTIFICATION_BUTTON_SNOOZE, mockClient)
+
+    expect(snoozeExecutedWithCorrectVersion).toBe(true)
+    expect(clearedNotifications).toContain(notifId)
+    expect(await getNotificationContext(notifId)).toBeNull()
+  })
+
+  it('8. handleNotificationButtonClick Done failure: preserves notification and context, records lastSyncError', async () => {
+    await setActiveUserId('user-1')
+    await setUserCache('user-1', {
+      userId: 'user-1',
+      todayTasks: [],
+      upcomingReminders: [],
+      metadata: { lastSuccessfulSyncAt: null, lastSyncError: null, isStale: false },
+    })
+
+    const notifId = 'notif-fail-done'
+    const context: ExtensionNotificationContext = {
+      notificationId: notifId,
+      reminderId: 'rem-fail',
+      taskId: 'task-fail',
+      taskTitle: 'Critical task',
+      dueAt: null,
+      effectiveAt: '2026-10-06T12:00:00.000Z',
+      reminderUpdatedAt: '2026-10-06T10:00:00.000Z',
+      taskUpdatedAt: '2026-10-06T10:00:00.000Z',
+    }
+    mockStore['tabdo:notifications'] = { [notifId]: context }
+    registeredNotifications[notifId] = { title: 'Critical task', message: 'test' }
+
+    const mockClientFail = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { user: { id: 'user-1', email: 'test@example.com' } } },
+          error: null,
+        })),
+        getUser: vi.fn(async () => ({
+          data: { user: { id: 'user-1', email: 'test@example.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                single: vi.fn(async () => ({
+                  data: { id: 'user-1', display_name: 'Phat', timezone: 'Asia/Ho_Chi_Minh' },
+                  error: null,
+                })),
+              })),
+            })),
+          }
+        }
+        if (table === 'tasks') {
+          return {
+            update: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  select: vi.fn(() => ({
+                    single: vi.fn(async () => ({
+                      data: null,
+                      error: new Error('Network connection failed'),
+                    })),
+                  })),
+                })),
+              })),
+            })),
+          }
+        }
+        return {}
+      }),
+    } as unknown as SupabaseClient
+
+    await expect(
+      handleNotificationButtonClick(notifId, NOTIFICATION_BUTTON_DONE, mockClientFail)
+    ).rejects.toThrow('Network connection failed')
+
+    // Invariant: Notification must NOT be dismissed on failure!
+    expect(clearedNotifications).not.toContain(notifId)
+    // Invariant: Context must NOT be deleted so user can retry or recover!
+    expect(await getNotificationContext(notifId)).not.toBeNull()
+    // User cache metadata records error
+    const cache = await getUserCache('user-1')
+    expect(cache?.metadata.lastSyncError).toContain('Network connection failed')
+    expect(cache?.metadata.isStale).toBe(true)
+    // Notification UI updated to reflect failure
+    expect(updatedNotifications[notifId]).toBeDefined()
+  })
+
+  it('9. handleNotificationButtonClick Snooze failure: preserves notification and context on conflict', async () => {
+    await setActiveUserId('user-1')
+    await setUserCache('user-1', {
+      userId: 'user-1',
+      todayTasks: [],
+      upcomingReminders: [],
+      metadata: { lastSuccessfulSyncAt: null, lastSyncError: null, isStale: false },
+    })
+
+    const notifId = 'notif-fail-snooze'
+    const context: ExtensionNotificationContext = {
+      notificationId: notifId,
+      reminderId: 'rem-conflict',
+      taskId: 'task-conflict',
+      taskTitle: 'Conflict task',
+      dueAt: null,
+      effectiveAt: '2026-10-06T12:00:00.000Z',
+      reminderUpdatedAt: '2026-10-06T10:00:00.000Z',
+      taskUpdatedAt: '2026-10-06T10:00:00.000Z',
+    }
+    mockStore['tabdo:notifications'] = { [notifId]: context }
+    registeredNotifications[notifId] = { title: 'Conflict task', message: 'test' }
+
+    const mockClientConflict = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { user: { id: 'user-1', email: 'test@example.com' } } },
+          error: null,
+        })),
+        getUser: vi.fn(async () => ({
+          data: { user: { id: 'user-1', email: 'test@example.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === 'reminders') {
+          return {
+            update: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  select: vi.fn(() => ({
+                    single: vi.fn(async () => ({
+                      data: null,
+                      error: { code: 'PGRST116', message: 'Row not found' },
+                    })),
+                  })),
+                })),
+              })),
+            })),
+          }
+        }
+        return {}
+      }),
+    } as unknown as SupabaseClient
+
+    await expect(
+      handleNotificationButtonClick(notifId, NOTIFICATION_BUTTON_SNOOZE, mockClientConflict)
+    ).rejects.toThrow('concurrent modification conflict')
+
+    // Invariant: Notification must NOT be dismissed on conflict!
+    expect(clearedNotifications).not.toContain(notifId)
+    // Invariant: Context must NOT be deleted!
+    expect(await getNotificationContext(notifId)).not.toBeNull()
+    // User cache metadata records error
+    const cache = await getUserCache('user-1')
+    expect(cache?.metadata.lastSyncError).toContain('concurrent modification conflict')
+    expect(cache?.metadata.isStale).toBe(true)
   })
 })

@@ -4,7 +4,18 @@ import {
   PERIODIC_SYNC_ALARM_NAME,
   SYNC_INTERVAL_MINUTES,
 } from '../sync.js'
-import { getUserCache, setUserCache } from '../storage.js'
+import { runSerializedSync, controllerMutex } from '../controller.js'
+import {
+  handleNotificationButtonClick,
+  NOTIFICATION_BUTTON_DONE,
+} from '../notifications.js'
+import {
+  getUserCache,
+  setUserCache,
+  setActiveUserId,
+  setNotificationContext,
+} from '../storage.js'
+import type { ExtensionNotificationContext } from '../types.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 describe('syncExtensionState', () => {
@@ -286,5 +297,138 @@ describe('syncExtensionState', () => {
     expect(result.todayTasks).toHaveLength(1)
     // Alarms must NOT have been destroyed
     expect(registeredAlarms.find((a) => a.name === 'reminder:existing')).toBeDefined()
+  })
+
+  it('4. interleaving regression: periodic sync racing Done mutation is serialized through controller mutex', async () => {
+    await setActiveUserId('user-1')
+    await setUserCache('user-1', {
+      userId: 'user-1',
+      todayTasks: [
+        {
+          id: 'task-racing',
+          title: 'Racing task',
+          status: 'todo',
+          priority: 'medium',
+          dueDateKind: 'date_time',
+          dueAt: null,
+          updatedAt: '2026-10-06T08:00:00.000Z',
+        },
+      ],
+      upcomingReminders: [],
+      metadata: { lastSuccessfulSyncAt: null, lastSyncError: null, isStale: false },
+    })
+
+    const notifId = 'notif-race'
+    const context: ExtensionNotificationContext = {
+      notificationId: notifId,
+      reminderId: 'rem-race',
+      taskId: 'task-racing',
+      taskTitle: 'Racing task',
+      dueAt: null,
+      effectiveAt: '2026-10-06T12:00:00.000Z',
+      reminderUpdatedAt: '2026-10-06T08:00:00.000Z',
+      taskUpdatedAt: '2026-10-06T08:00:00.000Z',
+    }
+    await setNotificationContext(notifId, context)
+
+    const executionLog: string[] = []
+
+    const mockClient = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { user: { id: 'user-1', email: 'test@example.com' } } },
+          error: null,
+        })),
+        getUser: vi.fn(async () => ({
+          data: { user: { id: 'user-1', email: 'test@example.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                single: vi.fn(async () => ({
+                  data: { id: 'user-1', display_name: 'Phat', timezone: 'Asia/Ho_Chi_Minh' },
+                  error: null,
+                })),
+              })),
+            })),
+          }
+        }
+        if (table === 'tasks') {
+          return {
+            update: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  select: vi.fn(() => ({
+                    single: vi.fn(async () => {
+                      executionLog.push('mutation:start')
+                      // Simulate remote latency
+                      await new Promise((resolve) => setTimeout(resolve, 30))
+                      executionLog.push('mutation:done')
+                      return {
+                        data: { id: 'task-racing', title: 'Racing task', updated_at: '2026-10-06T08:30:00.000Z' },
+                        error: null,
+                      }
+                    }),
+                  })),
+                })),
+              })),
+            })),
+            select: vi.fn(() => ({
+              neq: vi.fn(() => ({
+                not: vi.fn(() => ({
+                  lte: vi.fn(() => ({
+                    order: vi.fn(() => ({
+                      limit: vi.fn(async () => {
+                        executionLog.push('tasks:read')
+                        return { data: [], error: null }
+                      }),
+                    })),
+                  })),
+                })),
+              })),
+            })),
+          }
+        }
+        if (table === 'task_activities') {
+          return { insert: vi.fn(async () => ({ error: null })) }
+        }
+        if (table === 'reminders') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(() => ({
+                gte: vi.fn(() => ({
+                  lt: vi.fn(() => ({
+                    order: vi.fn(async () => ({ data: [], error: null })),
+                  })),
+                })),
+              })),
+            })),
+          }
+        }
+        return {}
+      }),
+    } as unknown as SupabaseClient
+
+    // Dispatch Done action and periodic sync concurrently
+    const donePromise = handleNotificationButtonClick(notifId, NOTIFICATION_BUTTON_DONE, mockClient)
+    const periodicSyncPromise = runSerializedSync(mockClient)
+
+    await Promise.all([donePromise, periodicSyncPromise])
+
+    // Invariant: The periodic sync must NOT read or write while mutation is in flight
+    // Mutation start and done must occur before subsequent periodic sync tasks:read
+    const firstMutationIndex = executionLog.indexOf('mutation:start')
+    const doneMutationIndex = executionLog.indexOf('mutation:done')
+    expect(firstMutationIndex).toBeGreaterThanOrEqual(0)
+    expect(doneMutationIndex).toBeGreaterThan(firstMutationIndex)
+
+    // The first tasks:read from periodic sync happens after the mutation finishes
+    // (handleDone internally runs its own sync, followed by the queued periodic sync)
+    const firstReadIndex = executionLog.indexOf('tasks:read')
+    expect(firstReadIndex).toBeGreaterThan(doneMutationIndex)
   })
 })

@@ -9,6 +9,7 @@ import {
   snoozeReminder,
 } from '@tabdo/supabase'
 import { restoreSession, signIn, signOut } from './auth.js'
+import { clearReminderAlarms } from './alarm-reconciliation.js'
 import {
   getUserCache,
   setUserCache,
@@ -123,6 +124,16 @@ export async function runSync(client: SupabaseClient = supabase): Promise<Extens
 }
 
 /**
+ * Runs synchronization exclusively through controllerMutex to prevent
+ * background reads from interleaving with in-flight mutations.
+ */
+export async function runSerializedSync(client: SupabaseClient = supabase): Promise<ExtensionState> {
+  return controllerMutex.runExclusive(async () => {
+    return runSync(client)
+  })
+}
+
+/**
  * Core message dispatcher with serialized execution.
  */
 export async function handleExtensionMessage(
@@ -178,6 +189,7 @@ export async function handleExtensionMessage(
           if (auth.user) {
             await removeUserCache(auth.user.id)
           }
+          await clearReminderAlarms()
           await signOut(client)
           await clearAllNotificationContexts()
           return { ok: true, data: null }

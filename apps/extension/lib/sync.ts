@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getExtensionTodayTasks, getUpcomingReminders } from '@tabdo/supabase'
 import { deriveAlarmName } from '@tabdo/utils'
-import { reconcileReminderAlarms } from './alarm-reconciliation.js'
+import { clearReminderAlarms, reconcileReminderAlarms } from './alarm-reconciliation.js'
 import { restoreSession } from './auth.js'
 import {
   getUserCache,
@@ -16,6 +16,8 @@ import type {
   ExtensionUserCache,
 } from './types.js'
 
+export { clearReminderAlarms }
+
 export const PERIODIC_SYNC_ALARM_NAME = 'tabdo:sync:periodic'
 export const SYNC_INTERVAL_MINUTES = 15
 
@@ -29,15 +31,6 @@ export async function ensurePeriodicSyncAlarm(): Promise<void> {
   }
 }
 
-export async function clearReminderAlarms(): Promise<void> {
-  if (typeof chrome === 'undefined' || !chrome.alarms) return
-  const allAlarms = await chrome.alarms.getAll()
-  for (const alarm of allAlarms) {
-    if (alarm.name.startsWith('reminder:')) {
-      await chrome.alarms.clear(alarm.name)
-    }
-  }
-}
 
 export async function clearTaskAlarms(taskId: string): Promise<void> {
   if (typeof chrome === 'undefined' || !chrome.alarms) return

@@ -154,15 +154,39 @@ describe('task and reminder API boundaries', () => {
     const mockClientFail = {
       from: vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(async () => ({
-            error: new Error('Network error'),
+          eq: vi.fn(() => ({
+            select: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: null,
+                error: new Error('Network error'),
+              })),
+            })),
           })),
         })),
       })),
     } as unknown as SupabaseClient
 
-    const success = await markReminderTriggered(mockClientFail, 'rem-1')
-    expect(success).toBe(false)
+    const res = await markReminderTriggered(mockClientFail, 'rem-1')
+    expect(res.success).toBe(false)
+
+    const mockClientSuccess = {
+      from: vi.fn(() => ({
+        update: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            select: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { id: 'rem-1', updated_at: '2026-10-06T12:00:01.000Z' },
+                error: null,
+              })),
+            })),
+          })),
+        })),
+      })),
+    } as unknown as SupabaseClient
+
+    const successRes = await markReminderTriggered(mockClientSuccess, 'rem-1')
+    expect(successRes.success).toBe(true)
+    expect(successRes.updatedAt).toBe('2026-10-06T12:00:01.000Z')
   })
 
   it('5. snooze conflict behavior: throws concurrency error on outdated update', async () => {

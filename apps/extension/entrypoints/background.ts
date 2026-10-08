@@ -1,21 +1,25 @@
-import { handleExtensionMessage } from '../lib/controller.js'
+import {
+  controllerMutex,
+  handleExtensionMessage,
+  runSerializedSync,
+} from '../lib/controller.js'
 import {
   handleNotificationButtonClick,
   handleNotificationClicked,
   showReminderNotification,
 } from '../lib/notifications.js'
-import { PERIODIC_SYNC_ALARM_NAME, syncExtensionState } from '../lib/sync.js'
+import { PERIODIC_SYNC_ALARM_NAME } from '../lib/sync.js'
 
 export default defineBackground(() => {
   // 1. Startup & install events
   chrome.runtime.onStartup.addListener(async () => {
-    console.log('[TabDo Background] Browser startup, running sync...')
-    await syncExtensionState()
+    console.log('[TabDo Background] Browser startup, running serialized sync...')
+    await runSerializedSync()
   })
 
   chrome.runtime.onInstalled.addListener(async () => {
-    console.log('[TabDo Background] Extension installed/updated, running sync...')
-    await syncExtensionState()
+    console.log('[TabDo Background] Extension installed/updated, running serialized sync...')
+    await runSerializedSync()
 
     // Create selection context menu
     if (typeof chrome !== 'undefined' && chrome.contextMenus?.create) {
@@ -91,8 +95,8 @@ export default defineBackground(() => {
     console.log('[TabDo Background] Alarm event triggered:', alarm.name, new Date().toISOString())
 
     if (alarm.name === PERIODIC_SYNC_ALARM_NAME) {
-      console.log('[TabDo Background] Running periodic sync...')
-      await syncExtensionState()
+      console.log('[TabDo Background] Running periodic serialized sync...')
+      await runSerializedSync()
       return
     }
 
@@ -116,14 +120,20 @@ export default defineBackground(() => {
 
     if (alarm.name.startsWith('reminder:')) {
       console.log('[TabDo Background] Showing reminder notification for:', alarm.name)
-      await showReminderNotification(alarm.name)
+      await controllerMutex.runExclusive(async () => {
+        await showReminderNotification(alarm.name)
+      })
     }
   })
 
   // 3. Notification action buttons
   chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
     console.log('[TabDo Background] Notification button clicked:', notificationId, buttonIndex)
-    await handleNotificationButtonClick(notificationId, buttonIndex)
+    try {
+      await handleNotificationButtonClick(notificationId, buttonIndex)
+    } catch (err) {
+      console.error('[TabDo Background] Notification button handler failed:', err)
+    }
   })
 
   // 4. Notification body click

@@ -2,12 +2,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { completeTask, markReminderTriggered, snoozeReminder } from '@tabdo/supabase'
 import { deriveAlarmName } from '@tabdo/utils'
 import { restoreSession } from './auth.js'
+import { controllerMutex } from './controller.js'
 import {
   getActiveUserId,
   getNotificationContext,
   getUserCache,
   removeNotificationContext,
   setNotificationContext,
+  setUserCache,
 } from './storage.js'
 import { supabase } from './supabase.js'
 import { syncExtensionState } from './sync.js'
@@ -89,33 +91,70 @@ export async function showReminderNotification(
     })
   }
 
-  // Best-effort status update
-  await markReminderTriggered(client, reminder.id, reminder.updatedAt)
+  // Best-effort status update: persist new updatedAt if available to avoid optimistic-concurrency conflicts
+  const triggerResult = await markReminderTriggered(client, reminder.id, reminder.updatedAt)
+  if (triggerResult?.success && triggerResult.updatedAt) {
+    context.reminderUpdatedAt = triggerResult.updatedAt
+    await setNotificationContext(notificationId, context)
+  }
 }
 
 /**
  * Handles action button clicks on a reminder notification (Done or Snooze 15m).
+ * Serialized through controllerMutex to prevent races with background syncs.
  */
 export async function handleNotificationButtonClick(
   notificationId: string,
   buttonIndex: number,
   client: SupabaseClient = supabase
 ): Promise<void> {
-  const context = await getNotificationContext(notificationId)
-  if (!context) return
+  return controllerMutex.runExclusive(async () => {
+    const context = await getNotificationContext(notificationId)
+    if (!context) return
 
-  try {
-    if (buttonIndex === NOTIFICATION_BUTTON_DONE) {
-      await handleDone(context, client)
-    } else if (buttonIndex === NOTIFICATION_BUTTON_SNOOZE) {
-      await handleSnooze(context, 15, client)
+    try {
+      if (buttonIndex === NOTIFICATION_BUTTON_DONE) {
+        await handleDone(context, client)
+      } else if (buttonIndex === NOTIFICATION_BUTTON_SNOOZE) {
+        await handleSnooze(context, 15, client)
+      }
+
+      // Success path: clear notification and remove context
+      if (typeof chrome !== 'undefined' && chrome.notifications?.clear) {
+        await chrome.notifications.clear(notificationId)
+      }
+      await removeNotificationContext(notificationId)
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[TabDo Notification] Action failed:', errorMessage)
+
+      // Surface user-visible error in active user cache metadata
+      const activeUserId = await getActiveUserId()
+      if (activeUserId) {
+        const cache = await getUserCache(activeUserId)
+        if (cache) {
+          await setUserCache(activeUserId, {
+            ...cache,
+            metadata: {
+              ...cache.metadata,
+              lastSyncError: errorMessage,
+              isStale: true,
+            },
+          })
+        }
+      }
+
+      // Preserve recovery path: do not clear notification, update title/message if possible
+      if (typeof chrome !== 'undefined' && chrome.notifications?.update) {
+        await chrome.notifications.update(notificationId, {
+          title: `${context.taskTitle} (Thất bại)`,
+          message: `Không thể thực hiện thao tác: ${errorMessage}. Bấm để mở hoặc thử lại.`,
+        })
+      }
+
+      throw err
     }
-  } finally {
-    if (typeof chrome !== 'undefined' && chrome.notifications?.clear) {
-      await chrome.notifications.clear(notificationId)
-    }
-    await removeNotificationContext(notificationId)
-  }
+  })
 }
 
 /**

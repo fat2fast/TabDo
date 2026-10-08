@@ -69,3 +69,18 @@ export function reconcileReminderAlarms(
     alarmsToRemove,
   }
 }
+
+/**
+ * Removes all reminder:* alarms from chrome.alarms.
+ * Used during sign-out, invalid-session recovery, and unauthenticated sync cleanup.
+ */
+export async function clearReminderAlarms(): Promise<void> {
+  if (typeof chrome === 'undefined' || !chrome.alarms) return
+  const allAlarms = await chrome.alarms.getAll()
+  for (const alarm of allAlarms) {
+    if (alarm.name.startsWith(REMINDER_PREFIX)) {
+      await chrome.alarms.clear(alarm.name)
+    }
+  }
+}
+

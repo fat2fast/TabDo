@@ -82,14 +82,20 @@ export async function getUpcomingReminders(
     }))
 }
 
+export interface MarkReminderTriggeredResult {
+  success: boolean
+  updatedAt?: string
+}
+
 /**
  * Best-effort updates reminder status to triggered after notification display.
+ * Returns the new updated_at if the mutation succeeded so concurrency versions stay fresh.
  */
 export async function markReminderTriggered(
   client: SupabaseClient,
   reminderId: string,
   previousUpdatedAt?: string
-): Promise<boolean> {
+): Promise<MarkReminderTriggeredResult> {
   try {
     let query = client
       .from('reminders')
@@ -100,10 +106,21 @@ export async function markReminderTriggered(
       query = query.eq('updated_at', previousUpdatedAt)
     }
 
-    const { error } = await query
-    return !error
+    const { data, error } = await query
+      .select('id, updated_at')
+      .maybeSingle()
+
+    if (error || !data) {
+      return { success: false }
+    }
+
+    const row = data as { id: string; updated_at: string }
+    return {
+      success: true,
+      updatedAt: row.updated_at,
+    }
   } catch {
-    return false
+    return { success: false }
   }
 }
 

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { clearReminderAlarms } from './alarm-reconciliation.js'
 import { supabase } from './supabase.js'
 import {
   clearAllAuthAndUserStorage,
@@ -42,6 +43,7 @@ export async function handleInvalidSession(
   client: SupabaseClient,
   userId?: string
 ): Promise<void> {
+  await clearReminderAlarms()
   try {
     await client.auth.signOut()
   } catch {
@@ -60,6 +62,7 @@ export async function restoreSession(
     } = await client.auth.getSession()
 
     if (sessionError || !session || !session.user) {
+      await clearReminderAlarms()
       const activeId = await getActiveUserId()
       if (activeId) {
         await clearAllAuthAndUserStorage(activeId)
@@ -81,6 +84,7 @@ export async function restoreSession(
     const profile = await fetchUserProfile(client, user.id, user.email || '')
     return { status: 'authenticated', user: profile }
   } catch {
+    await clearReminderAlarms()
     const activeId = await getActiveUserId()
     if (activeId) {
       await clearAllAuthAndUserStorage(activeId)
@@ -108,6 +112,7 @@ export async function signIn(
 }
 
 export async function signOut(client: SupabaseClient = supabase): Promise<void> {
+  await clearReminderAlarms()
   const activeUserId = await getActiveUserId()
   try {
     await client.auth.signOut()

@@ -10,9 +10,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 describe('auth lifecycle', () => {
   let mockStore: Record<string, unknown> = {}
+  let registeredAlarms: Array<{ name: string; scheduledTime?: number }> = []
 
   beforeEach(() => {
     mockStore = {}
+    registeredAlarms = []
     const chromeMock = {
       storage: {
         local: {
@@ -32,6 +34,17 @@ describe('auth lifecycle', () => {
             for (const k of arr) delete mockStore[k]
           }),
         },
+      },
+      alarms: {
+        getAll: vi.fn(async () => [...registeredAlarms]),
+        get: vi.fn(async (name: string) => registeredAlarms.find((a) => a.name === name) || null),
+        create: vi.fn((name: string, info: { when?: number }) => {
+          registeredAlarms.push({ name, scheduledTime: info.when })
+        }),
+        clear: vi.fn(async (name: string) => {
+          registeredAlarms = registeredAlarms.filter((a) => a.name !== name)
+          return true
+        }),
       },
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,9 +92,13 @@ describe('auth lifecycle', () => {
     expect(await getActiveUserId()).toBe('user-123')
   })
 
-  it('2. refresh-failure cleanup: clears user storage and returns unauthenticated state', async () => {
+  it('2. refresh-failure cleanup: clears user storage, reminder alarms, and returns unauthenticated state', async () => {
     await storageSet(AUTH_STORAGE_KEY, { token: 'invalid' })
     await storageSet('tabdo:auth:active_user_id', 'user-123')
+    registeredAlarms.push(
+      { name: 'reminder:user-123-alarm', scheduledTime: 12345 },
+      { name: 'tabdo:sync:periodic' }
+    )
 
     const mockClient = {
       auth: {
@@ -105,11 +122,21 @@ describe('auth lifecycle', () => {
     expect(result.user).toBeNull()
     expect(await getActiveUserId()).toBeNull()
     expect(await storageGet(AUTH_STORAGE_KEY)).toBeNull()
+
+    // Invariant: Reminder alarms for previous session are cleared immediately
+    expect(registeredAlarms.find((a) => a.name === 'reminder:user-123-alarm')).toBeUndefined()
+    // Non-reminder alarms (such as periodic sync) are preserved
+    expect(registeredAlarms.find((a) => a.name === 'tabdo:sync:periodic')).toBeDefined()
   })
 
-  it('3. sign-out cleanup: clears active user, session token, and cached context', async () => {
+  it('3. sign-out cleanup: clears active user, session token, and reminder alarms', async () => {
     await storageSet(AUTH_STORAGE_KEY, { token: 'valid' })
     await storageSet('tabdo:auth:active_user_id', 'user-123')
+    registeredAlarms.push(
+      { name: 'reminder:user-123-alarm-1', scheduledTime: 12345 },
+      { name: 'reminder:user-123-alarm-2', scheduledTime: 67890 },
+      { name: 'tabdo:sync:periodic' }
+    )
 
     const mockClient = {
       auth: {
@@ -122,5 +149,10 @@ describe('auth lifecycle', () => {
     expect(mockClient.auth.signOut).toHaveBeenCalled()
     expect(await getActiveUserId()).toBeNull()
     expect(await storageGet(AUTH_STORAGE_KEY)).toBeNull()
+
+    // Invariant: Reminder alarms must be removed during sign out
+    expect(registeredAlarms.filter((a) => a.name.startsWith('reminder:'))).toHaveLength(0)
+    // Invariant: Periodic sync alarm is preserved
+    expect(registeredAlarms.find((a) => a.name === 'tabdo:sync:periodic')).toBeDefined()
   })
 })
