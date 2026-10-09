@@ -171,6 +171,17 @@ async function runIntegration() {
       u.token = authData.session.access_token
     }
 
+    // Verify public self-registration is prohibited (P0 requirement)
+    console.log('Verifying public self-registration is disabled...')
+    const { data: signUpData, error: signUpError } = await anonClient.auth.signUp({
+      email: `it_public_${itRunId}@tabdo.local`,
+      password: 'Password123!',
+    })
+    if (!signUpError && signUpData.user?.identities?.length) {
+      throw new Error('Public self-registration must be disabled, but signUp succeeded!')
+    }
+    console.log('✓ Public self-registration is prohibited.')
+
     // Verify User A profile trigger created role 'user'
     const { data: profileA, error: pAErr } = await adminClient
       .from('profiles')

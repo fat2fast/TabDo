@@ -6,10 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CategoryManager } from '../components/category-manager'
 import { QuickAddTask } from '../components/quick-add-task'
 import { SubtaskList } from '../components/subtask-list'
-import { TaskDrawer } from '../components/task-drawer'
 import { TaskForm } from '../components/task-form'
 import { TaskRow } from '../components/task-row'
-import type { Category, Task } from '../types'
+import type { Task } from '../types'
 import { supabase } from '../../../lib/supabase'
 
 vi.mock('../../../lib/supabase', () => {
@@ -374,7 +373,7 @@ describe('core-task-workflow', () => {
       }
 
       const tasksInsertMock = vi.fn().mockReturnThis()
-      const tasksSelectMock = vi.fn().mockReturnThis()
+      const _tasksSelectMock = vi.fn().mockReturnThis()
       const tasksSingleMock = vi.fn().mockResolvedValue({
         data: {
           id: 'subtask-1',

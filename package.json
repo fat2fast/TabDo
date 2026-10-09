@@ -12,13 +12,14 @@
     "dev:functions": "supabase functions serve --no-verify-jwt",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm --filter @tabdo/web lint",
-    "test": "pnpm --filter @tabdo/web test",
+    "lint": "oxlint apps packages",
+    "test": "pnpm --filter @tabdo/web test && pnpm --filter @tabdo/extension test",
     "test:integration": "node --experimental-strip-types scripts/test-integration.ts",
     "bootstrap:admin": "node --experimental-strip-types scripts/bootstrap-admin.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.117.2",
-    "@types/node": "^26.6.4"
+    "@types/node": "^26.6.4",
+    "oxlint": "^1.87.0"
   }
 }

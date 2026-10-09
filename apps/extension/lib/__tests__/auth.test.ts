@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { restoreSession, signIn, signOut } from '../auth.js'
+import { restoreSession, signOut } from '../auth.js'
 import {
   storageGet,
   storageSet,
@@ -68,7 +68,7 @@ describe('auth lifecycle', () => {
         })),
         signOut: vi.fn(async () => ({ error: null })),
       },
-      from: vi.fn((table: string) => ({
+      from: vi.fn((_table: string) => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
             single: vi.fn(async () => ({

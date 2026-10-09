@@ -82,12 +82,15 @@ Normal user account creation is restricted to administrators and performed throu
   - Nếu `is_active = false`: Lập tức xóa toàn bộ cache cục bộ, xóa các alarm đã đặt, hủy các notification và đăng xuất tài khoản. Chặn toàn bộ tác vụ quick-add, complete, snooze.
   - Nếu `must_change_password = true`: Chặn toàn bộ thao tác CRUD và yêu cầu người dùng mở Web để đổi mật khẩu lần đầu.
 
-## 9. Giới hạn dữ liệu thống kê Admin (Aggregate Allowlist)
+## 9. Giới hạn dữ liệu thống kê Admin (Aggregate Allowlist & Privacy Boundary)
+
+> TabDo Admin Portal supports user-account administration and numerical task statistics. Administrators may view task counts by status and by account but cannot access, inspect, or modify other users' individual task data, reminders, schedules, or task content.
 
 - **Quyền riêng tư dữ liệu (Privacy Boundary)**:
   - Admin Portal xem danh sách người dùng và dashboard chỉ nhận dữ liệu tổng hợp (counts), tuyệt đối KHÔNG nhận chi tiết công việc.
   - Hợp đồng aggregate chỉ bao gồm: `user_id`, `task_count` (tổng số task, bao gồm cả subtasks), `todo_count`, `in_progress_count`, `done_count`.
   - Không bao giờ trả về tiêu đề, mô tả, danh mục, liên kết đính kèm hay hoạt động của task cho admin.
+  - RLS nghiêm ngặt cô lập dữ liệu cá nhân: admin không có policy bypass để đọc hay thao tác các bảng `tasks`, `reminders`, `schedule_blocks`, `task_activities`.
 
 ## 10. Admin Bootstrap Script
 

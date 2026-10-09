@@ -1,8 +1,9 @@
 # Phase 7 — Recurring Tasks
 
-**Status:** Planned  
+**Status:** Completed (subject to acceptance verification)  
 **Depends on:** Phases 2 and 5  
-**Benefits:** Dashboard and summaries
+**Benefits:** Dashboard and summaries  
+**Delivered in:** PR #7 (`plans/261009-0009-recurring-tasks-dashboard`)
 
 ## 1. Goal
 

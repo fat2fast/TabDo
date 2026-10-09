@@ -31,34 +31,30 @@ export default defineBackground(() => {
         })
       })
     }
-
-    // Auto-inject content script into currently open tabs (e.g. Zalo Web) so users don't have to reload pages
-    if (typeof chrome !== 'undefined' && chrome.scripting && chrome.tabs) {
-      try {
-        const openTabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] })
-        for (const openTab of openTabs) {
-          if (openTab.id && !openTab.url?.startsWith('chrome://') && !openTab.url?.startsWith('edge://')) {
-            chrome.scripting.executeScript({
-              target: { tabId: openTab.id, allFrames: true },
-              files: ['content-scripts/content.js'],
-            }).catch(() => {
-              // Ignore tabs that disallow injection (internal edge/chrome pages)
-            })
-          }
-        }
-      } catch (err) {
-        console.warn('[TabDo Background] Could not auto-inject into open tabs:', err)
-      }
-    }
   })
 
-  // Context menu click handler with resilient fallback injection
+  // Context menu click handler with on-demand user-triggered injection
   if (typeof chrome !== 'undefined' && chrome.contextMenus?.onClicked) {
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (info.menuItemId === 'tabdo:create-task-selection' && tab?.id && info.selectionText) {
         const tabId = tab.id
         const frameId = info.frameId
         const pageUrl = info.pageUrl || tab.url || ''
+
+        // Gracefully ignore internal/restricted pages where injection is unsupported
+        if (
+          !pageUrl ||
+          pageUrl.startsWith('chrome://') ||
+          pageUrl.startsWith('edge://') ||
+          pageUrl.startsWith('about:') ||
+          pageUrl.startsWith('chrome-extension://') ||
+          pageUrl.startsWith('devtools://') ||
+          pageUrl.startsWith('view-source:')
+        ) {
+          console.warn('[TabDo Background] Script injection not permitted on restricted URL:', pageUrl)
+          return
+        }
+
         const message = {
           type: 'tabdo:open-create-dialog',
           payload: {
@@ -67,23 +63,27 @@ export default defineBackground(() => {
           },
         }
 
+        const targetOptions = frameId !== undefined ? { frameId } : undefined
+
         try {
-          await chrome.tabs.sendMessage(tabId, message, frameId !== undefined ? { frameId } : undefined)
+          await chrome.tabs.sendMessage(tabId, message, targetOptions)
         } catch {
-          // Content script not ready in this tab. Dynamically inject and retry!
+          // Content script not ready in this tab; inject on demand
           try {
             if (chrome.scripting?.executeScript) {
               await chrome.scripting.executeScript({
-                target: { tabId, allFrames: true },
+                target: { tabId, allFrames: false },
                 files: ['content-scripts/content.js'],
               })
               // Small delay for listener registration
               setTimeout(() => {
-                chrome.tabs.sendMessage(tabId, message, frameId !== undefined ? { frameId } : undefined).catch(console.error)
-              }, 80)
+                chrome.tabs.sendMessage(tabId, message, targetOptions).catch((err) => {
+                  console.warn('[TabDo Background] Failed to send open-dialog message after injection:', err)
+                })
+              }, 60)
             }
           } catch (injectErr) {
-            console.error('[TabDo Background] Could not dynamically inject content script:', injectErr)
+            console.warn('[TabDo Background] Could not dynamically inject content script:', injectErr)
           }
         }
       }

@@ -33,8 +33,6 @@ export function useDashboard(referenceNow?: Date) {
         'yyyy-MM-dd'
       )
       // Midnight in the user's timezone is when tomorrow's dateStr begins
-      // We approximate with a simple re-check every minute after midnight
-      const [y, mo, d] = tomorrowDateStr.split('-').map(Number)
       // Compute ms until 00:00:00.001 local tomorrow — use UTC+offset approach via Date
       const localMidnightApprox = new Date(`${tomorrowDateStr}T00:00:00`)
       // localMidnightApprox is in LOCAL time — convert to UTC for scheduling

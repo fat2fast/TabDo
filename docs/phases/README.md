@@ -13,21 +13,21 @@ This directory expands `docs/mvp-roadmap.md` into implementation-level phase doc
 | [Phase 4](./phase-04-scheduling-and-calendar.md) | Scheduling & Calendar | **Completed** | PR #3 (`plans/261006-0832-...`) | Migration `0004`, FullCalendar Standard day/week views, schedule blocks, drag/resize, drawer integration |
 | [Phase 5](./phase-05-reminder-engine.md) | Reminder Engine | **Completed** | PR #3 (`plans/261006-0832-...`) | Migration `0005`, absolute & relative reminders, presets, snooze/dismiss, auto-dismiss on completion |
 | [Phase 6](./phase-06-browser-extension.md) | Browser Extension | **Completed** | PR #4 (`plans/261006-1645-...`) | WXT MV3 popup, Today sync via `chrome.storage.local`, alarms via `chrome.alarms` & notifications |
-| [Phase 7](./phase-07-recurring-tasks.md) | Recurring Tasks | **Planned** | Planned | Recurrence rule schema, auto-regeneration on completion |
-| [Phase 8](./phase-08-dashboard.md) | Dashboard | **Planned** | Planned | Productive day metrics, today's agenda, overdue tracking |
+| [Phase 7](./phase-07-recurring-tasks.md) | Recurring Tasks | **Completed** | PR #7 (`0007`, `0008`, `recurrence.ts`) | Recurrence rule schema, auto-regeneration on completion, timezone/DST handling |
+| [Phase 8](./phase-08-dashboard.md) | Dashboard | **Completed** | PR #7 (`DashboardPage.tsx`, metrics) | Productive day metrics, today's agenda, overdue tracking, priority overview |
 | [Phase 9](./phase-09-daily-weekly-summary.md) | Daily & Weekly Summary | **Planned** | Planned | Rule-based daily/weekly summary of completed, pending, carried-over, and overdue work |
-| [Phase 10](./phase-10-hardening-and-release.md) | MVP Hardening & Release Verification | **Planned** | Planned | Cross-client smoke tests, performance, end-to-end verification |
+| [Phase 10](./phase-10-hardening-and-release.md) | MVP Hardening & Release Verification | **Planned** | In Progress | Cross-client smoke tests, performance, end-to-end verification, security audits |
 
 ## Product constraints shared by all phases
 
-- No public registration.
+- No public registration (public self-signup is disabled at the Supabase Auth layer; normal users are provisioned exclusively by administrators).
 - One shared Supabase Auth session for the web application.
 - `/login` is the User Portal login entry.
 - `/admin/login` is the Admin Portal login entry.
 - `admin` can use both User Portal and Admin Portal.
 - `user` can use only User Portal.
-- Admin's only elevated MVP capability is creating normal users.
-- Admin must not automatically gain access to another user's tasks, reminders, schedules, or summaries.
+- TabDo Admin Portal supports user-account administration and numerical task statistics. Administrators may view task counts by status and by account but cannot access, inspect, or modify other users' individual task data, reminders, schedules, or task content.
+- Browser extension operates under least privilege with user-triggered activation (on-demand injection via context menu, no broad `*://*/*` permissions).
 - Vercel hosts the web frontend.
 - Supabase provides Auth, PostgreSQL, RLS, and Edge Functions.
 - Browser extension uses WXT + React + Manifest V3.

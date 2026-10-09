@@ -1,9 +1,10 @@
 export default defineContentScript({
-  matches: ['<all_urls>'],
-  allFrames: true,
-  matchAboutBlank: true,
-  runAt: 'document_idle',
+  registration: 'runtime',
   main() {
+    if ((window as any).__tabdo_companion_injected) {
+      return
+    }
+    (window as any).__tabdo_companion_injected = true
     // Clean up stale host from previously reloaded extension context if present
     const existingHost = document.getElementById('tabdo-companion-root')
     if (existingHost) {
@@ -38,61 +39,7 @@ export default defineContentScript({
         -webkit-font-smoothing: antialiased;
       }
 
-      /* Floating Action Pill */
-      .tabdo-pill {
-        position: fixed !important;
-        pointer-events: auto !important;
-        display: none;
-        flex-direction: row !important;
-        align-items: center !important;
-        gap: 7px;
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        color: #ffffff !important;
-        font-size: 13px !important;
-        line-height: 1 !important;
-        font-weight: 600 !important;
-        padding: 7px 14px !important;
-        border-radius: 9999px !important;
-        box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4), 0 2px 6px rgba(15, 23, 42, 0.15) !important;
-        border: 1px solid rgba(255, 255, 255, 0.25) !important;
-        cursor: pointer !important;
-        user-select: none !important;
-        white-space: nowrap !important;
-        width: max-content !important;
-        height: 32px !important;
-        z-index: 2147483647 !important;
-        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-        animation: tabdoFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      }
 
-      .tabdo-pill:hover {
-        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-        transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5), 0 2px 6px rgba(0, 0, 0, 0.15) !important;
-      }
-
-      .tabdo-pill:active {
-        transform: translateY(0) scale(0.98);
-      }
-
-      .tabdo-pill-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 17px;
-        height: 17px;
-        background: rgba(255, 255, 255, 0.25);
-        border-radius: 50%;
-        font-size: 11px;
-        font-weight: bold;
-        flex-shrink: 0;
-      }
-
-      .tabdo-pill-text {
-        white-space: nowrap !important;
-        font-size: 12.5px;
-        letter-spacing: -0.01em;
-      }
 
       /* Modal Overlay */
       .tabdo-overlay {
@@ -523,14 +470,7 @@ export default defineContentScript({
     `
     shadow.appendChild(style)
 
-    // 1. Create Floating Pill Button
-    const pill = document.createElement('div')
-    pill.className = 'tabdo-pill'
-    pill.innerHTML = `
-      <span class="tabdo-pill-icon">✓</span>
-      <span class="tabdo-pill-text">+ Tạo task TabDo</span>
-    `
-    shadow.appendChild(pill)
+
 
     // 2. Create Modal Overlay & Dialog
     const overlay = document.createElement('div')
@@ -640,9 +580,7 @@ export default defineContentScript({
     let selectedPriority: 'low' | 'medium' | 'high' = 'medium'
     let isPropsExpanded = false
 
-    function hidePill() {
-      pill.style.display = 'none'
-    }
+
 
     function updateCharCount() {
       const len = textarea.value.length
@@ -720,7 +658,6 @@ export default defineContentScript({
         return
       }
 
-      hidePill()
       selectedTextBuffer = text.trim()
       sourceUrlBuffer = sourceUrl
 
@@ -777,17 +714,7 @@ export default defineContentScript({
       feedback.innerHTML = ''
     }
 
-    // Pill click -> Open dialog
-    pill.addEventListener('mousedown', (e) => {
-      e.preventDefault() // Keep text selection active
-      e.stopPropagation()
-    })
 
-    pill.addEventListener('click', (e) => {
-      e.stopPropagation()
-      const selection = window.getSelection()?.toString().trim()
-      openDialog(selection || selectedTextBuffer)
-    })
 
     btnClose.addEventListener('click', closeDialog)
     btnCancel.addEventListener('click', closeDialog)
@@ -897,151 +824,7 @@ export default defineContentScript({
       }
     })
 
-    // Text selection detection on webpage
-    let isMouseDown = false
-    let selectionTimeout: ReturnType<typeof setTimeout> | null = null
 
-    function checkAndShowPill() {
-      if (typeof chrome === 'undefined' || !chrome.runtime?.id) {
-        host.remove()
-        return
-      }
-
-      if (overlay.style.display === 'flex') return
-
-      const selection = window.getSelection()
-      let text = selection?.toString().trim() || ''
-
-      // If text is not selected in standard DOM, check active form element (input/textarea)
-      let targetRect: DOMRect | null = null
-
-      if (selection && selection.rangeCount > 0 && text) {
-        const range = selection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        if (rect.width > 0 || rect.height > 0) {
-          targetRect = rect
-        }
-      }
-
-      if (!targetRect && !text) {
-        const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
-        if (
-          activeEl &&
-          (activeEl.tagName === 'TEXTAREA' ||
-            (activeEl.tagName === 'INPUT' && (activeEl.type === 'text' || activeEl.type === 'search' || !activeEl.type))) &&
-          typeof activeEl.selectionStart === 'number' &&
-          typeof activeEl.selectionEnd === 'number' &&
-          activeEl.selectionStart !== activeEl.selectionEnd
-        ) {
-          text = activeEl.value.slice(activeEl.selectionStart, activeEl.selectionEnd).trim()
-          if (text) {
-            targetRect = activeEl.getBoundingClientRect()
-          }
-        }
-      }
-
-      if (!text || text.length < 2 || text.length > 2000 || !targetRect) {
-        hidePill()
-        return
-      }
-
-      selectedTextBuffer = text
-
-      // Fixed positioning relative to the viewport
-      let top = targetRect.top - 44
-      let left = targetRect.left + targetRect.width / 2 - 75
-
-      // If too close to viewport top edge, place below target
-      if (targetRect.top < 52) {
-        top = targetRect.bottom + 10
-      }
-
-      // Constrain inside viewport horizontally
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 800
-      if (left < 12) left = 12
-      if (left > viewportWidth - 170) {
-        left = viewportWidth - 170
-      }
-
-      pill.style.top = `${Math.round(top)}px`
-      pill.style.left = `${Math.round(left)}px`
-      pill.style.display = 'inline-flex'
-    }
-
-    // 1. Mouse down: capture phase to track mouse state and dismiss pill if clicking outside
-    window.addEventListener(
-      'mousedown',
-      (e) => {
-        isMouseDown = true
-        if (!e.composedPath().includes(host)) {
-          hidePill()
-        }
-      },
-      true,
-    )
-
-    // 2. Mouse up: capture phase so SPAs (like Zalo Web) cannot prevent detection via stopPropagation
-    window.addEventListener(
-      'mouseup',
-      (e) => {
-        isMouseDown = false
-        if (e.composedPath().includes(host)) return
-
-        if (selectionTimeout) clearTimeout(selectionTimeout)
-        selectionTimeout = setTimeout(() => {
-          checkAndShowPill()
-        }, 40)
-      },
-      true,
-    )
-
-    // 3. Keyup: capture phase for keyboard-based text selections (Shift+Arrow, etc.)
-    window.addEventListener(
-      'keyup',
-      (e) => {
-        if (
-          e.key === 'Shift' ||
-          e.key.startsWith('Arrow') ||
-          (e.ctrlKey && e.key === 'a') ||
-          (e.metaKey && e.key === 'a')
-        ) {
-          if (selectionTimeout) clearTimeout(selectionTimeout)
-          selectionTimeout = setTimeout(() => {
-            checkAndShowPill()
-          }, 50)
-        }
-      },
-      true,
-    )
-
-    // 4. Selectionchange event: native document-level event for selection changes
-    document.addEventListener('selectionchange', () => {
-      const selection = window.getSelection()
-      const text = selection?.toString().trim()
-      if (!text) {
-        hidePill()
-        return
-      }
-
-      // If user finished mouse drag or selected via other means
-      if (!isMouseDown) {
-        if (selectionTimeout) clearTimeout(selectionTimeout)
-        selectionTimeout = setTimeout(() => {
-          checkAndShowPill()
-        }, 120)
-      }
-    })
-
-    // 5. Scroll: hide pill so it doesn't linger detached from scrolled content
-    window.addEventListener(
-      'scroll',
-      () => {
-        if (pill.style.display !== 'none') {
-          hidePill()
-        }
-      },
-      { capture: true, passive: true },
-    )
 
     // 6. Listen to messages from background (e.g. context menu clicks)
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
