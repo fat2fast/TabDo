@@ -20,18 +20,20 @@ vi.mock('../../../lib/supabase', () => {
 })
 
 vi.mock('../../auth/auth-provider', () => {
+  const mockAuth = {
+    profile: {
+      id: 'u-1',
+      timezone: 'Asia/Ho_Chi_Minh',
+      role: 'user',
+      displayName: 'Test User',
+    },
+    session: {
+      user: { id: 'u-1', email: 'test@tabdo.local' },
+    },
+  }
   return {
-    useAuth: () => ({
-      profile: {
-        id: 'u-1',
-        timezone: 'Asia/Ho_Chi_Minh',
-        role: 'user',
-        displayName: 'Test User',
-      },
-      session: {
-        user: { id: 'u-1', email: 'test@tabdo.local' },
-      },
-    }),
+    useAuth: () => mockAuth,
+    useOptionalAuth: () => mockAuth,
   }
 })
 

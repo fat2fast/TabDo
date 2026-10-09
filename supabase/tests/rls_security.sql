@@ -1,5 +1,5 @@
 begin;
-select plan(89);
+select plan(108);
 
 -- 1. Table existence and RLS active tests (12 tests)
 select has_table('public', 'profiles', 'Profiles table exists');
@@ -740,5 +740,218 @@ select is(
   'get_user_task_counts returns correct done_count'
 );
 
+-- 17. Recurrence Lifecycle & Security Tests (18 tests)
+-- Test anon execution denial
+set local role anon;
+select throws_matching(
+  $$select public.complete_task_and_generate_next('11111111-1111-1111-1111-111111111111'::uuid, now())$$,
+  'permission denied',
+  'Anon caller cannot execute complete_task_and_generate_next RPC'
+);
+
+-- Reset to postgres to seed recurrence test data
+set local role postgres;
+insert into public.tasks (
+  id, user_id, title, status, priority, due_date_kind, due_at,
+  recurrence_rule, recurrence_series_id, recurrence_timezone, recurrence_anchor_at,
+  description, updated_at
+) values (
+  'a1111111-1111-1111-1111-111111111111',
+  'a0000000-0000-0000-0000-000000000001',
+  'User A Daily Task',
+  'todo',
+  'high',
+  'date_time',
+  '2026-10-15 02:00:00+00',
+  'FREQ=DAILY',
+  '11111111-2222-3333-4444-555555555555',
+  'Asia/Ho_Chi_Minh',
+  '2026-10-15 02:00:00+00',
+  'Task with <!-- tabdo_checklist: [{"id":"c1","text":"Step 1","completed":true}] --> and - [x] Done item',
+  '2026-10-10 00:00:00+00'
+) on conflict do nothing;
+
+-- Add relative reminder for date_time task
+insert into public.reminders (
+  id, user_id, task_id, reminder_kind, offset_minutes, remind_at, status
+) values (
+  'e1111111-1111-1111-1111-111111111111',
+  'a0000000-0000-0000-0000-000000000001',
+  'a1111111-1111-1111-1111-111111111111',
+  'relative_due',
+  60,
+  '2026-10-15 01:00:00+00',
+  'pending'
+) on conflict do nothing;
+
+-- User B context: cannot complete User A's task
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+select throws_matching(
+  $$select public.complete_task_and_generate_next('a1111111-1111-1111-1111-111111111111'::uuid, '2026-10-10 00:00:00+00'::timestamptz)$$,
+  'Task not found or access denied',
+  'User B cannot complete User A task via RPC'
+);
+
+-- User A context: optimistic concurrency checks
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select throws_matching(
+  $$select public.complete_task_and_generate_next('a1111111-1111-1111-1111-111111111111'::uuid, null)$$,
+  'expected_updated_at is required',
+  'RPC rejects null expected_updated_at for pending task'
+);
+
+select throws_matching(
+  $$select public.complete_task_and_generate_next('a1111111-1111-1111-1111-111111111111'::uuid, '2020-01-01 00:00:00+00'::timestamptz)$$,
+  'Task was modified concurrently',
+  'RPC rejects stale expected_updated_at'
+);
+
+-- User A completes non-recurring task
+set local role postgres;
+insert into public.tasks (
+  id, user_id, title, status, priority, due_date_kind, updated_at
+) values (
+  'a2222222-2222-2222-2222-222222222222',
+  'a0000000-0000-0000-0000-000000000001',
+  'User A One-off Task',
+  'todo',
+  'low',
+  'date_time',
+  '2026-10-10 00:00:00+00'
+) on conflict do nothing;
+
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select is(
+  (public.complete_task_and_generate_next('a2222222-2222-2222-2222-222222222222'::uuid, '2026-10-10 00:00:00+00'::timestamptz)->>'generated')::boolean,
+  false,
+  'Non-recurring task completion returns generated: false and nextTask: null'
+);
+
+-- Recurrence rule constraint check
+set local role postgres;
+select throws_matching(
+  $$insert into public.tasks (id, user_id, title, recurrence_rule, due_at, recurrence_series_id, recurrence_timezone, recurrence_anchor_at)
+    values (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'Bad rule', 'FREQ=YEARLY', now(), gen_random_uuid(), 'Asia/Ho_Chi_Minh', now())$$,
+  'violates check constraint',
+  'Unsupported recurrence rule is rejected by constraint'
+);
+
+-- Recurrence invariants check
+select throws_matching(
+  $$insert into public.tasks (id, user_id, title, recurrence_rule, due_at, recurrence_series_id, recurrence_timezone, recurrence_anchor_at)
+    values (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'Missing due_at', 'FREQ=DAILY', null, gen_random_uuid(), 'Asia/Ho_Chi_Minh', now())$$,
+  'violates check constraint',
+  'Recurring task without due_at is rejected by recurrence invariants constraint'
+);
+
+-- Cross-owner recurrence_parent_id check
+select throws_matching(
+  $$insert into public.tasks (id, user_id, title, recurrence_parent_id)
+    values (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000002', 'Cross owner parent', 'a1111111-1111-1111-1111-111111111111')$$,
+  'Recurrence parent task does not belong to the same user',
+  'Ownership trigger blocks linking recurrence_parent_id to another user task'
+);
+
+-- Complete recurring task a1111111
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select ok(
+  ((public.complete_task_and_generate_next('a1111111-1111-1111-1111-111111111111'::uuid, '2026-10-10 00:00:00+00'::timestamptz)->>'generated')::boolean),
+  'Recurring task completion returns generated: true'
+);
+
+-- Check status of original task
+select is(
+  (select status from public.tasks where id = 'a1111111-1111-1111-1111-111111111111'),
+  'done',
+  'Original task is marked done'
+);
+
+-- Check successor task created
+select is(
+  (select count(*)::int from public.tasks where recurrence_parent_id = 'a1111111-1111-1111-1111-111111111111'),
+  1,
+  'Successor task is created with recurrence_parent_id pointing to original task'
+);
+
+-- Check successor task status is todo
+select is(
+  (select status from public.tasks where recurrence_parent_id = 'a1111111-1111-1111-1111-111111111111'),
+  'todo',
+  'Successor task status is todo'
+);
+
+-- Check checklist reset in successor description
+select is(
+  (select description from public.tasks where recurrence_parent_id = 'a1111111-1111-1111-1111-111111111111'),
+  'Task with <!-- tabdo_checklist: [{"id":"c1","text":"Step 1","completed":false}] --> and - [ ] Done item',
+  'Successor task description has checklist completed flags reset to false'
+);
+
+-- Check successor reminder copied
+select is(
+  (select count(*)::int from public.reminders where task_id = (select id from public.tasks where recurrence_parent_id = 'a1111111-1111-1111-1111-111111111111') and reminder_kind = 'relative_due' and offset_minutes = 60),
+  1,
+  'Relative reminder was copied to successor task'
+);
+
+-- Check original task reminders dismissed
+select is(
+  (select status from public.reminders where task_id = 'a1111111-1111-1111-1111-111111111111'),
+  'dismissed',
+  'Original task reminder was dismissed'
+);
+
+-- Test idempotency: calling complete_task_and_generate_next on already done task
+select is(
+  (public.complete_task_and_generate_next('a1111111-1111-1111-1111-111111111111'::uuid, '2026-10-10 00:00:00+00'::timestamptz)->>'reusedExistingSuccessor')::boolean,
+  true,
+  'Retrying completion on already-done task returns reusedExistingSuccessor: true'
+);
+
+-- Direct attempt to create a second successor for same recurrence_parent_id fails unique index
+set local role postgres;
+select throws_matching(
+  $$insert into public.tasks (id, user_id, title, due_at, recurrence_rule, recurrence_series_id, recurrence_timezone, recurrence_anchor_at, recurrence_parent_id)
+    values (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'Duplicate successor', now(), 'FREQ=DAILY', '11111111-2222-3333-4444-555555555555', 'Asia/Ho_Chi_Minh', now(), 'a1111111-1111-1111-1111-111111111111')$$,
+  'violates unique constraint',
+  'Partial unique index prevents inserting a second successor for same recurrence_parent_id'
+);
+
+-- Date-only recurring task does not copy relative reminders
+insert into public.tasks (
+  id, user_id, title, status, priority, due_date_kind, due_at,
+  recurrence_rule, recurrence_series_id, recurrence_timezone, recurrence_anchor_at, updated_at
+) values (
+  'a3333333-3333-3333-3333-333333333333',
+  'a0000000-0000-0000-0000-000000000001',
+  'User A Date-Only Recurring',
+  'todo',
+  'low',
+  'date_only',
+  '2026-10-15 16:59:59.999+00',
+  'FREQ=DAILY',
+  '33333333-2222-3333-4444-555555555555',
+  'Asia/Ho_Chi_Minh',
+  '2026-10-15 16:59:59.999+00',
+  '2026-10-10 00:00:00+00'
+) on conflict do nothing;
+
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select ok(
+  ((public.complete_task_and_generate_next('a3333333-3333-3333-3333-333333333333'::uuid, '2026-10-10 00:00:00+00'::timestamptz)->>'generated')::boolean),
+  'Date-only recurring task completes and generates successor'
+);
+
+select is(
+  (select count(*)::int from public.reminders where task_id = (select id from public.tasks where recurrence_parent_id = 'a3333333-3333-3333-3333-333333333333')),
+  0,
+  'No relative reminders copied for date_only successor task'
+);
+
 select * from finish();
 rollback;
+

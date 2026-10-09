@@ -17,6 +17,7 @@ vi.mock('../../../lib/supabase', () => {
         getSession: vi.fn(),
       },
       from: vi.fn(),
+      rpc: vi.fn(),
     },
   }
 })
@@ -218,51 +219,96 @@ describe('task-api functions', () => {
       updatedAt: '2026-10-01T00:00:00Z',
     }
 
-    it('sends status done and completed_at on completeTask', async () => {
-      const updatedRow = {
-        ...existingTask,
-        status: 'done',
-        completed_at: '2026-10-05T12:00:00Z',
+    it('calls complete_task_and_generate_next RPC and returns result without duplicate client-side activity writes', async () => {
+      const completedTaskRow = {
+        id: existingTask.id,
         user_id: 'test-user-id-123',
+        title: existingTask.title,
+        status: 'done',
+        priority: 'high',
         due_date_kind: 'date_time',
+        due_at: '2026-10-05T12:00:00Z',
+        completed_at: '2026-10-05T12:00:00Z',
         created_at: '2026-10-01T00:00:00Z',
         updated_at: '2026-10-05T12:00:00Z',
       }
-
-      const tasksBuilder: any = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: updatedRow, error: null }),
+      const nextTaskRow = {
+        id: 'next-task-id',
+        user_id: 'test-user-id-123',
+        title: existingTask.title,
+        status: 'todo',
+        priority: 'high',
+        due_date_kind: 'date_time',
+        due_at: '2026-10-06T12:00:00Z',
+        completed_at: null,
+        recurrence_rule: 'FREQ=DAILY',
+        recurrence_parent_id: existingTask.id,
+        created_at: '2026-10-05T12:00:00Z',
+        updated_at: '2026-10-05T12:00:00Z',
       }
+
+      vi.mocked(supabase.rpc).mockResolvedValue({
+        data: {
+          completedTask: completedTaskRow,
+          nextTask: nextTaskRow,
+          generated: true,
+          reusedExistingSuccessor: false,
+        },
+        error: null,
+      } as any)
 
       const activitiesBuilder: any = {
         insert: vi.fn().mockResolvedValue({ error: null }),
       }
 
       vi.mocked(supabase.from).mockImplementation((table: string) => {
-        if (table === 'tasks') return tasksBuilder
         if (table === 'task_activities') return activitiesBuilder
         return {} as any
       })
 
-      const completed = await completeTask(existingTask)
+      const res = await completeTask(existingTask)
 
-      expect(completed.status).toBe('done')
-      expect(tasksBuilder.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'done',
-          completed_at: expect.any(String),
-        })
-      )
-      expect(activitiesBuilder.insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: 'completed',
-        })
-      )
+      expect(supabase.rpc).toHaveBeenCalledWith('complete_task_and_generate_next', {
+        p_task_id: existingTask.id,
+        p_expected_updated_at: existingTask.updatedAt,
+      })
+      expect(res.completedTask.status).toBe('done')
+      expect(res.nextTask?.id).toBe('next-task-id')
+      expect(res.generated).toBe(true)
+      // The SQL RPC atomically records 'completed' and 'next_occurrence_generated' activities.
+      // The Web client must NOT write them again to avoid duplicate audit records.
+      expect(activitiesBuilder.insert).not.toHaveBeenCalled()
     })
 
-    it('sends status todo and null completed_at on reopenTask', async () => {
+    it('blocks reopenTask when a recurrence successor exists', async () => {
+      const doneTask: Task = {
+        ...existingTask,
+        status: 'done',
+        completedAt: '2026-10-05T12:00:00Z',
+      }
+
+      const tasksBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'successor-task-id' },
+          error: null,
+        }),
+      }
+
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table === 'tasks') return tasksBuilder
+        return {} as any
+      })
+
+      await expect(reopenTask(doneTask)).rejects.toThrow(
+        'Không thể mở lại công việc lặp lại đã có phiên lặp tiếp theo'
+      )
+      expect(tasksBuilder.select).toHaveBeenCalledWith('id')
+      expect(tasksBuilder.eq).toHaveBeenCalledWith('recurrence_parent_id', doneTask.id)
+    })
+
+    it('sends status todo and null completed_at on reopenTask when no successor exists', async () => {
       const doneTask: Task = {
         ...existingTask,
         status: 'done',
@@ -279,10 +325,11 @@ describe('task-api functions', () => {
         updated_at: '2026-10-05T12:05:00Z',
       }
 
-      const tasksBuilder: any = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
+      const tasksSelectBuilder: any = {
         select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        update: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({ data: reopenedRow, error: null }),
       }
 
@@ -291,7 +338,7 @@ describe('task-api functions', () => {
       }
 
       vi.mocked(supabase.from).mockImplementation((table: string) => {
-        if (table === 'tasks') return tasksBuilder
+        if (table === 'tasks') return tasksSelectBuilder
         if (table === 'task_activities') return activitiesBuilder
         return {} as any
       })
@@ -299,7 +346,7 @@ describe('task-api functions', () => {
       const reopened = await reopenTask(doneTask)
 
       expect(reopened.status).toBe('todo')
-      expect(tasksBuilder.update).toHaveBeenCalledWith(
+      expect(tasksSelectBuilder.update).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'todo',
           completed_at: null,
@@ -364,24 +411,80 @@ describe('task-api functions', () => {
     })
 
     it('rejects completeTask when task was updated concurrently', async () => {
+      vi.mocked(supabase.rpc).mockResolvedValue({
+        data: null,
+        error: { code: '40001', message: 'could not serialize access due to concurrent update' },
+      } as any)
+
+      await expect(completeTask(existingTask)).rejects.toThrow(/concurrent modification conflict/i)
+      expect(supabase.rpc).toHaveBeenCalledWith('complete_task_and_generate_next', {
+        p_task_id: existingTask.id,
+        p_expected_updated_at: existingTask.updatedAt,
+      })
+    })
+
+    it('logs recurrence activity when recurrenceRule is changed', async () => {
+      let currentRule: string | null = null
       const tasksBuilder: any = {
-        update: vi.fn().mockReturnThis(),
+        update: vi.fn().mockImplementation((updates: any) => {
+          if (updates.recurrence_rule !== undefined) {
+            currentRule = updates.recurrence_rule
+          }
+          return tasksBuilder
+        }),
         eq: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: null,
-          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
-        }),
+        single: vi.fn().mockImplementation(() =>
+          Promise.resolve({
+            data: {
+              ...existingTask,
+              recurrence_rule: currentRule,
+              user_id: 'test-user-id-123',
+              due_date_kind: 'date_time',
+              created_at: '2026-10-01T00:00:00Z',
+              updated_at: '2026-10-05T12:05:00Z',
+            },
+            error: null,
+          })
+        ),
+      }
+
+      const activitiesBuilder: any = {
+        insert: vi.fn().mockResolvedValue({ error: null }),
       }
 
       vi.mocked(supabase.from).mockImplementation((table: string) => {
         if (table === 'tasks') return tasksBuilder
+        if (table === 'task_activities') return activitiesBuilder
         return {} as any
       })
 
-      await expect(completeTask(existingTask)).rejects.toThrow(/concurrent modification conflict/i)
-      expect(tasksBuilder.eq).toHaveBeenCalledWith('id', existingTask.id)
-      expect(tasksBuilder.eq).toHaveBeenCalledWith('updated_at', existingTask.updatedAt)
+      // Enabling recurrence
+      await updateTask('existing-task-id', { recurrenceRule: 'FREQ=WEEKLY' }, existingTask)
+      expect(activitiesBuilder.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'recurrence_enabled',
+          metadata: { rule: 'FREQ=WEEKLY' },
+        })
+      )
+
+      // Changing recurrence
+      const taskWithWeekly = { ...existingTask, recurrenceRule: 'FREQ=WEEKLY' }
+      await updateTask('existing-task-id', { recurrenceRule: 'FREQ=DAILY' }, taskWithWeekly)
+      expect(activitiesBuilder.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'recurrence_changed',
+          metadata: { from: 'FREQ=WEEKLY', to: 'FREQ=DAILY' },
+        })
+      )
+
+      // Disabling recurrence
+      await updateTask('existing-task-id', { recurrenceRule: null }, taskWithWeekly)
+      expect(activitiesBuilder.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'recurrence_disabled',
+        })
+      )
     })
   })
 })

@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { fromTaskDueInstant, toTaskDueInstant } from '@tabdo/utils'
+import {
+  formatTaskCompletedAt,
+  fromTaskDueInstant,
+  toTaskDueInstant,
+} from '@tabdo/utils'
 import { useAuth } from '../../auth/auth-provider'
 import { useCategories } from '../hooks/use-categories'
 import { useTaskMutations } from '../hooks/use-task-mutations'
@@ -27,6 +31,7 @@ import { TaskChecklist } from './task-checklist'
 import { CustomDropdown, type DropdownOption } from './ui/custom-dropdown'
 import { DatePickerPopover } from './ui/date-picker-popover'
 import { MarkdownDescriptionEditor } from './ui/markdown-description-editor'
+import { RecurrenceSelector } from './recurrence-selector'
 import { ScheduleBlockCard } from '../../scheduling/components/schedule-block-card'
 import { ScheduleEditor } from '../../scheduling/components/schedule-editor'
 import { useScheduleBlocksByTask } from '../../scheduling/hooks/use-schedule-blocks'
@@ -53,8 +58,9 @@ export function TaskForm({
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
   const { data: categories = [] } = useCategories()
-  const { updateTaskMutation, deleteTaskMutation } = useTaskMutations()
+  const { updateTaskMutation, deleteTaskMutation, reopenTaskMutation, completeTaskMutation } = useTaskMutations()
   const confirm = useConfirm()
+  const isCompleted = task.status === 'done'
   const { data: parentTask } = useTaskDetail(task.parentId)
   const { data: subtasks = [] } = useSubtasks(task.parentId ? null : task.id)
   const { data: scheduleBlocks = [] } = useScheduleBlocksByTask(task.id)
@@ -87,6 +93,9 @@ export function TaskForm({
   const initialStart = fromTaskDueInstant(task.startAt, 'date_time', timeZone)
   const [startDate, setStartDate] = useState(initialStart.dateStr)
   const [startTime, setStartTime] = useState(initialStart.timeStr)
+
+  // Recurrence
+  const [recurrenceRule, setRecurrenceRule] = useState<string | null>(task.recurrenceRule || null)
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -126,6 +135,7 @@ export function TaskForm({
     setPriority(task.priority)
     setCategoryId(task.categoryId || '')
     setSourceUrl(task.sourceUrl || '')
+    setRecurrenceRule(task.recurrenceRule || null)
 
     const due = fromTaskDueInstant(task.dueAt, task.dueDateKind, timeZone)
     setDueDate(due.dateStr)
@@ -184,6 +194,81 @@ export function TaskForm({
       return
     }
 
+    // Recurrence resolution
+    let resolvedRecurrenceRule: string | null = null
+    let resolvedSeriesId: string | null = null
+    let resolvedAnchorAt: string | null = null
+    let resolvedTimezone: string | null = null
+
+    if (recurrenceRule && !task.parentId) {
+      if (!calculatedDueAt) {
+        setErrorMsg('Cần đặt ngày đến hạn trước khi thiết lập lặp lại.')
+        return
+      }
+      resolvedRecurrenceRule = recurrenceRule
+      resolvedSeriesId = task.recurrenceSeriesId || crypto.randomUUID()
+      resolvedTimezone = timeZone
+      if (task.recurrenceRule && task.recurrenceRule !== recurrenceRule) {
+        resolvedAnchorAt = calculatedDueAt
+      } else {
+        resolvedAnchorAt = task.recurrenceAnchorAt || calculatedDueAt
+      }
+    } else {
+      resolvedRecurrenceRule = null
+      resolvedSeriesId = null
+      resolvedAnchorAt = null
+      resolvedTimezone = null
+    }
+
+    // If this is a pending→done transition, route through the atomic lifecycle RPC so that
+    // recurring successor generation is never bypassed.
+    const isCompletingNow = task.status !== 'done' && status === 'done'
+    if (isCompletingNow) {
+      // First save any other field changes (title, desc, dates, etc.) excluding the status,
+      // then complete via RPC.
+      try {
+        const hasOtherChanges =
+          trimmedTitle !== task.title ||
+          (fullDescription || null) !== task.description ||
+          priority !== task.priority ||
+          (categoryId || null) !== task.categoryId ||
+          resolvedDueDateKind !== task.dueDateKind ||
+          calculatedDueAt !== task.dueAt ||
+          calculatedStartAt !== task.startAt ||
+          (sourceUrl.trim() || null) !== task.sourceUrl ||
+          resolvedRecurrenceRule !== task.recurrenceRule
+
+        let taskToComplete = task
+        if (hasOtherChanges) {
+          taskToComplete = await updateTaskMutation.mutateAsync({
+            id: task.id,
+            input: {
+              title: trimmedTitle,
+              description: fullDescription || null,
+              priority,
+              categoryId: categoryId || null,
+              dueDateKind: resolvedDueDateKind,
+              dueAt: calculatedDueAt,
+              startAt: calculatedStartAt,
+              sourceUrl: sourceUrl.trim() || null,
+              recurrenceRule: resolvedRecurrenceRule,
+              recurrenceSeriesId: resolvedSeriesId,
+              recurrenceAnchorAt: resolvedAnchorAt,
+              recurrenceTimezone: resolvedTimezone,
+              recurrenceParentId: resolvedRecurrenceRule ? task.recurrenceParentId : null,
+            },
+            previousTask: task,
+          })
+        }
+
+        const result = await completeTaskMutation.mutateAsync(taskToComplete)
+        onSaveSuccess?.(result.completedTask)
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Không thể hoàn thành công việc. Vui lòng kiểm tra lại.')
+      }
+      return
+    }
+
     try {
       const updated = await updateTaskMutation.mutateAsync({
         id: task.id,
@@ -197,6 +282,11 @@ export function TaskForm({
           dueAt: calculatedDueAt,
           startAt: calculatedStartAt,
           sourceUrl: sourceUrl.trim() || null,
+          recurrenceRule: resolvedRecurrenceRule,
+          recurrenceSeriesId: resolvedSeriesId,
+          recurrenceAnchorAt: resolvedAnchorAt,
+          recurrenceTimezone: resolvedTimezone,
+          recurrenceParentId: resolvedRecurrenceRule ? task.recurrenceParentId : null,
         },
         previousTask: task,
       })
@@ -231,6 +321,23 @@ export function TaskForm({
     }
   }
 
+  const handleReopen = async () => {
+    try {
+      const reopened = await reopenTaskMutation.mutateAsync(task)
+      onSaveSuccess?.(reopened)
+    } catch (err: any) {
+      confirm({
+        title: 'Không thể mở lại công việc',
+        message:
+          err?.message ||
+          'Không thể mở lại công việc lặp lại đã có phiên lặp tiếp theo.',
+        confirmText: 'Đã hiểu',
+        cancelText: null,
+        variant: 'warning',
+      })
+    }
+  }
+
   return (
     <>
       <form onSubmit={handleSave} className="task-detail-form modern-2col-layout" data-testid="task-form">
@@ -238,6 +345,34 @@ export function TaskForm({
           LEFT MAIN WORKSPACE COLUMN (Title, Description, Context Tabs)
           ========================================================================= */}
       <div className="task-detail-main-col">
+        {isCompleted && (
+          <div className="task-completed-locked-banner" role="status" data-testid="task-completed-locked-banner">
+            <div className="banner-status-info">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="banner-check-icon">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <div className="banner-text-details">
+                <span className="banner-status-heading">Công việc đã hoàn thành</span>
+                <span className="banner-status-sub">
+                  {task.completedAt
+                    ? `Hoàn thành lúc: ${formatTaskCompletedAt(task.completedAt, timeZone)} (Chế độ chỉ xem)`
+                    : 'Công việc đang ở trạng thái hoàn thành (Chế độ chỉ xem)'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm banner-reopen-btn"
+              onClick={handleReopen}
+              disabled={reopenTaskMutation.isPending}
+              title="Mở lại công việc để tiếp tục chỉnh sửa"
+            >
+              {reopenTaskMutation.isPending ? 'Đang mở lại...' : '↺ Mở lại công việc'}
+            </button>
+          </div>
+        )}
+
         {task.parentId && (
           <div className="subtask-parent-banner" data-testid="subtask-parent-banner">
             <div className="banner-left">
@@ -281,7 +416,7 @@ export function TaskForm({
             required
             maxLength={500}
             placeholder="Nhập tiêu đề công việc..."
-            disabled={updateTaskMutation.isPending}
+            disabled={isCompleted || updateTaskMutation.isPending}
             className="drawer-title-input"
           />
         </div>
@@ -295,44 +430,47 @@ export function TaskForm({
             id="task-desc-input"
             value={description}
             onChange={setDescription}
-            disabled={updateTaskMutation.isPending}
+            disabled={isCompleted || updateTaskMutation.isPending}
           />
         </div>
 
-        {/* Tab switcher for Checklist / Schedule / Reminders / Subtasks / Attachments / Related */}
-        <div className="detail-tabs-header">
-          <div className="detail-tabs-nav" role="tablist">
+        {/* Workspace Vertical Tabs Layout */}
+        <div className="workspace-tabs-vertical-layout">
+          <div className="vertical-tabs-nav" role="tablist" aria-orientation="vertical">
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === 'checklist'}
-              className={`detail-tab-pill ${activeTab === 'checklist' ? 'active' : ''}`}
+              className={`vertical-tab-btn ${activeTab === 'checklist' ? 'active' : ''}`}
               onClick={() => setActiveTab('checklist')}
             >
-              <span className="tab-pill-icon">☑</span> Checklist
-              {checklistCount > 0 && <span className="tab-pill-badge">{checklistCount}</span>}
+              <span className="tab-btn-icon">☑</span>
+              <span className="tab-btn-label">Checklist</span>
+              {checklistCount > 0 && <span className="tab-btn-badge">{checklistCount}</span>}
             </button>
 
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === 'schedule'}
-              className={`detail-tab-pill ${activeTab === 'schedule' ? 'active' : ''}`}
+              className={`vertical-tab-btn ${activeTab === 'schedule' ? 'active' : ''}`}
               onClick={() => setActiveTab('schedule')}
             >
-              <span className="tab-pill-icon">📅</span> Lịch làm việc
-              {scheduleBlocks.length > 0 && <span className="tab-pill-badge">{scheduleBlocks.length}</span>}
+              <span className="tab-btn-icon">📅</span>
+              <span className="tab-btn-label">Lịch làm việc</span>
+              {scheduleBlocks.length > 0 && <span className="tab-btn-badge">{scheduleBlocks.length}</span>}
             </button>
 
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === 'reminders'}
-              className={`detail-tab-pill ${activeTab === 'reminders' ? 'active' : ''}`}
+              className={`vertical-tab-btn ${activeTab === 'reminders' ? 'active' : ''}`}
               onClick={() => setActiveTab('reminders')}
             >
-              <span className="tab-pill-icon">⏰</span> Lời nhắc
-              {taskReminders.length > 0 && <span className="tab-pill-badge">{taskReminders.length}</span>}
+              <span className="tab-btn-icon">⏰</span>
+              <span className="tab-btn-label">Lời nhắc</span>
+              {taskReminders.length > 0 && <span className="tab-btn-badge">{taskReminders.length}</span>}
             </button>
 
             {!task.parentId && (
@@ -340,11 +478,12 @@ export function TaskForm({
                 type="button"
                 role="tab"
                 aria-selected={activeTab === 'subtasks'}
-                className={`detail-tab-pill ${activeTab === 'subtasks' ? 'active' : ''}`}
+                className={`vertical-tab-btn ${activeTab === 'subtasks' ? 'active' : ''}`}
                 onClick={() => setActiveTab('subtasks')}
               >
-                <span className="tab-pill-icon">↳</span> Việc con
-                {subtasks.length > 0 && <span className="tab-pill-badge">{subtasks.length}</span>}
+                <span className="tab-btn-icon">↳</span>
+                <span className="tab-btn-label">Việc con</span>
+                {subtasks.length > 0 && <span className="tab-btn-badge">{subtasks.length}</span>}
               </button>
             )}
 
@@ -352,33 +491,35 @@ export function TaskForm({
               type="button"
               role="tab"
               aria-selected={activeTab === 'attachments'}
-              className={`detail-tab-pill ${activeTab === 'attachments' ? 'active' : ''}`}
+              className={`vertical-tab-btn ${activeTab === 'attachments' ? 'active' : ''}`}
               onClick={() => setActiveTab('attachments')}
             >
-              <span className="tab-pill-icon">📎</span> Đính kèm
-              {attachments.length > 0 && <span className="tab-pill-badge">{attachments.length}</span>}
+              <span className="tab-btn-icon">📎</span>
+              <span className="tab-btn-label">Đính kèm</span>
+              {attachments.length > 0 && <span className="tab-btn-badge">{attachments.length}</span>}
             </button>
 
             <button
               type="button"
               role="tab"
+              aria-label="Liên quan / Liên kết"
               aria-selected={activeTab === 'related'}
-              className={`detail-tab-pill ${activeTab === 'related' ? 'active' : ''}`}
+              className={`vertical-tab-btn ${activeTab === 'related' ? 'active' : ''}`}
               onClick={() => setActiveTab('related')}
             >
-              <span className="tab-pill-icon">🔗</span> Liên quan
-              {linkedTaskIds.length > 0 && <span className="tab-pill-badge">{linkedTaskIds.length}</span>}
+              <span className="tab-btn-icon">🔗</span>
+              <span className="tab-btn-label">Liên kết</span>
+              {linkedTaskIds.length > 0 && <span className="tab-btn-badge">{linkedTaskIds.length}</span>}
             </button>
           </div>
-        </div>
 
-        {/* Active Tab Panel */}
-        <div className="detail-tab-content-panel">
+          {/* Active Tab Panel */}
+          <div className="vertical-tabs-panel">
           {activeTab === 'checklist' && (
             <TaskChecklist
               items={checklistItems}
               onChangeItems={setChecklistItems}
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
             />
           )}
 
@@ -389,17 +530,19 @@ export function TaskForm({
                   <h4 className="workspace-tab-title">Lịch làm việc đã xếp</h4>
                   <span className="count-badge">{scheduleBlocks.length}</span>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm add-schedule-session-btn"
-                  onClick={() => {
-                    setEditingScheduleBlock(null)
-                    setIsScheduleEditorOpen(true)
-                  }}
-                  data-testid="add-schedule-session-btn"
-                >
-                  <span>+</span> Lên lịch làm việc
-                </button>
+                {!isCompleted && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm add-schedule-session-btn"
+                    onClick={() => {
+                      setEditingScheduleBlock(null)
+                      setIsScheduleEditorOpen(true)
+                    }}
+                    data-testid="add-schedule-session-btn"
+                  >
+                    <span>+</span> Lên lịch làm việc
+                  </button>
+                )}
               </div>
 
               {scheduleBlocks.length === 0 ? (
@@ -409,16 +552,18 @@ export function TaskForm({
                   <p className="empty-state-desc">
                     Xếp lịch làm việc giúp bạn ấn định thời gian tập trung giải quyết công việc này trên Calendar.
                   </p>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setEditingScheduleBlock(null)
-                      setIsScheduleEditorOpen(true)
-                    }}
-                  >
-                    + Thêm phiên làm việc đầu tiên
-                  </button>
+                  {!isCompleted && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setEditingScheduleBlock(null)
+                        setIsScheduleEditorOpen(true)
+                      }}
+                    >
+                      + Thêm phiên làm việc đầu tiên
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="scheduled-blocks-grid">
@@ -426,11 +571,11 @@ export function TaskForm({
                     <ScheduleBlockCard
                       key={block.id}
                       block={block}
-                      onEdit={(b) => {
+                      onEdit={isCompleted ? undefined : (b) => {
                         setEditingScheduleBlock(b)
                         setIsScheduleEditorOpen(true)
                       }}
-                      onDelete={(b) => {
+                      onDelete={isCompleted ? undefined : (b) => {
                         setEditingScheduleBlock(b)
                         setIsScheduleEditorOpen(true)
                       }}
@@ -451,7 +596,7 @@ export function TaskForm({
             <TaskAttachments
               attachments={attachments}
               onChangeAttachments={setAttachments}
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
             />
           )}
 
@@ -461,17 +606,18 @@ export function TaskForm({
               linkedTaskIds={linkedTaskIds}
               onUpdateLinkedTaskIds={setLinkedTaskIds}
               onSelectTask={onNavigateParent}
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
             />
           )}
 
           {activeTab === 'subtasks' && !task.parentId && (
             <div className="subtasks-tab-wrapper">
-              <SubtaskList parentTask={task} onSelectSubtask={onNavigateParent} />
+              <SubtaskList parentTask={task} onSelectSubtask={onNavigateParent} disabled={isCompleted} />
             </div>
           )}
         </div>
       </div>
+    </div>
 
       {/* =========================================================================
           RIGHT SIDEBAR COLUMN (Compact Properties & Summary)
@@ -491,7 +637,7 @@ export function TaskForm({
               options={statusOptions}
               onChange={setStatus}
               ariaLabel="Trạng thái"
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
             />
           </div>
 
@@ -502,7 +648,7 @@ export function TaskForm({
               options={priorityOptions}
               onChange={setPriority}
               ariaLabel="Mức độ ưu tiên"
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
             />
           </div>
 
@@ -513,7 +659,7 @@ export function TaskForm({
               options={categoryOptions}
               onChange={setCategoryId}
               ariaLabel="Danh mục"
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
             />
           </div>
 
@@ -527,7 +673,7 @@ export function TaskForm({
               value={sourceUrl}
               placeholder="https://example.com"
               onChange={(e) => setSourceUrl(e.target.value)}
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
               className="sidebar-url-input"
             />
           </div>
@@ -550,7 +696,17 @@ export function TaskForm({
               onChangeDate={setDueDate}
               onChangeTime={setDueTime}
               onChangeKind={setDueDateKind}
-              disabled={updateTaskMutation.isPending}
+              disabled={isCompleted || updateTaskMutation.isPending}
+            />
+          </div>
+
+          <div className="sidebar-prop-item">
+            <RecurrenceSelector
+              value={recurrenceRule}
+              onChange={(rule) => setRecurrenceRule(rule)}
+              hasDueDate={Boolean(dueDate)}
+              isSubtask={Boolean(task.parentId)}
+              disabled={isCompleted || updateTaskMutation.isPending}
             />
           </div>
 
@@ -566,6 +722,7 @@ export function TaskForm({
             <button
               type="button"
               className="btn btn-outline btn-xs summary-action-btn"
+              disabled={isCompleted}
               onClick={() => {
                 if (scheduleBlocks.length === 0) {
                   setEditingScheduleBlock(null)
@@ -592,6 +749,7 @@ export function TaskForm({
             <button
               type="button"
               className="btn btn-outline btn-xs summary-action-btn"
+              disabled={isCompleted}
               onClick={() => setActiveTab('reminders')}
               title="Mở tab Lời nhắc"
             >
@@ -636,17 +794,27 @@ export function TaskForm({
               onClick={onCancel}
               disabled={updateTaskMutation.isPending}
             >
-              Hủy
+              {isCompleted ? 'Đóng' : 'Hủy'}
             </button>
           )}
 
-          <button
-            type="submit"
-            className="btn btn-primary btn-save-action"
-            disabled={updateTaskMutation.isPending}
-          >
-            {updateTaskMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
-          </button>
+          {isCompleted ? (
+            <div className="completed-locked-pill" title="Công việc đã hoàn thành không thể chỉnh sửa">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>Đã hoàn thành (Chỉ xem)</span>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              className="btn btn-primary btn-save-action"
+              disabled={updateTaskMutation.isPending}
+            >
+              {updateTaskMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          )}
         </div>
       </div>
     </form>

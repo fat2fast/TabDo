@@ -209,6 +209,33 @@ describe('ScheduleEditor', () => {
     expect(pill).toHaveTextContent('✓ Đã hoàn thành')
   })
 
+  it('calls onOpenTaskDetail when clicking on the linked task pill', async () => {
+    const mockOnOpenDetail = vi.fn()
+    const blockWithTask: any = {
+      id: 'block-2',
+      taskId: 'task-1',
+      title: 'Work on Task 1',
+      startAt: '2026-10-06T02:00:00.000Z',
+      endAt: '2026-10-06T04:00:00.000Z',
+      createdAt: '2026-10-06T01:00:00.000Z',
+      updatedAt: '2026-10-06T01:00:00.000Z',
+    }
+
+    render(
+      <ScheduleEditor
+        isOpen={true}
+        onClose={mockOnClose}
+        initialBlock={blockWithTask}
+        onOpenTaskDetail={mockOnOpenDetail}
+      />
+    )
+
+    const pill = screen.getByTestId('linked-task-status-pill')
+    expect(pill).toBeInTheDocument()
+    fireEvent.click(pill)
+    expect(mockOnOpenDetail).toHaveBeenCalledWith('task-1')
+  })
+
   it('closes the editor when Escape key is pressed', async () => {
     render(
       <ScheduleEditor

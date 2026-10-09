@@ -229,7 +229,7 @@ export function ReminderEditor({
     deleteMutation.isPending
 
   const modalContent = (
-    <div className="modal-backdrop" onClick={onClose} data-testid="reminder-editor-backdrop">
+    <div className="modal-backdrop" data-testid="reminder-editor-backdrop">
       <div
         className="modal-content reminder-editor-modal"
         onClick={(e) => e.stopPropagation()}

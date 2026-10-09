@@ -19,23 +19,26 @@ vi.mock('../../../lib/supabase', () => {
         getSession: vi.fn(),
       },
       from: vi.fn(),
+      rpc: vi.fn(),
     },
   }
 })
 
 vi.mock('../../auth/auth-provider', () => {
+  const mockAuth = {
+    profile: {
+      id: 'u-1',
+      timezone: 'Asia/Ho_Chi_Minh',
+      role: 'user',
+      displayName: 'Test User',
+    },
+    session: {
+      user: { id: 'u-1', email: 'test@tabdo.local' },
+    },
+  }
   return {
-    useAuth: () => ({
-      profile: {
-        id: 'u-1',
-        timezone: 'Asia/Ho_Chi_Minh',
-        role: 'user',
-        displayName: 'Test User',
-      },
-      session: {
-        user: { id: 'u-1', email: 'test@tabdo.local' },
-      },
-    }),
+    useAuth: () => mockAuth,
+    useOptionalAuth: () => mockAuth,
   }
 })
 
@@ -185,31 +188,25 @@ describe('core-task-workflow', () => {
     it('toggles complete and reopen via checkbox', async () => {
       const user = userEvent.setup()
 
-      const updateMock = vi.fn().mockReturnThis()
-      const eqMock = vi.fn().mockReturnThis()
-      const selectMock = vi.fn().mockReturnThis()
-      const singleMock = vi.fn().mockResolvedValue({
+      vi.mocked(supabase.rpc).mockResolvedValue({
         data: {
-          ...sampleTask,
-          user_id: 'u-1',
-          due_date_kind: 'date_time',
-          created_at: '2026-10-01T00:00:00Z',
-          updated_at: '2026-10-05T12:00:00Z',
-          status: 'done',
-          completed_at: '2026-10-05T12:00:00Z',
+          completedTask: {
+            ...sampleTask,
+            user_id: 'u-1',
+            due_date_kind: 'date_time',
+            created_at: '2026-10-01T00:00:00Z',
+            updated_at: '2026-10-05T12:00:00Z',
+            status: 'done',
+            completed_at: '2026-10-05T12:00:00Z',
+          },
+          nextTask: null,
+          generated: false,
+          reusedExistingSuccessor: false,
         },
         error: null,
-      })
+      } as any)
 
       vi.mocked(supabase.from).mockImplementation((table: string) => {
-        if (table === 'tasks') {
-          return {
-            update: updateMock,
-            eq: eqMock,
-            select: selectMock,
-            single: singleMock,
-          } as any
-        }
         if (table === 'task_activities') {
           return { insert: vi.fn().mockResolvedValue({ error: null }) } as any
         }
@@ -232,12 +229,10 @@ describe('core-task-workflow', () => {
       await user.click(checkbox)
 
       await waitFor(() => {
-        expect(updateMock).toHaveBeenCalledWith(
-          expect.objectContaining({
-            status: 'done',
-            completed_at: expect.any(String),
-          })
-        )
+        expect(supabase.rpc).toHaveBeenCalledWith('complete_task_and_generate_next', {
+          p_task_id: sampleTask.id,
+          p_expected_updated_at: sampleTask.updatedAt,
+        })
       })
     })
   })

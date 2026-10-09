@@ -244,6 +244,29 @@ describe('notifications module', () => {
           error: null,
         })),
       },
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === 'complete_task_and_generate_next') {
+          taskCompleted = true
+          return {
+            data: {
+              completedTask: {
+                id: 'task-1',
+                title: 'Done test task',
+                status: 'done',
+                priority: 'medium',
+                due_date_kind: 'date_time',
+                created_at: '2026-10-06T10:00:00.000Z',
+                updated_at: '2026-10-06T11:00:00.000Z',
+              },
+              nextTask: null,
+              generated: false,
+              reusedExistingSuccessor: false,
+            },
+            error: null,
+          }
+        }
+        return { data: null, error: null }
+      }),
       from: vi.fn((table: string) => {
         if (table === 'tasks') {
           return {
@@ -605,6 +628,10 @@ describe('notifications module', () => {
           error: null,
         })),
       },
+      rpc: vi.fn(async () => ({
+        data: null,
+        error: new Error('Network connection failed'),
+      })),
       from: vi.fn((table: string) => {
         if (table === 'profiles') {
           return {

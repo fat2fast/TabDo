@@ -122,32 +122,24 @@ describe('task and reminder API boundaries', () => {
     ])
   })
 
-  it('3. completion compare condition: marks done with concurrency check or throws conflict error', async () => {
+  it('3. completion compare condition: marks done with concurrency check or throws conflict error via RPC', async () => {
     const mockClientConflict = {
-      from: vi.fn((table: string) => {
-        if (table === 'tasks') {
-          return {
-            update: vi.fn(() => ({
-              eq: vi.fn((field: string, val: string) => ({
-                eq: vi.fn(() => ({
-                  select: vi.fn(() => ({
-                    single: vi.fn(async () => ({
-                      data: null,
-                      error: { code: 'PGRST116', message: 'No rows updated' },
-                    })),
-                  })),
-                })),
-              })),
-            })),
-          }
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === 'complete_task_and_generate_next') {
+          return { data: null, error: { code: '40001', message: 'Task was modified concurrently' } }
         }
-        return {}
+        return { data: null, error: null }
       }),
     } as unknown as SupabaseClient
 
     await expect(
       completeTask(mockClientConflict, 'user-1', 'task-1', '2026-10-06T09:00:00.000Z')
     ).rejects.toThrow('concurrent modification conflict')
+
+    expect(mockClientConflict.rpc).toHaveBeenCalledWith('complete_task_and_generate_next', {
+      p_task_id: 'task-1',
+      p_expected_updated_at: '2026-10-06T09:00:00.000Z',
+    })
   })
 
   it('4. triggered best-effort behavior: catches and swallows error gracefully', async () => {
