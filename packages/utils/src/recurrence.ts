@@ -1,4 +1,4 @@
-import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import type {
   DueDateKind,
   RecurrenceConfig,
@@ -233,37 +233,23 @@ export function calculateNextOccurrence(
   let nextMonth = currentMonth
   let nextDay = currentDay
 
+  let daysToAdd = 0
   if (config.type === 'daily') {
-    // Add 1 local day
-    const curZoned = toZonedTime(currentDueDate, recurrenceTimezone)
-    const nextZoned = new Date(curZoned.getTime() + 86400000)
-    nextYear = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'yyyy'))
-    nextMonth = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'M'))
-    nextDay = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'd'))
+    daysToAdd = 1
   } else if (config.type === 'weekdays') {
     // Weekdays MO..FR. Friday (5) -> Monday (+3), Sat (6) -> Mon (+2), Sun (0) -> Mon (+1), else +1
-    let daysToAdd = 1
     if (currentDayOfWeek === 5) daysToAdd = 3
     else if (currentDayOfWeek === 6) daysToAdd = 2
     else if (currentDayOfWeek === 0) daysToAdd = 1
-
-    const curZoned = toZonedTime(currentDueDate, recurrenceTimezone)
-    const nextZoned = new Date(curZoned.getTime() + daysToAdd * 86400000)
-    nextYear = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'yyyy'))
-    nextMonth = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'M'))
-    nextDay = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'd'))
+    else daysToAdd = 1
   } else if (config.type === 'weekly') {
     // Same weekday next week: +7 days
-    const curZoned = toZonedTime(currentDueDate, recurrenceTimezone)
-    const nextZoned = new Date(curZoned.getTime() + 7 * 86400000)
-    nextYear = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'yyyy'))
-    nextMonth = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'M'))
-    nextDay = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'd'))
+    daysToAdd = 7
   } else if (config.type === 'custom') {
     const allowedDays = config.days || []
     const allowedDayNums = allowedDays.map((d) => WEEKDAY_TO_DAY_OF_WEEK[d])
 
-    let daysToAdd = 1
+    daysToAdd = 1
     for (let step = 1; step <= 7; step++) {
       const checkDayOfWeek = (currentDayOfWeek + step) % 7
       if (allowedDayNums.includes(checkDayOfWeek)) {
@@ -271,12 +257,6 @@ export function calculateNextOccurrence(
         break
       }
     }
-
-    const curZoned = toZonedTime(currentDueDate, recurrenceTimezone)
-    const nextZoned = new Date(curZoned.getTime() + daysToAdd * 86400000)
-    nextYear = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'yyyy'))
-    nextMonth = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'M'))
-    nextDay = Number(formatInTimeZone(nextZoned, recurrenceTimezone, 'd'))
   } else if (config.type === 'monthly') {
     // Monthly: advance month by 1, preserving original anchor day
     const anchorDay = Number(formatInTimeZone(anchorDate, recurrenceTimezone, 'd'))
@@ -291,6 +271,13 @@ export function calculateNextOccurrence(
     // Number of days in nextMonth
     const daysInNextMonth = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate()
     nextDay = Math.min(anchorDay, daysInNextMonth)
+  }
+
+  if (daysToAdd > 0) {
+    const nextDate = new Date(Date.UTC(currentYear, currentMonth - 1, currentDay + daysToAdd))
+    nextYear = nextDate.getUTCFullYear()
+    nextMonth = nextDate.getUTCMonth() + 1
+    nextDay = nextDate.getUTCDate()
   }
 
   const nextDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`
