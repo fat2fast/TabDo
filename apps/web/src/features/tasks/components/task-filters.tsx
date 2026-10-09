@@ -9,13 +9,16 @@ export interface TaskFiltersProps {
   priority?: TaskPriority
   categoryId?: string | null
   scope?: string
+  completedRange?: string
   onStatusChange: (status: TaskStatus | undefined) => void
   onPriorityChange: (priority: TaskPriority | undefined) => void
   onCategoryChange: (categoryId: string | null | undefined) => void
   onScopeChange?: (scope: string | undefined) => void
+  onCompletedRangeChange?: (range: string | undefined) => void
   onClear: () => void
   showStatusFilter?: boolean
   showScopeFilter?: boolean
+  showCompletedFilter?: boolean
 }
 
 export function TaskFilters({
@@ -23,13 +26,16 @@ export function TaskFilters({
   priority,
   categoryId,
   scope,
+  completedRange,
   onStatusChange,
   onPriorityChange,
   onCategoryChange,
   onScopeChange,
+  onCompletedRangeChange,
   onClear,
   showStatusFilter = true,
   showScopeFilter = false,
+  showCompletedFilter = false,
 }: TaskFiltersProps) {
   const { t } = useI18n()
   const { data: categories = [] } = useCategories()
@@ -66,7 +72,15 @@ export function TaskFilters({
     { value: 'uncategorized', label: t('tasks.filterScopeUncategorized') },
   ]
 
-  const hasActiveFilters = Boolean(status || priority || categoryId !== undefined || scope)
+  const completedRangeOptions: DropdownOption<string>[] = [
+    { value: '', label: 'Tất cả ngày hoàn thành' },
+    { value: 'today', label: 'Hoàn thành hôm nay' },
+    { value: 'yesterday', label: 'Hoàn thành hôm qua' },
+    { value: '7days', label: '7 ngày qua' },
+    { value: '30days', label: '30 ngày qua' },
+  ]
+
+  const hasActiveFilters = Boolean(status || priority || categoryId !== undefined || scope || completedRange)
 
   return (
     <div className="task-filters-bar" data-testid="task-filters">
@@ -87,6 +101,21 @@ export function TaskFilters({
           icon={
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          }
+        />
+      )}
+
+      {showCompletedFilter && onCompletedRangeChange && (
+        <CustomDropdown
+          value={completedRange || ''}
+          options={completedRangeOptions}
+          onChange={(val) => onCompletedRangeChange(val || undefined)}
+          ariaLabel="Lọc theo ngày hoàn thành"
+          buttonClassName="filter-dropdown-btn"
+          icon={
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
             </svg>
           }
         />

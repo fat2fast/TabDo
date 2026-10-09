@@ -1,5 +1,10 @@
 import React, { useMemo } from 'react'
-import { formatTaskDueDate, isTaskOverdue } from '@tabdo/utils'
+import {
+  formatRecurrenceRuleSummary,
+  formatTaskCompletedAt,
+  formatTaskDueDate,
+  isTaskOverdue,
+} from '@tabdo/utils'
 import { useAuth } from '../../auth/auth-provider'
 import { useCategories } from '../hooks/use-categories'
 import { useTaskMutations } from '../hooks/use-task-mutations'
@@ -53,7 +58,19 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation()
     if (isCompleted) {
-      reopenTaskMutation.mutate(task)
+      reopenTaskMutation.mutate(task, {
+        onError: (err: any) => {
+          confirm({
+            title: 'Không thể mở lại công việc',
+            message:
+              err?.message ||
+              'Không thể mở lại công việc lặp lại đã có phiên lặp tiếp theo.',
+            confirmText: 'Đã hiểu',
+            cancelText: null,
+            variant: 'warning',
+          })
+        },
+      })
     } else {
       completeTaskMutation.mutate(task)
     }
@@ -145,6 +162,32 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
             {priorityLabelMap[task.priority] || task.priority}
           </span>
 
+          {/* Recurrence Indicator */}
+          {task.recurrenceRule && (
+            <span
+              className="task-badge recurrence-badge"
+              title={`Chu kỳ lặp: ${formatRecurrenceRuleSummary(task.recurrenceRule) || 'Lặp lại'}`}
+              data-testid={`task-recurrence-badge-${task.id}`}
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              <span>{formatRecurrenceRuleSummary(task.recurrenceRule) || 'Lặp lại'}</span>
+            </span>
+          )}
+
           {/* Subtasks Progress */}
           {!task.parentId && totalSubtasks > 0 && (
             <span
@@ -199,9 +242,22 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
         </div>
       </div>
 
-      {/* Right Column: Schedule / Due Date & Quick Actions */}
+      {/* Right Column: Schedule / Due Date / Completion & Quick Actions */}
       <div className="task-row-right-col" onClick={(e) => e.stopPropagation()}>
-        {task.dueAt ? (
+        {isCompleted ? (
+          <div
+            className="task-completed-chip"
+            title={task.completedAt ? `Hoàn thành lúc: ${formatTaskCompletedAt(task.completedAt, timeZone)}` : 'Đã hoàn thành'}
+            onClick={() => onSelect(task.id)}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span className="completed-chip-text">
+              {task.completedAt ? `Hoàn thành ${formatTaskCompletedAt(task.completedAt, timeZone)}` : 'Đã hoàn thành'}
+            </span>
+          </div>
+        ) : task.dueAt ? (
           <div
             className={`task-due-chip ${isOverdue ? 'due-overdue' : ''}`}
             title={`Hạn chót: ${formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}`}

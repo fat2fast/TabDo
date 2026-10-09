@@ -6,7 +6,7 @@ export function AuthenticatedRoute({ children }: { children?: React.ReactNode })
   const { session, profile, isAuthLoading, isProfileLoading, profileError, refreshProfile, signOut } = useAuth()
   const location = useLocation()
 
-  if (isAuthLoading || isProfileLoading) {
+  if (isAuthLoading || (isProfileLoading && !profile)) {
     return (
       <div className="auth-loading-state" role="status">
         <p>Đang tải thông tin đăng nhập...</p>

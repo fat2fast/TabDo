@@ -10,6 +10,10 @@ export type TaskActivityAction =
   | 'schedule_created'
   | 'schedule_updated'
   | 'schedule_deleted'
+  | 'recurrence_enabled'
+  | 'recurrence_changed'
+  | 'recurrence_disabled'
+  | 'next_occurrence_generated'
 
 export interface RecordActivityParams {
   userId: string

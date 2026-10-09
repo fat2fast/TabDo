@@ -28,6 +28,8 @@ export interface TaskListQueryInput {
   categoryId?: string | null
   dueFrom?: string
   dueTo?: string
+  completedFrom?: string
+  completedTo?: string
   sort?: TaskSortOption
   scope?: string
   limit?: number
@@ -51,6 +53,10 @@ export interface TaskRow {
   source_url: string | null
   completed_at: string | null
   recurrence_rule: string | null
+  recurrence_series_id?: string | null
+  recurrence_parent_id?: string | null
+  recurrence_timezone?: string | null
+  recurrence_anchor_at?: string | null
   created_at: string
   updated_at: string
   subtasks_count?: number
@@ -82,6 +88,10 @@ export function rowToTask(row: TaskRow): Task {
     sourceUrl: row.source_url,
     completedAt: row.completed_at,
     recurrenceRule: row.recurrence_rule,
+    recurrenceSeriesId: row.recurrence_series_id ?? null,
+    recurrenceParentId: row.recurrence_parent_id ?? null,
+    recurrenceTimezone: row.recurrence_timezone ?? null,
+    recurrenceAnchorAt: row.recurrence_anchor_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

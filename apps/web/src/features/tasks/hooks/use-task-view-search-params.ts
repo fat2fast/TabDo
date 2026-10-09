@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { getCompletedRangeBoundaries } from '@tabdo/utils'
+import { useOptionalAuth } from '../../auth/auth-provider'
 import type { TaskPriority, TaskSortOption, TaskStatus } from '../types'
 
 export interface TaskViewSearchParams {
@@ -9,6 +11,9 @@ export interface TaskViewSearchParams {
   categoryId: string | null | undefined
   dueFrom: string | undefined
   dueTo: string | undefined
+  completedRange: string | undefined
+  completedFrom: string | undefined
+  completedTo: string | undefined
   sort: TaskSortOption
   scope: string | undefined
 }
@@ -26,6 +31,8 @@ const VALID_SORTS: TaskSortOption[] = [
 
 export function useTaskViewSearchParams() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const auth = useOptionalAuth()
+  const timeZone = auth?.profile?.timezone || 'Asia/Ho_Chi_Minh'
 
   const params: TaskViewSearchParams = useMemo(() => {
     const rawSearch = searchParams.get('q') || searchParams.get('search') || ''
@@ -34,6 +41,7 @@ export function useTaskViewSearchParams() {
     const rawCategory = searchParams.get('category')
     const rawDueFrom = searchParams.get('dueFrom')
     const rawDueTo = searchParams.get('dueTo')
+    const rawCompletedRange = searchParams.get('completedRange') || undefined
     const rawSort = searchParams.get('sort')
     const rawScope = searchParams.get('scope') || undefined
 
@@ -56,6 +64,10 @@ export function useTaskViewSearchParams() {
       ? (rawSort as TaskSortOption)
       : 'default'
 
+    const { from: completedFrom, to: completedTo } = rawCompletedRange
+      ? getCompletedRangeBoundaries(rawCompletedRange, timeZone)
+      : {}
+
     return {
       search: rawSearch.trim(),
       status,
@@ -63,10 +75,13 @@ export function useTaskViewSearchParams() {
       categoryId,
       dueFrom: rawDueFrom || undefined,
       dueTo: rawDueTo || undefined,
+      completedRange: rawCompletedRange,
+      completedFrom,
+      completedTo,
       sort,
       scope: rawScope,
     }
-  }, [searchParams])
+  }, [searchParams, timeZone])
 
   const setParams = (newParams: Partial<TaskViewSearchParams>) => {
     const updated = new URLSearchParams(searchParams)
@@ -114,6 +129,11 @@ export function useTaskViewSearchParams() {
     if ('dueTo' in newParams) {
       if (newParams.dueTo) updated.set('dueTo', newParams.dueTo)
       else updated.delete('dueTo')
+    }
+
+    if ('completedRange' in newParams) {
+      if (newParams.completedRange) updated.set('completedRange', newParams.completedRange)
+      else updated.delete('completedRange')
     }
 
     if ('sort' in newParams) {

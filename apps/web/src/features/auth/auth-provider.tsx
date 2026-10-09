@@ -14,8 +14,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isProfileLoading, setIsProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    setIsProfileLoading(true)
+  const fetchProfile = useCallback(async (userId: string, isSilent = false) => {
+    if (!isSilent) {
+      setIsProfileLoading(true)
+    }
     setProfileError(null)
     try {
       const { data, error } = await supabase
@@ -51,7 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null)
       return null
     } finally {
-      setIsProfileLoading(false)
+      if (!isSilent) {
+        setIsProfileLoading(false)
+      }
     }
   }, [])
 
@@ -66,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthLoading(false)
 
       if (initialSession?.user) {
-        fetchProfile(initialSession.user.id)
+        fetchProfile(initialSession.user.id, false)
       } else {
         setProfile(null)
         setProfileError(null)
@@ -85,7 +89,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsAuthLoading(false)
 
         if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id)
+          // Token refreshed does not modify profile role or settings
+          if (event === 'TOKEN_REFRESHED') {
+            return
+          }
+          await fetchProfile(currentSession.user.id, true)
         } else {
           setProfile(null)
           setProfileError(null)
@@ -139,6 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useOptionalAuth() {
+  return useContext(AuthContext)
 }
 
 export function useAuth() {

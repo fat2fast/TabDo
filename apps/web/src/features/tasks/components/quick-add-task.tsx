@@ -11,9 +11,14 @@ import { DatePickerPopover } from './ui/date-picker-popover'
 export interface QuickAddTaskProps {
   defaultCategoryId?: string | null
   onTaskCreated?: () => void
+  onOpenDetailedCreate?: (title?: string) => void
 }
 
-export function QuickAddTask({ defaultCategoryId, onTaskCreated }: QuickAddTaskProps) {
+export function QuickAddTask({
+  defaultCategoryId,
+  onTaskCreated,
+  onOpenDetailedCreate,
+}: QuickAddTaskProps) {
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
   const { data: categories = [] } = useCategories()
@@ -145,6 +150,22 @@ export function QuickAddTask({ defaultCategoryId, onTaskCreated }: QuickAddTaskP
           >
             {createTaskMutation.isPending ? 'Đang thêm...' : 'Thêm'}
           </button>
+
+          {onOpenDetailedCreate && (
+            <button
+              type="button"
+              className="quick-add-detail-modal-btn"
+              onClick={() => onOpenDetailedCreate(title)}
+              title="Mở biểu mẫu tạo công việc chi tiết"
+              aria-label="Mở biểu mẫu tạo công việc chi tiết"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              <span>+ Chi tiết</span>
+            </button>
+          )}
         </div>
 
         {showOptions && (
@@ -187,6 +208,19 @@ export function QuickAddTask({ defaultCategoryId, onTaskCreated }: QuickAddTaskP
                 }}
               />
             </div>
+
+            {onOpenDetailedCreate && (
+              <div className="option-field options-more-field">
+                <button
+                  type="button"
+                  className="open-full-form-link"
+                  onClick={() => onOpenDetailedCreate(title)}
+                  title="Mở toàn bộ tùy chọn trong popup chi tiết"
+                >
+                  Mở form đầy đủ ↗
+                </button>
+              </div>
+            )}
           </div>
         )}
       </form>

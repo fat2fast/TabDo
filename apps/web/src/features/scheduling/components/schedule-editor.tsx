@@ -22,6 +22,7 @@ export interface ScheduleEditorProps {
   initialTask?: Task | null
   onSuccess?: (block: ScheduleBlock) => void
   onDeleted?: (blockId: string) => void
+  onOpenTaskDetail?: (taskId: string) => void
 }
 
 export function ScheduleEditor({
@@ -33,6 +34,7 @@ export function ScheduleEditor({
   initialTask,
   onSuccess,
   onDeleted,
+  onOpenTaskDetail,
 }: ScheduleEditorProps) {
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
@@ -252,7 +254,7 @@ export function ScheduleEditor({
   const isSubmitting = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
 
   const modalContent = (
-    <div className="modal-backdrop" onClick={onClose} data-testid="schedule-editor-backdrop">
+    <div className="modal-backdrop" data-testid="schedule-editor-backdrop">
       <div
         className="modal-content schedule-editor-modal"
         onClick={(e) => e.stopPropagation()}
@@ -322,61 +324,34 @@ export function ScheduleEditor({
             />
 
             {selectedTask && (
-              <div
-                className="linked-task-status-pill"
-                data-testid="linked-task-status-pill"
-                style={{
-                  marginTop: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  background: selectedTask.status === 'done' ? '#f8fafc' : '#f0fdf4',
-                  border: `1px solid ${selectedTask.status === 'done' ? '#e2e8f0' : '#bbf7d0'}`,
-                  fontSize: '12px',
-                }}
-              >
-                <span style={{ fontSize: '13px' }}>🔗</span>
-                <span style={{ color: '#64748b' }}>Công việc:</span>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    color: selectedTask.status === 'done' ? '#64748b' : '#0f172a',
-                    textDecoration: selectedTask.status === 'done' ? 'line-through' : 'none',
-                  }}
+              <div className="linked-task-pill-container" style={{ marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className="linked-task-status-pill interactive-linked-task"
+                  data-testid="linked-task-status-pill"
+                  onClick={() => onOpenTaskDetail?.(selectedTask.id)}
+                  title="Nhấn để xem chi tiết công việc này"
                 >
-                  {selectedTask.title}
-                </span>
-                {selectedTask.status === 'done' ? (
+                  <span className="linked-task-icon">🔗</span>
+                  <span className="linked-task-label">Công việc:</span>
                   <span
-                    style={{
-                      marginLeft: 'auto',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '11px',
-                      background: '#dcfce7',
-                      color: '#15803d',
-                      fontWeight: 600,
-                    }}
+                    className={`linked-task-title ${selectedTask.status === 'done' ? 'is-done' : ''}`}
                   >
-                    ✓ Đã hoàn thành
+                    {selectedTask.title}
                   </span>
-                ) : (
-                  <span
-                    style={{
-                      marginLeft: 'auto',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '11px',
-                      background: '#e0f2fe',
-                      color: '#0284c7',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Đang thực hiện
+                  {selectedTask.status === 'done' ? (
+                    <span className="linked-task-status-tag done">
+                      ✓ Đã hoàn thành
+                    </span>
+                  ) : (
+                    <span className="linked-task-status-tag active">
+                      Đang thực hiện
+                    </span>
+                  )}
+                  <span className="linked-task-action-jump">
+                    Xem chi tiết ↗
                   </span>
-                )}
+                </button>
               </div>
             )}
           </div>

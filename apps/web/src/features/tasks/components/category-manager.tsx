@@ -114,7 +114,7 @@ export function CategoryManager({ isOpen, onClose }: CategoryManagerProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} data-testid="category-manager-modal">
+    <div className="modal-backdrop" data-testid="category-manager-modal">
       <div
         className="modal-content card"
         onClick={(e) => e.stopPropagation()}

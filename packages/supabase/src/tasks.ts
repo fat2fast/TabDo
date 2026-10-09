@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ExtensionTodayTask } from '@tabdo/types'
+import type { CompleteTaskAndGenerateNextResult, ExtensionTodayTask, Task } from '@tabdo/types'
 import { getLocalDayBoundaries } from '@tabdo/utils'
 
 interface RawTaskRow {
@@ -135,51 +135,80 @@ export async function quickAddTask(
   }
 }
 
-/**
- * Marks a task as done with optimistic concurrency control and records activity.
- */
-export async function completeTask(
-  client: SupabaseClient,
-  userId: string,
-  taskId: string,
-  previousUpdatedAt?: string
-): Promise<{ id: string; updatedAt: string }> {
-  const completedAt = new Date().toISOString()
-  let query = client
-    .from('tasks')
-    .update({
-      status: 'done',
-      completed_at: completedAt,
-    })
-    .eq('id', taskId)
 
-  if (previousUpdatedAt) {
-    query = query.eq('updated_at', previousUpdatedAt)
+function mapRawRowToTask(row: Record<string, unknown>): Task {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    categoryId: (row.category_id as string) ?? null,
+    parentId: (row.parent_id as string) ?? null,
+    title: String(row.title),
+    description: (row.description as string) ?? null,
+    status: row.status as Task['status'],
+    priority: row.priority as Task['priority'],
+    dueDateKind: row.due_date_kind as Task['dueDateKind'],
+    startAt: (row.start_at as string) ?? null,
+    dueAt: (row.due_at as string) ?? null,
+    sourceUrl: (row.source_url as string) ?? null,
+    completedAt: (row.completed_at as string) ?? null,
+    recurrenceRule: (row.recurrence_rule as string) ?? null,
+    recurrenceSeriesId: (row.recurrence_series_id as string) ?? null,
+    recurrenceParentId: (row.recurrence_parent_id as string) ?? null,
+    recurrenceTimezone: (row.recurrence_timezone as string) ?? null,
+    recurrenceAnchorAt: (row.recurrence_anchor_at as string) ?? null,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
   }
+}
 
-  const { data, error } = await query
-    .select('id, title, updated_at')
-    .single()
+/**
+ * Atomically completes a task and generates its successor occurrence (if recurring)
+ * using the complete_task_and_generate_next RPC.
+ */
+export async function completeTaskAndGenerateNext(
+  client: SupabaseClient,
+  taskId: string,
+  expectedUpdatedAt?: string
+): Promise<CompleteTaskAndGenerateNextResult> {
+  const { data, error } = await client.rpc('complete_task_and_generate_next', {
+    p_task_id: taskId,
+    p_expected_updated_at: expectedUpdatedAt || null,
+  })
 
   if (error) {
-    if (error.code === 'PGRST116') {
+    if (error.code === '40001' || error.message?.includes('concurrent')) {
       throw new Error('Task was modified or does not exist (concurrent modification conflict)')
     }
     throw error
   }
 
-  const row = data as { id: string; title: string; updated_at: string }
-
-  // Record own-user activity
-  await client.from('task_activities').insert({
-    user_id: userId,
-    task_id: taskId,
-    action: 'completed',
-    metadata: { title: row.title, completedAt },
-  })
+  const res = data as {
+    completedTask: Record<string, unknown>
+    nextTask: Record<string, unknown> | null
+    generated: boolean
+    reusedExistingSuccessor: boolean
+  }
 
   return {
-    id: row.id,
-    updatedAt: row.updated_at,
+    completedTask: mapRawRowToTask(res.completedTask),
+    nextTask: res.nextTask ? mapRawRowToTask(res.nextTask) : null,
+    generated: res.generated,
+    reusedExistingSuccessor: res.reusedExistingSuccessor,
+  }
+}
+
+/**
+ * Marks a task as done using the atomic complete_task_and_generate_next RPC.
+ */
+export async function completeTask(
+  client: SupabaseClient,
+  _userId: string,
+  taskId: string,
+  previousUpdatedAt?: string
+): Promise<{ id: string; updatedAt: string }> {
+  const result = await completeTaskAndGenerateNext(client, taskId, previousUpdatedAt)
+  return {
+    id: result.completedTask.id,
+    updatedAt: result.completedTask.updatedAt,
   }
 }

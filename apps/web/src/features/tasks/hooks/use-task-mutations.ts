@@ -29,6 +29,7 @@ export function useTaskMutations() {
     mutationFn: (input: CreateTaskInput) => createTask(input),
     onSuccess: (newTask) => {
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       if (newTask.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(newTask.parentId),
@@ -54,6 +55,7 @@ export function useTaskMutations() {
       })
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       if (updatedTask.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(updatedTask.parentId),
@@ -72,6 +74,7 @@ export function useTaskMutations() {
       })
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       if (variables.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(variables.parentId),
@@ -82,16 +85,22 @@ export function useTaskMutations() {
 
   const completeTaskMutation = useMutation({
     mutationFn: (task: Task) => completeTask(task),
-    onSuccess: (updatedTask) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
       queryClient.invalidateQueries({
-        queryKey: taskQueryKeys.detail(updatedTask.id),
+        queryKey: taskQueryKeys.detail(result.completedTask.id),
       })
+      if (result.nextTask) {
+        queryClient.invalidateQueries({
+          queryKey: taskQueryKeys.detail(result.nextTask.id),
+        })
+      }
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
-      if (updatedTask.parentId) {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      if (result.completedTask.parentId) {
         queryClient.invalidateQueries({
-          queryKey: taskQueryKeys.subtasks(updatedTask.parentId),
+          queryKey: taskQueryKeys.subtasks(result.completedTask.parentId),
         })
       }
     },
@@ -106,6 +115,7 @@ export function useTaskMutations() {
       })
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       if (updatedTask.parentId) {
         queryClient.invalidateQueries({
           queryKey: taskQueryKeys.subtasks(updatedTask.parentId),

@@ -347,3 +347,75 @@ export function getVisibleRangeForWeek(
     endAt: fromZonedTime(localEnd, timeZone).toISOString(),
   }
 }
+
+/**
+ * Returns [start, end) UTC ISO boundaries for the upcoming N complete local days
+ * starting from tomorrow 00:00:00.000 (excluding today).
+ */
+export function getVisibleRangeForNextDays(
+  referenceDate: Date | string,
+  timeZone: string,
+  days = 7
+): { startAt: string; endAt: string } {
+  const dateObj = typeof referenceDate === 'string' ? new Date(referenceDate) : referenceDate
+  const zoned = toZonedTime(dateObj, timeZone)
+  const nextDayStart = startOfDay(addDays(zoned, 1))
+  const endAt = startOfDay(addDays(nextDayStart, days))
+
+  return {
+    startAt: fromZonedTime(nextDayStart, timeZone).toISOString(),
+    endAt: fromZonedTime(endAt, timeZone).toISOString(),
+  }
+}
+
+/**
+ * Formats a task's completedAt timestamp for display in the client's timezone.
+ * Returns localized Vietnamese string e.g. "09/10/2026 14:30"
+ */
+export function formatTaskCompletedAt(
+  completedAt: string | null | undefined,
+  timeZone: string
+): string | null {
+  if (!completedAt) return null
+  const date = new Date(completedAt)
+  if (isNaN(date.getTime())) return null
+  return formatInTimeZone(date, timeZone, 'dd/MM/yyyy HH:mm')
+}
+
+/**
+ * Calculates start and end UTC boundary instants for a given completion range filter.
+ */
+export function getCompletedRangeBoundaries(
+  range: 'today' | 'yesterday' | '7days' | '30days' | 'all' | string,
+  timeZone: string,
+  now: Date = new Date()
+): { from?: string; to?: string } {
+  const zonedNow = toZonedTime(now, timeZone)
+  switch (range) {
+    case 'today': {
+      const start = fromZonedTime(startOfDay(zonedNow), timeZone)
+      const end = fromZonedTime(endOfDay(zonedNow), timeZone)
+      return { from: start.toISOString(), to: end.toISOString() }
+    }
+    case 'yesterday': {
+      const yesterdayZoned = addDays(zonedNow, -1)
+      const start = fromZonedTime(startOfDay(yesterdayZoned), timeZone)
+      const end = fromZonedTime(endOfDay(yesterdayZoned), timeZone)
+      return { from: start.toISOString(), to: end.toISOString() }
+    }
+    case '7days': {
+      const past7 = addDays(zonedNow, -7)
+      const start = fromZonedTime(startOfDay(past7), timeZone)
+      const end = fromZonedTime(endOfDay(zonedNow), timeZone)
+      return { from: start.toISOString(), to: end.toISOString() }
+    }
+    case '30days': {
+      const past30 = addDays(zonedNow, -30)
+      const start = fromZonedTime(startOfDay(past30), timeZone)
+      const end = fromZonedTime(endOfDay(zonedNow), timeZone)
+      return { from: start.toISOString(), to: end.toISOString() }
+    }
+    default:
+      return {}
+  }
+}

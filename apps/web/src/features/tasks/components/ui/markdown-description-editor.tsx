@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react'
+import { MarkdownViewer } from './markdown-viewer'
 
 export interface MarkdownDescriptionEditorProps {
   value: string
@@ -18,7 +19,7 @@ export function MarkdownDescriptionEditor({
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Insert markdown syntax helper
+  // Insert markdown syntax helper with heading preservation and toggle support
   const applyFormat = (prefix: string, suffix: string = '', defaultText: string = '') => {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -26,20 +27,84 @@ export function MarkdownDescriptionEditor({
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
     const selectedText = value.substring(start, end)
-    const textToInsert = selectedText || defaultText
-    const replacement = `${prefix}${textToInsert}${suffix}`
+
+    // Separate leading/trailing whitespace to prevent malformed formatting
+    const leadingWsMatch = selectedText.match(/^\s*/)
+    const leadingWs = leadingWsMatch ? leadingWsMatch[0] : ''
+    const trailingWsMatch = selectedText.match(/\s*$/)
+    const trailingWs = trailingWsMatch ? trailingWsMatch[0] : ''
+    const coreText = selectedText.substring(leadingWs.length, selectedText.length - trailingWs.length)
+
+    let replacement = ''
+    let newSelectionStart = start
+    let newSelectionEnd = end
+
+    if (!coreText) {
+      // Nothing selected, insert default text wrapped
+      replacement = `${prefix}${defaultText}${suffix}`
+      newSelectionStart = start + prefix.length
+      newSelectionEnd = newSelectionStart + defaultText.length
+    } else {
+      // Check if coreText is already wrapped in prefix & suffix (toggle off)
+      const isAlreadyWrapped =
+        coreText.startsWith(prefix) &&
+        coreText.endsWith(suffix) &&
+        coreText.length >= prefix.length + suffix.length
+
+      if (isAlreadyWrapped && prefix.length > 0 && suffix.length > 0) {
+        // Toggle OFF formatting
+        const unwrapped = coreText.slice(prefix.length, coreText.length - suffix.length)
+        replacement = `${leadingWs}${unwrapped}${trailingWs}`
+        newSelectionStart = start + leadingWs.length
+        newSelectionEnd = newSelectionStart + unwrapped.length
+      } else {
+        // Check if coreText contains a heading prefix like "### "
+        const headingMatch = /^(#{1,6}\s+)(.*)$/s.exec(coreText)
+        if (headingMatch && prefix === '**' && suffix === '**') {
+          const hPrefix = headingMatch[1]
+          const hContent = headingMatch[2]
+          if (hContent.startsWith('**') && hContent.endsWith('**') && hContent.length >= 4) {
+            // Already bold heading -> toggle off bold inside heading
+            const unbolded = hContent.slice(2, -2)
+            replacement = `${leadingWs}${hPrefix}${unbolded}${trailingWs}`
+            newSelectionStart = start + leadingWs.length + hPrefix.length
+            newSelectionEnd = newSelectionStart + unbolded.length
+          } else {
+            // Make content of heading bold: "### **heading content**"
+            const bolded = `**${hContent || defaultText}**`
+            replacement = `${leadingWs}${hPrefix}${bolded}${trailingWs}`
+            newSelectionStart = start + leadingWs.length + hPrefix.length
+            newSelectionEnd = newSelectionStart + bolded.length
+          }
+        } else if (headingMatch && prefix === '*' && suffix === '*') {
+          const hPrefix = headingMatch[1]
+          const hContent = headingMatch[2]
+          if (hContent.startsWith('*') && hContent.endsWith('*') && hContent.length >= 2) {
+            const unitalic = hContent.slice(1, -1)
+            replacement = `${leadingWs}${hPrefix}${unitalic}${trailingWs}`
+            newSelectionStart = start + leadingWs.length + hPrefix.length
+            newSelectionEnd = newSelectionStart + unitalic.length
+          } else {
+            const italicized = `*${hContent || defaultText}*`
+            replacement = `${leadingWs}${hPrefix}${italicized}${trailingWs}`
+            newSelectionStart = start + leadingWs.length + hPrefix.length
+            newSelectionEnd = newSelectionStart + italicized.length
+          }
+        } else {
+          replacement = `${leadingWs}${prefix}${coreText}${suffix}${trailingWs}`
+          newSelectionStart = start + leadingWs.length + prefix.length
+          newSelectionEnd = newSelectionStart + coreText.length
+        }
+      }
+    }
 
     const newValue = value.substring(0, start) + replacement + value.substring(end)
     onChange(newValue)
 
-    // Re-focus and update cursor
+    // Re-focus and preserve accurate selection
     setTimeout(() => {
       textarea.focus()
-      const newCursorPos = start + prefix.length + textToInsert.length
-      textarea.setSelectionRange(
-        start + prefix.length,
-        selectedText ? newCursorPos : start + prefix.length + defaultText.length
-      )
+      textarea.setSelectionRange(newSelectionStart, newSelectionEnd)
     }, 0)
   }
 
@@ -55,13 +120,45 @@ export function MarkdownDescriptionEditor({
     const lastNewline = value.lastIndexOf('\n', start - 1)
     const lineStart = lastNewline === -1 ? 0 : lastNewline + 1
 
-    const currentLine = value.substring(lineStart, end)
-    const newValue = value.substring(0, lineStart) + prefix + value.substring(lineStart)
+    const lineRest = value.substring(lineStart)
+    const nextNewline = lineRest.indexOf('\n')
+    const currentLine = nextNewline === -1 ? lineRest : lineRest.substring(0, nextNewline)
+
+    let newValue = ''
+    let cursorOffset = prefix.length
+
+    if (currentLine.startsWith(prefix)) {
+      // Toggle off prefix if clicked again
+      newValue =
+        value.substring(0, lineStart) +
+        currentLine.slice(prefix.length) +
+        (nextNewline === -1 ? '' : value.substring(lineStart + nextNewline))
+      cursorOffset = -prefix.length
+    } else {
+      // Replace existing heading prefix or add
+      const existingHeading = /^(#{1,6}\s+)/.exec(currentLine)
+      if (existingHeading) {
+        const oldLen = existingHeading[1].length
+        newValue =
+          value.substring(0, lineStart) +
+          prefix +
+          currentLine.slice(oldLen) +
+          (nextNewline === -1 ? '' : value.substring(lineStart + nextNewline))
+        cursorOffset = prefix.length - oldLen
+      } else {
+        newValue =
+          value.substring(0, lineStart) +
+          prefix +
+          value.substring(lineStart)
+      }
+    }
+
     onChange(newValue)
 
     setTimeout(() => {
       textarea.focus()
-      textarea.setSelectionRange(start + prefix.length, end + prefix.length)
+      const newPos = Math.max(lineStart, start + cursorOffset)
+      textarea.setSelectionRange(newPos, newPos)
     }, 0)
   }
 
@@ -74,153 +171,6 @@ export function MarkdownDescriptionEditor({
       e.preventDefault()
       applyFormat('*', '*', 'chữ in nghiêng')
     }
-  }
-
-  // Simple, safe Markdown renderer for preview mode
-  const renderMarkdown = (text: string) => {
-    if (!text.trim()) {
-      return (
-        <div className="markdown-preview-empty">
-          <em>Chưa có nội dung mô tả để xem trước.</em>
-        </div>
-      )
-    }
-
-    const lines = text.split('\n')
-    const elements: React.ReactNode[] = []
-
-    lines.forEach((line, index) => {
-      const trimmed = line.trim()
-
-      // Header 1, 2, 3
-      if (line.startsWith('### ')) {
-        elements.push(<h3 key={index} className="md-h3">{parseInline(line.slice(4))}</h3>)
-      } else if (line.startsWith('## ')) {
-        elements.push(<h2 key={index} className="md-h2">{parseInline(line.slice(3))}</h2>)
-      } else if (line.startsWith('# ')) {
-        elements.push(<h1 key={index} className="md-h1">{parseInline(line.slice(2))}</h1>)
-      }
-      // Checklist items
-      else if (trimmed.startsWith('- [ ] ') || trimmed.startsWith('- [x] ') || trimmed.startsWith('- [X] ')) {
-        const isChecked = trimmed.startsWith('- [x] ') || trimmed.startsWith('- [X] ')
-        const content = trimmed.slice(6)
-        elements.push(
-          <div key={index} className={`md-checklist-row ${isChecked ? 'done' : ''}`}>
-            <span className={`md-checkbox-icon ${isChecked ? 'checked' : ''}`}>
-              {isChecked ? '☑' : '☐'}
-            </span>
-            <span className={`md-checklist-text ${isChecked ? 'line-through' : ''}`}>
-              {parseInline(content)}
-            </span>
-          </div>
-        )
-      }
-      // Bullet list
-      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-        elements.push(
-          <li key={index} className="md-bullet-item">
-            {parseInline(trimmed.slice(2))}
-          </li>
-        )
-      }
-      // Blockquote
-      else if (trimmed.startsWith('> ')) {
-        elements.push(
-          <blockquote key={index} className="md-blockquote">
-            {parseInline(trimmed.slice(2))}
-          </blockquote>
-        )
-      }
-      // Blank line
-      else if (!trimmed) {
-        elements.push(<div key={index} className="md-spacer" />)
-      }
-      // Normal paragraph
-      else {
-        elements.push(
-          <p key={index} className="md-paragraph">
-            {parseInline(line)}
-          </p>
-        )
-      }
-    })
-
-    return <div className="markdown-rendered-view">{elements}</div>
-  }
-
-  // Parse inline elements: **bold**, *italic*, ~~strike~~, `code`, [link](url)
-  const parseInline = (text: string): React.ReactNode => {
-    // Regex for bold, italic, strikethrough, code, link
-    const parts: React.ReactNode[] = []
-    let remaining = text
-    let keyIdx = 0
-
-    while (remaining) {
-      // Link [text](url)
-      const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)/.exec(remaining)
-      if (linkMatch) {
-        parts.push(
-          <a
-            key={keyIdx++}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="md-link"
-          >
-            {linkMatch[1]}
-          </a>
-        )
-        remaining = remaining.slice(linkMatch[0].length)
-        continue
-      }
-
-      // Bold **text**
-      const boldMatch = /^\*\*([^*]+)\*\*/.exec(remaining)
-      if (boldMatch) {
-        parts.push(<strong key={keyIdx++}>{boldMatch[1]}</strong>)
-        remaining = remaining.slice(boldMatch[0].length)
-        continue
-      }
-
-      // Italic *text*
-      const italicMatch = /^\*([^*]+)\*/.exec(remaining)
-      if (italicMatch) {
-        parts.push(<em key={keyIdx++}>{italicMatch[1]}</em>)
-        remaining = remaining.slice(italicMatch[0].length)
-        continue
-      }
-
-      // Strikethrough ~~text~~
-      const strikeMatch = /^~~([^~]+)~~/.exec(remaining)
-      if (strikeMatch) {
-        parts.push(<del key={keyIdx++}>{strikeMatch[1]}</del>)
-        remaining = remaining.slice(strikeMatch[0].length)
-        continue
-      }
-
-      // Inline code `code`
-      const codeMatch = /^`([^`]+)`/.exec(remaining)
-      if (codeMatch) {
-        parts.push(<code key={keyIdx++} className="md-inline-code">{codeMatch[1]}</code>)
-        remaining = remaining.slice(codeMatch[0].length)
-        continue
-      }
-
-      // Take first character as plain text
-      const nextSpecial = remaining.search(/(\[|\*\*|\*|~~|`)/)
-      if (nextSpecial === -1) {
-        parts.push(remaining)
-        break
-      } else if (nextSpecial === 0) {
-        parts.push(remaining[0])
-        remaining = remaining.slice(1)
-      } else {
-        parts.push(remaining.slice(0, nextSpecial))
-        remaining = remaining.slice(nextSpecial)
-      }
-    }
-
-    return parts
   }
 
   return (
@@ -363,7 +313,7 @@ export function MarkdownDescriptionEditor({
           />
         ) : (
           <div className="markdown-preview-pane">
-            {renderMarkdown(value)}
+            <MarkdownViewer content={value} />
           </div>
         )}
       </div>

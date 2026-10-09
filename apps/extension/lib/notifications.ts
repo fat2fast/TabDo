@@ -202,6 +202,9 @@ export async function handleNotificationClicked(
 
 /**
  * Remote-first task completion and alarm cleanup.
+ *
+ * Clears ALL local alarms belonging to the completed task's reminders before
+ * the reconciliation sync, so stale alarms cannot fire if the sync later fails.
  */
 export async function handleDone(
   context: ExtensionNotificationContext,
@@ -215,12 +218,27 @@ export async function handleDone(
   // 1. Remote mutation
   await completeTask(client, auth.user.id, context.taskId, context.taskUpdatedAt)
 
-  // 2. Clear local alarm for this reminder immediately
+  // 2. Eagerly clear ALL local alarms for every reminder of the completed source task.
+  //    This must happen before the sync so that even if the sync fails, no stale
+  //    reminder alarm for the now-completed task can fire.
   if (typeof chrome !== 'undefined' && chrome.alarms) {
+    const activeUserId = await getActiveUserId()
+    if (activeUserId) {
+      const cache = await getUserCache(activeUserId)
+      if (cache) {
+        const taskReminders = cache.upcomingReminders.filter(
+          (r) => r.taskId === context.taskId
+        )
+        await Promise.all(
+          taskReminders.map((r) => chrome.alarms.clear(deriveAlarmName(r.id)))
+        )
+      }
+    }
+    // Also clear the specific alarm from the triggering notification (belt-and-suspenders)
     await chrome.alarms.clear(deriveAlarmName(context.reminderId))
   }
 
-  // 3. Full sync to converge any remaining alarms/cache
+  // 3. Full sync to converge remaining alarms/cache
   await syncExtensionState(client)
 }
 
