@@ -11,6 +11,7 @@ import { useI18n } from '../features/i18n/i18n-provider'
 import { useScheduleBlocksInRange } from '../features/scheduling/hooks/use-schedule-blocks'
 import { CategoryManager } from '../features/tasks/components/category-manager'
 import { QuickAddTask } from '../features/tasks/components/quick-add-task'
+import { TaskCreateModal } from '../features/tasks/components/task-create-modal'
 import { TaskDrawer } from '../features/tasks/components/task-drawer'
 import { TaskFilters } from '../features/tasks/components/task-filters'
 import { TaskGroup } from '../features/tasks/components/task-group'
@@ -30,6 +31,8 @@ export function TasksPage() {
   const taskIdParam = searchParams.get('taskId')
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [createModalInitialTitle, setCreateModalInitialTitle] = useState('')
 
   // Resolve current view from path
   const currentView: TaskView = useMemo(() => {
@@ -76,6 +79,8 @@ export function TasksPage() {
     categoryId: params.categoryId,
     dueFrom: params.dueFrom,
     dueTo: params.dueTo,
+    completedFrom: params.completedFrom,
+    completedTo: params.completedTo,
     sort: params.sort,
     scope: params.scope,
     timeZone,
@@ -205,6 +210,10 @@ export function TasksPage() {
       <TaskViewHeader
         currentView={currentView}
         onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
+        onOpenCreateModal={() => {
+          setCreateModalInitialTitle('')
+          setIsCreateModalOpen(true)
+        }}
       />
 
       {/* Show Quick Add on active work views */}
@@ -215,6 +224,10 @@ export function TasksPage() {
               ? params.categoryId
               : undefined
           }
+          onOpenDetailedCreate={(title?: string) => {
+            setCreateModalInitialTitle(title || '')
+            setIsCreateModalOpen(true)
+          }}
         />
       )}
 
@@ -237,12 +250,15 @@ export function TasksPage() {
           priority={params.priority}
           categoryId={params.categoryId}
           scope={params.scope}
+          completedRange={params.completedRange}
           showStatusFilter={currentView !== 'completed'}
           showScopeFilter={currentView === 'inbox'}
+          showCompletedFilter={currentView === 'completed' || params.status === 'done'}
           onStatusChange={(status) => setParams({ status })}
           onPriorityChange={(priority) => setParams({ priority })}
           onCategoryChange={(categoryId) => setParams({ categoryId })}
           onScopeChange={(scope) => setParams({ scope })}
+          onCompletedRangeChange={(completedRange) => setParams({ completedRange })}
           onClear={clearFilters}
         />
       </div>
@@ -341,6 +357,18 @@ export function TasksPage() {
       <CategoryManager
         isOpen={isCategoryManagerOpen}
         onClose={() => setIsCategoryManagerOpen(false)}
+      />
+
+      {/* Detailed Task Create Modal */}
+      <TaskCreateModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        initialTitle={createModalInitialTitle}
+        defaultCategoryId={
+          params.categoryId && params.categoryId !== 'none'
+            ? params.categoryId
+            : undefined
+        }
       />
     </div>
   )

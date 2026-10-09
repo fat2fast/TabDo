@@ -43,6 +43,13 @@ workflow; they do not replace a user's accepted scope.
   and cache so stale notifications cannot fire.
 - Do not put privileged administrative operations in the extension.
 
+## UI / UX design & interaction rules
+
+- **Strict Custom Dropdown Rule**: Never use unstyled native HTML `<select>` elements in user-facing UI. Always use the project's custom dropdown component (`CustomDropdown` in `apps/web/src/components/ui/custom-dropdown.tsx`) or bespoke styled listboxes with custom trigger buttons, chevron icons, active indicator states, and proper keyboard navigation / accessibility.
+- **Button vs Hyperlink Rule**: Never render action controls or widget navigation triggers as raw hyperlinks with default browser text/underline styling (`<a>` or `<Link>` with raw blue text). Style them as cohesive pill/button controls (`.dashboard-action-btn`, `btn-secondary`, `btn-ghost-sm`) with icons and interactive hover/active states.
+- **Visual Metadata Consistency**: Recurring tasks must always display clear visual cycle indicators (repeat icon/badge with localized summary) in task list items and detail views so users can immediately identify recurring schedules.
+- **Action Blocking Feedback Rule**: Any blocked operation (such as attempting to reopen a recurring task that has already spawned a successor occurrence) must present clear, explicit feedback to the user via a confirmation/alert dialog (`useConfirm` with `variant: 'warning'`), never failing silently or leaving the user confused.
+
 ## Change checks
 
 - When changing schema or RLS, inspect every affected query and validate that

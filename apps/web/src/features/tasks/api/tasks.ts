@@ -1,4 +1,6 @@
 import { getLocalDayBoundaries } from '@tabdo/utils'
+import { completeTaskAndGenerateNext } from '@tabdo/supabase'
+import type { CompleteTaskAndGenerateNextResult } from '@tabdo/types'
 import { supabase } from '../../../lib/supabase'
 import {
   type CreateTaskInput,
@@ -84,6 +86,12 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
   }
   if (input.dueTo) {
     query = query.lte('due_at', input.dueTo)
+  }
+  if (input.completedFrom) {
+    query = query.gte('completed_at', input.completedFrom)
+  }
+  if (input.completedTo) {
+    query = query.lte('completed_at', input.completedTo)
   }
 
   // Sorting
@@ -203,6 +211,11 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     start_at: input.startAt || null,
     due_at: input.dueAt || null,
     source_url: input.sourceUrl || null,
+    recurrence_rule: input.recurrenceRule || null,
+    recurrence_series_id: input.recurrenceSeriesId || null,
+    recurrence_parent_id: input.recurrenceParentId || null,
+    recurrence_timezone: input.recurrenceTimezone || null,
+    recurrence_anchor_at: input.recurrenceAnchorAt || null,
   }
 
   const { data, error } = await supabase
@@ -224,6 +237,15 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     action: 'created',
     metadata: { title: task.title },
   })
+
+  if (task.recurrenceRule) {
+    await recordTaskActivity({
+      userId: session.user.id,
+      taskId: task.id,
+      action: 'recurrence_enabled',
+      metadata: { rule: task.recurrenceRule },
+    })
+  }
 
   return task
 }
@@ -262,12 +284,34 @@ export async function updateTask(
   if (input.dueAt !== undefined) updates.due_at = input.dueAt || null
   if (input.sourceUrl !== undefined) updates.source_url = input.sourceUrl || null
   if (input.completedAt !== undefined) updates.completed_at = input.completedAt || null
+  if (input.recurrenceRule !== undefined) updates.recurrence_rule = input.recurrenceRule || null
+  if (input.recurrenceSeriesId !== undefined) updates.recurrence_series_id = input.recurrenceSeriesId || null
+  if (input.recurrenceParentId !== undefined) updates.recurrence_parent_id = input.recurrenceParentId || null
+  if (input.recurrenceTimezone !== undefined) updates.recurrence_timezone = input.recurrenceTimezone || null
+  if (input.recurrenceAnchorAt !== undefined) updates.recurrence_anchor_at = input.recurrenceAnchorAt || null
 
   const {
     data: { session },
   } = await supabase.auth.getSession()
   if (!session) {
     throw new Error('Not authenticated')
+  }
+
+  // Prevent reopening a completed recurring task if a successor occurrence has already been spawned
+  if (previousTask && previousTask.status === 'done' && input.status && input.status !== 'done') {
+    const { data: successor, error: checkError } = await supabase
+      .from('tasks')
+      .select('id')
+      .eq('recurrence_parent_id', id)
+      .maybeSingle()
+
+    if (checkError) {
+      throw new Error(checkError.message)
+    }
+
+    if (successor) {
+      throw new Error('Không thể mở lại công việc lặp lại đã có phiên lặp tiếp theo')
+    }
   }
 
   let query = supabase.from('tasks').update(updates).eq('id', id)
@@ -320,6 +364,30 @@ export async function updateTask(
         action: 'deadline_changed',
         metadata: { from: previousTask.dueAt, to: task.dueAt },
       })
+    } else if (!previousTask.recurrenceRule && task.recurrenceRule) {
+      await recordTaskActivity({
+        userId: session.user.id,
+        taskId: task.id,
+        action: 'recurrence_enabled',
+        metadata: { rule: task.recurrenceRule },
+      })
+    } else if (previousTask.recurrenceRule && !task.recurrenceRule) {
+      await recordTaskActivity({
+        userId: session.user.id,
+        taskId: task.id,
+        action: 'recurrence_disabled',
+      })
+    } else if (
+      previousTask.recurrenceRule &&
+      task.recurrenceRule &&
+      previousTask.recurrenceRule !== task.recurrenceRule
+    ) {
+      await recordTaskActivity({
+        userId: session.user.id,
+        taskId: task.id,
+        action: 'recurrence_changed',
+        metadata: { from: previousTask.recurrenceRule, to: task.recurrenceRule },
+      })
     } else {
       await recordTaskActivity({
         userId: session.user.id,
@@ -348,20 +416,28 @@ export async function deleteTask(id: string): Promise<void> {
   // Deliberately do not insert activity for hard deletion because FK cascades
 }
 
-export async function completeTask(task: Task): Promise<Task> {
-  const nowIso = new Date().toISOString()
-  return updateTask(
-    task.id,
-    {
-      status: 'done',
-      completedAt: nowIso,
-      previousUpdatedAt: task.updatedAt,
-    },
-    task
-  )
+export async function completeTask(task: Task): Promise<CompleteTaskAndGenerateNextResult> {
+  // The atomic RPC already inserts 'completed' and 'next_occurrence_generated' activities
+  // inside the transaction. Do NOT write them again here to avoid duplicate audit records.
+  return completeTaskAndGenerateNext(supabase, task.id, task.updatedAt)
 }
 
 export async function reopenTask(task: Task): Promise<Task> {
+  // Check if there is already a generated successor
+  const { data: successor, error: checkError } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('recurrence_parent_id', task.id)
+    .maybeSingle()
+
+  if (checkError) {
+    throw new Error(checkError.message)
+  }
+
+  if (successor) {
+    throw new Error('Không thể mở lại công việc lặp lại đã có phiên lặp tiếp theo')
+  }
+
   return updateTask(
     task.id,
     {
@@ -420,12 +496,15 @@ export async function getSiblingTasks(parentId: string, currentTaskId: string): 
   return ((data as TaskRow[]) || []).map(rowToTask)
 }
 
-export async function searchTasksCandidate(queryStr: string, currentTaskId: string): Promise<Task[]> {
+export async function searchTasksCandidate(queryStr: string, currentTaskId?: string): Promise<Task[]> {
   let query = supabase
     .from('tasks')
     .select('*')
-    .neq('id', currentTaskId)
     .limit(10)
+
+  if (currentTaskId) {
+    query = query.neq('id', currentTaskId)
+  }
 
   if (queryStr.trim()) {
     query = query.ilike('title', `%${queryStr.trim()}%`)

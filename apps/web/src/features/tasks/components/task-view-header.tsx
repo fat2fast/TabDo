@@ -6,6 +6,7 @@ import type { TaskView } from '../types'
 export interface TaskViewHeaderProps {
   currentView: TaskView
   onOpenCategoryManager: () => void
+  onOpenCreateModal?: () => void
 }
 
 const VIEW_ICONS: Record<TaskView, string> = {
@@ -19,6 +20,7 @@ const VIEW_ICONS: Record<TaskView, string> = {
 export function TaskViewHeader({
   currentView,
   onOpenCategoryManager,
+  onOpenCreateModal,
 }: TaskViewHeaderProps) {
   const { t } = useI18n()
 
@@ -68,25 +70,38 @@ export function TaskViewHeader({
           <p className="view-subtitle">{getSubtitle(currentView)}</p>
         </div>
 
-        <button
-          type="button"
-          className="btn-category-mgr"
-          onClick={onOpenCategoryManager}
-          data-testid="open-category-manager-btn"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+        <div className="header-actions-group">
+          {onOpenCreateModal && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm btn-header-create-task"
+              onClick={onOpenCreateModal}
+              data-testid="header-create-task-btn"
+            >
+              + Tạo công việc
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="btn-category-mgr"
+            onClick={onOpenCategoryManager}
+            data-testid="open-category-manager-btn"
           >
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-          </svg>
-          {t('tasks.manageCategories')}
-        </button>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            {t('tasks.manageCategories')}
+          </button>
+        </div>
       </div>
 
       <nav className="task-view-tabs" aria-label="Smart views navigation">

@@ -7,9 +7,10 @@ import type { Task } from '../types'
 export interface SubtaskListProps {
   parentTask: Task
   onSelectSubtask?: (subtaskId: string) => void
+  disabled?: boolean
 }
 
-export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
+export function SubtaskList({ parentTask, onSelectSubtask, disabled = false }: SubtaskListProps) {
   const { data: subtasks = [], isLoading } = useSubtasks(parentTask.id)
   const { createTaskMutation, completeTaskMutation, reopenTaskMutation, deleteTaskMutation } =
     useTaskMutations()
@@ -49,7 +50,19 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
 
   const handleToggle = (subtask: Task) => {
     if (subtask.status === 'done') {
-      reopenTaskMutation.mutate(subtask)
+      reopenTaskMutation.mutate(subtask, {
+        onError: (err: any) => {
+          confirm({
+            title: 'Không thể mở lại công việc',
+            message:
+              err?.message ||
+              'Không thể mở lại công việc đã có trạng thái hạn chế.',
+            confirmText: 'Đã hiểu',
+            cancelText: null,
+            variant: 'warning',
+          })
+        },
+      })
     } else {
       completeTaskMutation.mutate(subtask)
     }
@@ -121,6 +134,7 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
                   onChange={() => handleToggle(st)}
                   className="subtask-checkbox"
                   aria-label={`Hoàn thành: ${st.title}`}
+                  disabled={disabled}
                 />
                 <span
                   className={`subtask-title ${isDone ? 'line-through' : ''}`}
@@ -130,51 +144,55 @@ export function SubtaskList({ parentTask, onSelectSubtask }: SubtaskListProps) {
                 >
                   {st.title}
                 </span>
-                <button
-                  type="button"
-                  className="subtask-delete-btn"
-                  onClick={() => handleDelete(st.id, st.title)}
-                  title="Xóa công việc con"
-                  aria-label={`Xóa công việc con: ${st.title}`}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
-                </button>
+                {!disabled && (
+                  <button
+                    type="button"
+                    className="subtask-delete-btn"
+                    onClick={() => handleDelete(st.id, st.title)}
+                    title="Xóa công việc con"
+                    aria-label={`Xóa công việc con: ${st.title}`}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                )}
               </li>
             )
           })}
         </ul>
       )}
 
-      <div className="subtask-add-form">
-        <div className="subtask-input-wrapper">
-          <input
-            type="text"
-            placeholder="Thêm công việc con..."
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                e.stopPropagation()
-                handleAddSubtask()
-              }
-            }}
-            className="subtask-add-input"
-            disabled={createTaskMutation.isPending}
-          />
-          <button
-            type="button"
-            onClick={handleAddSubtask}
-            className="subtask-add-btn"
-            disabled={createTaskMutation.isPending || !newTitle.trim()}
-          >
-            Thêm
-          </button>
+      {!disabled && (
+        <div className="subtask-add-form">
+          <div className="subtask-input-wrapper">
+            <input
+              type="text"
+              placeholder="Thêm công việc con..."
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleAddSubtask()
+                }
+              }}
+              className="subtask-add-input"
+              disabled={createTaskMutation.isPending}
+            />
+            <button
+              type="button"
+              onClick={handleAddSubtask}
+              className="subtask-add-btn"
+              disabled={createTaskMutation.isPending || !newTitle.trim()}
+            >
+              + Thêm
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

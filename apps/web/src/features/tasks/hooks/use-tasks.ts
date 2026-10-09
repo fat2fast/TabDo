@@ -59,10 +59,10 @@ export function useCategoryRelatedTasks(categoryId: string | null | undefined, c
   })
 }
 
-export function useTaskCandidates(currentTaskId: string, query: string, enabled = true) {
+export function useTaskCandidates(currentTaskId?: string | null, query = '', enabled = true) {
   return useQuery({
-    queryKey: taskQueryKeys.candidates(currentTaskId, query),
-    queryFn: () => searchTasksCandidate(query, currentTaskId),
+    queryKey: taskQueryKeys.candidates(currentTaskId || '', query),
+    queryFn: () => searchTasksCandidate(query, currentTaskId || undefined),
     enabled,
   })
 }

@@ -344,6 +344,32 @@ describe('syncExtensionState', () => {
           error: null,
         })),
       },
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === 'complete_task_and_generate_next') {
+          executionLog.push('mutation:start')
+          // Simulate remote latency
+          await new Promise((resolve) => setTimeout(resolve, 30))
+          executionLog.push('mutation:done')
+          return {
+            data: {
+              completedTask: {
+                id: 'task-racing',
+                title: 'Racing task',
+                status: 'done',
+                priority: 'medium',
+                due_date_kind: 'date_time',
+                created_at: '2026-10-06T08:00:00.000Z',
+                updated_at: '2026-10-06T08:30:00.000Z',
+              },
+              nextTask: null,
+              generated: false,
+              reusedExistingSuccessor: false,
+            },
+            error: null,
+          }
+        }
+        return { data: null, error: null }
+      }),
       from: vi.fn((table: string) => {
         if (table === 'profiles') {
           return {

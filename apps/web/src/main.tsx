@@ -8,7 +8,13 @@ import { ConfirmProvider } from './components/ui/confirm-dialog'
 import { App } from './app/App'
 import './styles.css'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

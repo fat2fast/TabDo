@@ -39,8 +39,8 @@ vi.mock('../../../lib/supabase', () => ({
   },
 }))
 
-vi.mock('../../auth/auth-provider', () => ({
-  useAuth: () => ({
+vi.mock('../../auth/auth-provider', () => {
+  const mockAuth = {
     profile: {
       id: 'u-1',
       timezone: 'Asia/Ho_Chi_Minh',
@@ -50,8 +50,12 @@ vi.mock('../../auth/auth-provider', () => ({
     session: {
       user: { id: 'u-1', email: 'test@tabdo.local' },
     },
-  }),
-}))
+  }
+  return {
+    useAuth: () => mockAuth,
+    useOptionalAuth: () => mockAuth,
+  }
+})
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -348,6 +352,29 @@ describe('Task Detail Enhancements (UI/UX Pro Max)', () => {
 
       // Due chip displays "Chưa có hạn"
       expect(screen.getByText('Chưa có hạn')).toBeInTheDocument()
+    })
+
+    it('renders recurrence badge with summary on recurring task rows', () => {
+      const recurringTask: Task = {
+        id: 'task-recur',
+        userId: 'u-1',
+        title: 'Họp giao ban mỗi ngày',
+        status: 'todo',
+        priority: 'medium',
+        dueDateKind: 'date_time',
+        dueAt: '2026-10-10T09:00:00Z',
+        recurrenceRule: 'FREQ=DAILY',
+        createdAt: '2026-10-01T00:00:00Z',
+        updatedAt: '2026-10-01T00:00:00Z',
+      }
+
+      render(<TaskRow task={recurringTask} onSelect={vi.fn()} />, {
+        wrapper: createWrapper(),
+      })
+
+      const badge = screen.getByTestId('task-recurrence-badge-task-recur')
+      expect(badge).toBeInTheDocument()
+      expect(badge).toHaveTextContent('Hàng ngày')
     })
   })
 

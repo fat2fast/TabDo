@@ -14,11 +14,13 @@ import { useScheduleBlockMutations } from '../features/scheduling/hooks/use-sche
 import { useScheduleBlocksInRange } from '../features/scheduling/hooks/use-schedule-blocks'
 import type { ScheduleBlock } from '../features/scheduling/types'
 import type { Task } from '../features/tasks/types'
+import { TaskDrawer } from '../features/tasks/components/task-drawer'
 
 export function CalendarPage() {
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
   const [searchParams, setSearchParams] = useSearchParams()
+  const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null)
 
   const todayStr = useMemo(() => {
     return formatDisplayDate(new Date(), timeZone, 'yyyy-MM-dd')
@@ -268,6 +270,15 @@ export function CalendarPage() {
         initialStartAt={editorStartAt}
         initialEndAt={editorEndAt}
         initialTask={editorTask}
+        onOpenTaskDetail={(taskId) => {
+          setIsEditorOpen(false)
+          setDrawerTaskId(taskId)
+        }}
+      />
+
+      <TaskDrawer
+        taskId={drawerTaskId}
+        onClose={() => setDrawerTaskId(null)}
       />
     </div>
   )

@@ -32,8 +32,27 @@ export interface Task {
   sourceUrl?: string | null
   completedAt?: string | null
   recurrenceRule?: string | null
+  recurrenceSeriesId?: string | null
+  recurrenceParentId?: string | null
+  recurrenceTimezone?: string | null
+  recurrenceAnchorAt?: string | null
   createdAt: string
   updatedAt: string
+}
+
+export type RecurrenceType = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'custom'
+export type RecurrenceWeekday = 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'
+
+export interface RecurrenceConfig {
+  type: RecurrenceType
+  days?: RecurrenceWeekday[]
+}
+
+export interface CompleteTaskAndGenerateNextResult {
+  completedTask: Task
+  nextTask: Task | null
+  generated: boolean
+  reusedExistingSuccessor: boolean
 }
 
 export interface CreateTaskInput {
@@ -47,6 +66,11 @@ export interface CreateTaskInput {
   startAt?: string | null
   dueAt?: string | null
   sourceUrl?: string | null
+  recurrenceRule?: string | null
+  recurrenceSeriesId?: string | null
+  recurrenceParentId?: string | null
+  recurrenceTimezone?: string | null
+  recurrenceAnchorAt?: string | null
 }
 
 export interface UpdateTaskInput {
@@ -61,6 +85,11 @@ export interface UpdateTaskInput {
   dueAt?: string | null
   sourceUrl?: string | null
   completedAt?: string | null
+  recurrenceRule?: string | null
+  recurrenceSeriesId?: string | null
+  recurrenceParentId?: string | null
+  recurrenceTimezone?: string | null
+  recurrenceAnchorAt?: string | null
   previousUpdatedAt?: string
 }
 

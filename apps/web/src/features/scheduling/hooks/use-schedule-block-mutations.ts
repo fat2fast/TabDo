@@ -19,6 +19,7 @@ export function useScheduleBlockMutations() {
     mutationFn: (input: CreateScheduleBlockInput) => createScheduleBlock(undefined, input),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       if (data.taskId) {
         queryClient.invalidateQueries({ queryKey: taskQueryKeys.all })
       }
@@ -31,6 +32,7 @@ export function useScheduleBlockMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 
@@ -40,6 +42,7 @@ export function useScheduleBlockMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 

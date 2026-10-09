@@ -1,15 +1,29 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useTaskDetail } from '../hooks/use-tasks'
+import { TaskDetailView } from './task-detail-view'
 import { TaskForm } from './task-form'
+import type { Task } from '../types'
 
 export interface TaskDrawerProps {
   taskId: string | null
-  onClose: (savedTask?: import('../types').Task) => void
+  initialMode?: 'view' | 'edit'
+  onClose: (savedTask?: Task) => void
   onSelectTask?: (taskId: string) => void
 }
 
-export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
+export function TaskDrawer({
+  taskId,
+  initialMode = 'view',
+  onClose,
+  onSelectTask,
+}: TaskDrawerProps) {
   const { data: task, isLoading, error } = useTaskDetail(taskId)
+  const [isEditing, setIsEditing] = useState(initialMode === 'edit')
+
+  // Reset editing mode when taskId changes
+  React.useEffect(() => {
+    setIsEditing(initialMode === 'edit')
+  }, [taskId, initialMode])
 
   // Support hotkey Escape to close the drawer
   React.useEffect(() => {
@@ -17,7 +31,11 @@ export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        onClose()
+        if (isEditing) {
+          setIsEditing(false)
+        } else {
+          onClose()
+        }
       }
     }
 
@@ -25,12 +43,15 @@ export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [taskId, onClose])
+  }, [taskId, isEditing, onClose])
 
   if (!taskId) return null
 
   return (
-    <div className="task-drawer-backdrop" onClick={() => onClose()} data-testid="task-drawer-backdrop">
+    <div
+      className="task-drawer-backdrop"
+      data-testid="task-drawer-backdrop"
+    >
       <div
         className="task-drawer-panel task-modal-dialog"
         onClick={(e) => e.stopPropagation()}
@@ -41,12 +62,23 @@ export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
         <div className="drawer-header">
           <div className="drawer-title-group">
             <h3 id="drawer-title" className="drawer-title">
-              Chi tiết công việc
+              {isEditing ? 'Chỉnh sửa công việc' : 'Chi tiết công việc'}
             </h3>
             {task?.parentId && (
               <span className="drawer-subtask-pill">
                 ↳ Việc con
               </span>
+            )}
+            {isEditing && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsEditing(false)}
+                style={{ marginLeft: '8px', fontSize: '0.75rem', height: '28px', padding: '0 10px' }}
+                title="Quay lại màn hình xem chi tiết"
+              >
+                &larr; Xem chi tiết
+              </button>
             )}
           </div>
           <button
@@ -55,7 +87,16 @@ export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
             onClick={() => onClose()}
             aria-label="Đóng bảng chi tiết"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -80,11 +121,21 @@ export function TaskDrawer({ taskId, onClose, onSelectTask }: TaskDrawerProps) {
                 Đóng
               </button>
             </div>
-          ) : (
+          ) : isEditing ? (
             <TaskForm
               task={task}
-              onSaveSuccess={(savedTask) => onClose(savedTask)}
-              onCancel={() => onClose()}
+              onSaveSuccess={(savedTask) => {
+                setIsEditing(false)
+              }}
+              onCancel={() => setIsEditing(false)}
+              onDeleted={() => onClose()}
+              onNavigateParent={onSelectTask}
+            />
+          ) : (
+            <TaskDetailView
+              task={task}
+              onEdit={() => setIsEditing(true)}
+              onClose={() => onClose()}
               onDeleted={() => onClose()}
               onNavigateParent={onSelectTask}
             />

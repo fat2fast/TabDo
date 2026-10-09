@@ -8,7 +8,7 @@ import {
 import type { Task } from '../types'
 
 export interface RelatedTasksProps {
-  currentTask: Task
+  currentTask?: Task | null
   linkedTaskIds: string[]
   onUpdateLinkedTaskIds: (newIds: string[]) => void
   onSelectTask?: (taskId: string) => void
@@ -29,14 +29,14 @@ export function RelatedTasks({
   const { data: linkedTasks = [], isLoading: loadingLinked } = useLinkedTasks(linkedTaskIds)
 
   // 2. Fetch sibling tasks (if current task is a subtask)
-  const { data: siblingTasks = [] } = useSiblingTasks(currentTask.parentId, currentTask.id)
+  const { data: siblingTasks = [] } = useSiblingTasks(currentTask?.parentId, currentTask?.id || '')
 
   // 3. Fetch related tasks in the same category
-  const { data: categoryTasks = [] } = useCategoryRelatedTasks(currentTask.categoryId, currentTask.id)
+  const { data: categoryTasks = [] } = useCategoryRelatedTasks(currentTask?.categoryId, currentTask?.id || '')
 
   // 4. Candidates for searching and linking
   const { data: candidates = [], isLoading: loadingCandidates } = useTaskCandidates(
-    currentTask.id,
+    currentTask?.id,
     searchQuery,
     showSearchModal
   )
@@ -143,7 +143,7 @@ export function RelatedTasks({
       </div>
 
       {/* 2. Sibling Tasks (when this is a subtask) */}
-      {currentTask.parentId && siblingTasks.length > 0 && (
+      {currentTask?.parentId && siblingTasks.length > 0 && (
         <div className="related-subsection">
           <span className="subsection-label">Cùng công việc cha ({siblingTasks.length})</span>
           <div className="related-cards-grid">
@@ -174,7 +174,7 @@ export function RelatedTasks({
       )}
 
       {/* 3. Category Related Suggestions */}
-      {currentTask.categoryId && categoryTasks.length > 0 && (
+      {currentTask?.categoryId && categoryTasks.length > 0 && (
         <div className="related-subsection">
           <span className="subsection-label">Cùng danh mục đang mở ({categoryTasks.length})</span>
           <div className="related-chips-list">
