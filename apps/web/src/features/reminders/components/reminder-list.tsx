@@ -131,7 +131,6 @@ export function ReminderList({ task }: ReminderListProps) {
           {reminders.map((rem) => {
             const isSnoozed = rem.status === 'snoozed'
             const isDismissed = rem.status === 'dismissed'
-            const isPending = rem.status === 'pending'
 
             return (
               <div

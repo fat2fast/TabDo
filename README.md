@@ -82,6 +82,9 @@ This applies:
 - `0003_phase_2_task_invariants.sql`: Task validation, checklist subtasks, categories, and owner isolation invariants.
 - `0004_phase_4_schedule_blocks.sql`: Schedule blocks table, same-owner validation triggers, and time range indexing.
 - `0005_phase_5_reminders.sql`: Reminder engine, absolute/relative calculations, snooze/dismiss states, and task completion triggers.
+- `0006_admin_account_policies.sql`: Admin account lifecycle policies, account activation/deactivation, initial password enforcement, and service-role aggregate statistics function `get_user_task_counts`.
+- `0007_recurring_tasks.sql`: Recurring tasks schema (`recurrence_rule`, `recurrence_timezone`, `recurrence_anchor_at`, `recurrence_parent_id`), successor creation logic, and cycle constraints.
+- `0008_recurring_tasks_fixes.sql`: Recurring tasks idempotent completion, ancestor chain query fixes, and timezone reconciliation.
 
 ### 5. Provision Initial Admin
 
@@ -93,6 +96,8 @@ pnpm bootstrap:admin
 
 This ensures the user exists in Supabase Auth and their profile role is set to `admin`.
 
+> **Admin Portal Privacy Policy:** TabDo Admin Portal supports user-account administration and numerical task statistics. Administrators may view task counts by status and by account but cannot access, inspect, or modify other users' individual task data, reminders, schedules, or task content.
+
 ### 6. Development Servers
 
 - **Web app:**
@@ -100,11 +105,12 @@ This ensures the user exists in Supabase Auth and their profile role is set to `
   pnpm dev:web
   ```
   Opens at `http://localhost:5173`.
-  - `/login`: User portal sign-in.
+  - `/login`: User portal sign-in (public self-registration is disabled; accounts are admin-provisioned).
   - `/admin/login`: Administrative portal sign-in.
-  - `/tasks`: Core task workspace with smart views (`Inbox`, `Today`, `Upcoming`, `Overdue`, `Completed`).
+  - `/dashboard`: Personal productivity overview, overdue alerts, and today's schedule agenda.
+  - `/tasks`: Core task workspace with smart views (`Inbox`, `Today`, `Upcoming`, `Overdue`, `Completed`), subtasks, and recurring tasks.
   - `/calendar`: Day and week calendar with task scheduling and block drag/resize.
-  - `/admin/users`: Admin user creation and management.
+  - `/admin/users`: Admin user creation and management (counts only; no personal task content access).
   - `/settings`: User account preferences and password management.
 
 - **Browser extension:**
@@ -112,9 +118,10 @@ This ensures the user exists in Supabase Auth and their profile role is set to `
   pnpm dev:extension
   # Or build for loading unpacked:
   pnpm --filter @tabdo/extension build
-  # Load in Chrome (chrome://extensions -> Developer Mode -> Load unpacked):
+  # Load in Chrome/Edge (chrome://extensions -> Developer Mode -> Load unpacked):
   # apps/extension/.output/chrome-mv3
   ```
+  The extension adheres to least privilege: host permissions are restricted to the configured Supabase origin, and interaction with web pages uses a user-triggered on-demand activation model (`activeTab` / right-click context menu) rather than persistent injection across all websites.
 
 ## Implementation Status
 
@@ -126,8 +133,11 @@ TabDo is following an incremental roadmap defined in [`docs/phases/README.md`](d
 - ✅ **Phase 3:** Smart Task Views & Organization (`Inbox`, `Today`, `Upcoming`, `Overdue`, `Completed`, search/filter)
 - ✅ **Phase 4:** Scheduling & Calendar (Migration `0004`, FullCalendar Standard day/week views, schedule blocks)
 - ✅ **Phase 5:** Reminder Engine (Migration `0005`, absolute & relative-to-due triggers, presets, snooze/dismiss)
-- ✅ **Phase 6:** Browser Extension (WXT Manifest V3, Today view, title-only Quick Add, `chrome.storage.local` sync, `chrome.alarms` & `chrome.notifications`)
-- 📋 **Phases 7–10:** Recurring tasks, Dashboard, Summaries, and MVP Hardening
+- ✅ **Phase 6:** Browser Extension (WXT MV3 popup, Today view, title-only Quick Add, user-triggered on-demand activation, `chrome.storage.local` sync, `chrome.alarms` & `chrome.notifications`)
+- ✅ **Phase 7:** Recurring Tasks (Migrations `0007`-`0008`, recurrence rules, auto-regeneration on completion, cycle indicators, timezone/DST handling)
+- ✅ **Phase 8:** Personal Dashboard (`DashboardPage.tsx`, daily agenda, overdue tracking, productivity metrics)
+- 📋 **Phase 9:** Daily & Weekly Summary (Rule-based review of completed and rolled-over work)
+- 📋 **Phase 10:** MVP Hardening & Verification (In Progress — security audits, CI coverage, cross-client verification)
 
 ## Quality Gates & Verification
 

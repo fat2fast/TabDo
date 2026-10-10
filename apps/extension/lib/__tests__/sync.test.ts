@@ -4,13 +4,12 @@ import {
   PERIODIC_SYNC_ALARM_NAME,
   SYNC_INTERVAL_MINUTES,
 } from '../sync.js'
-import { runSerializedSync, controllerMutex } from '../controller.js'
+import { runSerializedSync } from '../controller.js'
 import {
   handleNotificationButtonClick,
   NOTIFICATION_BUTTON_DONE,
 } from '../notifications.js'
 import {
-  getUserCache,
   setUserCache,
   setActiveUserId,
   setNotificationContext,

@@ -8,6 +8,7 @@
     "dev": "wxt",
     "build": "wxt build",
     "typecheck": "wxt prepare && tsc --noEmit",
+    "lint": "oxlint entrypoints lib",
     "test": "vitest run"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 import React from 'react'
 import { addDays, format } from 'date-fns'
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz'
+import { formatInTimeZone } from 'date-fns-tz'
 
 export interface CalendarToolbarProps {
   view: 'day' | 'week'

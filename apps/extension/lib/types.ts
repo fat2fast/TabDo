@@ -1,7 +1,4 @@
 import type {
-  TaskPriority,
-  TaskStatus,
-  DueDateKind,
   UpcomingReminder,
   ExtensionTodayTask,
 } from '@tabdo/types'

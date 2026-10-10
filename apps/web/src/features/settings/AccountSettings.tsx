@@ -3,7 +3,7 @@ import type { SupportedLocale } from '@tabdo/types'
 import { useAuth } from '../auth/auth-provider'
 import { useI18n } from '../i18n/i18n-provider'
 import { supabase } from '../../lib/supabase'
-import { CustomDropdown, type DropdownOption } from '../../components/ui/custom-dropdown'
+import { CustomDropdown } from '../../components/ui/custom-dropdown'
 
 export function AccountSettings() {
   const { user, profile, refreshProfile } = useAuth()

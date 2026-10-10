@@ -1,6 +1,11 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { formatReminderDisplay } from '@tabdo/utils'
 import type { ExtensionAuthUser, ExtensionSyncMetadata } from '../lib/types.js'
+import {
+  hasFloatingPillPermissions,
+  requestFloatingPillPermissions,
+  revokeFloatingPillPermissions,
+} from '../lib/permissions.js'
 
 interface SettingsViewProps {
   user: ExtensionAuthUser
@@ -23,6 +28,97 @@ export function SettingsView({
   isSyncing = false,
   isSigningOut = false,
 }: SettingsViewProps) {
+  const [isPillEnabled, setIsPillEnabled] = useState(false)
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false)
+  const [permissionError, setPermissionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    async function checkPillStatus() {
+      if (typeof chrome === 'undefined') return
+      try {
+        const hasPerm = await hasFloatingPillPermissions()
+        const stored = chrome.storage?.local?.get
+          ? await chrome.storage.local.get('quickPillEnabled')
+          : {}
+
+        // Floating Pill is disabled by default. Enabled only if host permissions exist AND quickPillEnabled is explicitly true
+        const isEnabled = Boolean(hasPerm && stored?.quickPillEnabled === true)
+        if (mounted) {
+          setIsPillEnabled(isEnabled)
+        }
+        // If stored was true but permissions were revoked externally, reconcile stored state
+        if (!hasPerm && stored?.quickPillEnabled === true && chrome.storage?.local?.set) {
+          await chrome.storage.local.set({ quickPillEnabled: false })
+        }
+      } catch {
+        // ignore in non-extension environment
+      }
+    }
+    checkPillStatus()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const handleTogglePill = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVal = e.target.checked
+    setPermissionError(null)
+
+    if (nextVal) {
+      setIsRequestingPermission(true)
+      try {
+        // Request host permissions only after direct user interaction
+        const granted = await requestFloatingPillPermissions()
+
+        if (granted) {
+          setIsPillEnabled(true)
+          if (typeof chrome !== 'undefined') {
+            if (chrome.storage?.local?.set) {
+              await chrome.storage.local.set({ quickPillEnabled: true })
+            }
+            if (chrome.runtime?.sendMessage) {
+              chrome.runtime.sendMessage({
+                type: 'tabdo:sync-pill-script',
+                payload: { enabled: true },
+              }).catch(() => {})
+            }
+          }
+        } else {
+          // Permission denied or dismissed
+          setIsPillEnabled(false)
+          if (typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
+            await chrome.storage.local.set({ quickPillEnabled: false })
+          }
+        }
+      } catch (err: any) {
+        setPermissionError(err?.message || 'Không thể yêu cầu quyền truy cập')
+        setIsPillEnabled(false)
+        if (typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
+          await chrome.storage.local.set({ quickPillEnabled: false })
+        }
+      } finally {
+        setIsRequestingPermission(false)
+      }
+    } else {
+      setIsPillEnabled(false)
+      if (typeof chrome !== 'undefined') {
+        if (chrome.storage?.local?.set) {
+          await chrome.storage.local.set({ quickPillEnabled: false })
+        }
+        if (chrome.runtime?.sendMessage) {
+          chrome.runtime.sendMessage({
+            type: 'tabdo:sync-pill-script',
+            payload: { enabled: false },
+          }).catch(() => {})
+        }
+        // Only revoke optional permissions associated with Floating Pill
+        // Never touch required Supabase host permissions
+        await revokeFloatingPillPermissions()
+      }
+    }
+  }
+
   const formattedSyncTime = syncMetadata.lastSuccessfulSyncAt
   ? formatReminderDisplay(syncMetadata.lastSuccessfulSyncAt, user.timezone)
   : 'Chưa đồng bộ'
@@ -157,6 +253,66 @@ export function SettingsView({
               <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</span>
             </button>
           </div>
+        </div>
+
+        {/* Web Companion / Floating Pill Settings */}
+        <div className="tabdo-settings-group">
+          <div className="tabdo-settings-group-header">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="tabdo-group-icon"
+            >
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            <h3 className="tabdo-settings-heading">Tiện ích duyệt web</h3>
+          </div>
+
+          <div className="tabdo-toggle-row">
+            <div className="tabdo-toggle-info">
+              <div className="tabdo-toggle-title">Nút tạo việc khi quét văn bản</div>
+              <div className="tabdo-toggle-desc">
+                Tự động hiển thị nút TabDo nổi khi bạn bôi đen chữ trên trang web để tạo việc nhanh.
+              </div>
+              <div className={`tabdo-permission-status ${isPillEnabled ? 'active' : 'inactive'}`}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: isPillEnabled ? 'var(--success)' : '#94a3b8',
+                  }}
+                />
+                <span>{isPillEnabled ? 'Đang bật (đã cấp quyền)' : 'Đang tắt (hỏi quyền khi bật)'}</span>
+              </div>
+            </div>
+
+            <label className="tabdo-switch" aria-label="Bật icon tạo việc khi quét văn bản">
+              <input
+                type="checkbox"
+                checked={isPillEnabled}
+                onChange={handleTogglePill}
+                disabled={isRequestingPermission}
+                data-testid="toggle-quick-pill"
+              />
+              <span className="tabdo-switch-slider" />
+            </label>
+          </div>
+
+          {permissionError && (
+            <div className="tabdo-alert tabdo-alert-danger" role="alert" style={{ marginTop: '6px' }}>
+              {permissionError}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions & Logout */}

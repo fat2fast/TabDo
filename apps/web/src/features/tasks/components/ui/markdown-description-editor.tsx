@@ -114,7 +114,6 @@ export function MarkdownDescriptionEditor({
     if (!textarea) return
 
     const start = textarea.selectionStart
-    const end = textarea.selectionEnd
 
     // Find the start of the current line
     const lastNewline = value.lastIndexOf('\n', start - 1)

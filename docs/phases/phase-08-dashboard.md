@@ -1,8 +1,9 @@
 # Phase 8 — Dashboard
 
-**Status:** Planned  
+**Status:** Completed (subject to acceptance verification)  
 **Depends on:** Phases 2–5  
-**Benefits from:** Phase 7
+**Benefits from:** Phase 7  
+**Delivered in:** PR #7 (`plans/261009-0009-recurring-tasks-dashboard`)
 
 ## 1. Goal
 

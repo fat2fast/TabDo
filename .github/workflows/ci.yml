@@ -41,3 +41,48 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  database-and-integration:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+      TABDO_ADMIN_EMAIL: admin@tabdo.local
+      TABDO_ADMIN_PASSWORD: AdminPassword123!
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_PUBLISHABLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Start Supabase
+        run: supabase start
+
+      - name: Run Supabase DB tests
+        run: supabase test db
+
+      - name: Bootstrap admin
+        run: pnpm bootstrap:admin
+
+      - name: Run integration tests
+        run: pnpm test:integration

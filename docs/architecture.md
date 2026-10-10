@@ -174,7 +174,7 @@ Responsibilities:
 - Browser notifications
 - Quick task actions
 
-The extension communicates directly with Supabase using the same public client API (`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` / legacy `SUPABASE_ANON_KEY`) and relies on owner RLS for data protection. It requests only `storage`, `alarms`, and `notifications` permissions, along with one exact origin derived from `VITE_SUPABASE_URL` in `host_permissions` (no wildcards, no `activeTab`).
+The extension communicates directly with Supabase using the same public client API (`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` / legacy `SUPABASE_ANON_KEY`) and relies on owner RLS for data protection. It follows the principle of least privilege: `host_permissions` is strictly restricted to the configured Supabase origin (no `*://*/*` wildcards). Page interaction uses a user-triggered on-demand activation model (`activeTab`, `scripting`, and `contextMenus`) rather than persistent content-script injection across all websites.
 
 Privileged administrative operations are not performed inside the extension.
 
@@ -250,9 +250,9 @@ When an account is deactivated (`is_active = false`), RLS immediately blocks dat
 
 When an account requires password change (`must_change_password = true`), RLS blocks personal records and the client redirects to `/change-password`. Initial password change must be performed through the trusted `complete-initial-password` Edge Function.
 
-Admin role does not automatically bypass personal-data RLS. Reporting aggregates return counts only (`user_id, task_count, todo_count, in_progress_count, done_count`) and never expose task details.
+TabDo Admin Portal supports user-account administration and numerical task statistics. Administrators may view task counts by status and by account but cannot access, inspect, or modify other users' individual task data, reminders, schedules, or task content.
 
-Privileged administrative operations are handled separately through trusted server-side logic (Edge Functions).
+Admin role does not automatically bypass personal-data RLS. Reporting aggregates return counts only (`user_id, task_count, todo_count, in_progress_count, done_count`) and never expose task details. Privileged administrative operations are handled separately through trusted server-side logic (Edge Functions).
 
 ---
 

@@ -1,12 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createReminder,
-  deleteReminder,
   dismissReminder,
   getRemindersByTask,
   getUpcomingRemindersWeb,
   snoozeReminder,
-  updateReminder,
 } from '../api/reminders'
 import { supabase } from '../../../lib/supabase'
 

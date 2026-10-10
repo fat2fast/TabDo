@@ -62,7 +62,7 @@ export function useReminderMutations() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: ({ id, previousUpdatedAt, taskId }: DeleteReminderInput & { taskId?: string }) =>
+    mutationFn: ({ id, previousUpdatedAt }: DeleteReminderInput & { taskId?: string }) =>
       deleteReminder(undefined, id, previousUpdatedAt),
     onSuccess: (_, variables) => invalidateAll(variables.taskId),
   })

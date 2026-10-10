@@ -4,10 +4,7 @@ import {
   getExtensionTodayTasks,
   quickAddTask,
 } from '@tabdo/supabase'
-import {
-  markReminderTriggered,
-  snoozeReminder,
-} from '@tabdo/supabase'
+import { snoozeReminder } from '@tabdo/supabase'
 import { restoreSession, signIn, signOut } from './auth.js'
 import { clearReminderAlarms } from './alarm-reconciliation.js'
 import {

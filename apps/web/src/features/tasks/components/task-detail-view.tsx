@@ -15,12 +15,10 @@ import type { Task } from '../types'
 import {
   extractTaskAttachments,
   formatFileSize,
-  type TaskAttachment,
 } from '../utils/task-attachments'
 import {
   embedTaskChecklist,
   extractTaskChecklist,
-  type TaskChecklistItem,
 } from '../utils/task-checklist'
 import { getCleanTaskDescription } from '../utils/task-description'
 import { extractLinkedTaskIds } from '../utils/task-linking'
@@ -159,7 +157,11 @@ export function TaskDetailView({
 
     try {
       await deleteTaskMutation.mutateAsync({ id: task.id, parentId: task.parentId })
-      onDeleted ? onDeleted() : onClose()
+      if (onDeleted) {
+        onDeleted()
+      } else {
+        onClose()
+      }
     } catch {
       // Handled by query mutation
     }

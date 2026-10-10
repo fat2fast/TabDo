@@ -77,7 +77,7 @@ describe('Task Detail Enhancements (UI/UX Pro Max)', () => {
         desc = newVal
       })
 
-      const { rerender } = render(
+      render(
         <MarkdownDescriptionEditor value={desc} onChange={onChange} />
       )
 
@@ -153,7 +153,7 @@ describe('Task Detail Enhancements (UI/UX Pro Max)', () => {
         desc = newVal
       })
 
-      const { rerender } = render(
+      render(
         <TaskChecklist description={desc} onChangeDescription={onChange} />
       )
 

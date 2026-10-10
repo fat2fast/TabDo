@@ -5,7 +5,7 @@ import { useAuth } from '../auth/auth-provider'
 import { supabase } from '../../lib/supabase'
 
 export function QuickLanguageButton() {
-  const { locale, setLocale, t } = useI18n()
+  const { locale, setLocale } = useI18n()
   const { user, profile, refreshProfile } = useAuth()
   const [isSyncing, setIsSyncing] = useState(false)
 
