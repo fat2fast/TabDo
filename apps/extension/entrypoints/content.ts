@@ -96,14 +96,31 @@ export default defineContentScript({
       }
 
       .tabdo-pill-badge {
-        width: 14px;
-        height: 14px;
-        background: rgba(255, 255, 255, 0.25);
+        width: 18px;
+        height: 18px;
         border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 10px;
+        flex-shrink: 0;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+      }
+
+      .tabdo-pill-badge img {
+        width: 14px;
+        height: 14px;
+        object-fit: contain;
+        display: block;
+      }
+
+      .tabdo-pill-badge.tabdo-fallback-text {
+        background: rgba(255, 255, 255, 0.25);
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 700;
+        box-shadow: none;
       }
 
       .tabdo-pill-label {
@@ -141,14 +158,26 @@ export default defineContentScript({
       }
 
       .tabdo-logo-badge {
-        width: 26px;
-        height: 26px;
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        color: white;
-        border-radius: 7px;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .tabdo-logo-badge img {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+        display: block;
+      }
+
+      .tabdo-logo-badge.tabdo-fallback-text {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: #ffffff;
         font-size: 12px;
         font-weight: 800;
         letter-spacing: -0.02em;
@@ -524,6 +553,14 @@ export default defineContentScript({
 
 
 
+    // Brand Icon assets
+    const TABDO_ICON_BASE64 =
+      'data:image/png;base64,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'
+    const TABDO_ICON_EXT =
+      typeof chrome !== 'undefined' && chrome.runtime?.getURL
+        ? chrome.runtime.getURL('icon/32.png')
+        : ''
+
     // 2. Create Modal Overlay & Dialog
     const overlay = document.createElement('div')
     overlay.className = 'tabdo-overlay'
@@ -532,7 +569,7 @@ export default defineContentScript({
       <div class="tabdo-dialog" role="dialog" aria-modal="true" aria-labelledby="tabdo-dlg-title">
         <div class="tabdo-header">
           <div class="tabdo-title-group">
-            <div class="tabdo-logo-badge">TD</div>
+            <div class="tabdo-logo-badge"><img src="${TABDO_ICON_BASE64}" alt="TabDo" onerror="if(this.dataset.fallback!=='1'){this.dataset.fallback='1';if('${TABDO_ICON_EXT}'){this.src='${TABDO_ICON_EXT}';return;}}this.style.display='none';this.parentElement.classList.add('tabdo-fallback-text');this.parentElement.innerText='TD';" /></div>
             <span class="tabdo-title" id="tabdo-dlg-title">Thêm công việc vào TabDo</span>
             <span class="tabdo-header-hint">(Esc để đóng)</span>
           </div>
@@ -886,7 +923,7 @@ export default defineContentScript({
     pill.title = 'Tạo công việc TabDo từ văn bản đã chọn'
     pill.style.display = 'none'
     pill.innerHTML = `
-      <span class="tabdo-pill-badge">✓</span>
+      <span class="tabdo-pill-badge"><img src="${TABDO_ICON_BASE64}" alt="" onerror="if(this.dataset.fallback!=='1'){this.dataset.fallback='1';if('${TABDO_ICON_EXT}'){this.src='${TABDO_ICON_EXT}';return;}}this.style.display='none';this.parentElement.classList.add('tabdo-fallback-text');this.parentElement.innerText='✓';" /></span>
       <span class="tabdo-pill-label">TabDo</span>
     `
     shadow.appendChild(pill)

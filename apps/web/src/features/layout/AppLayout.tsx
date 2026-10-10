@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/auth-provider'
 import { useI18n } from '../i18n/i18n-provider'
 import { QuickLanguageButton } from './QuickLanguageButton'
@@ -36,11 +36,14 @@ export function AppLayout() {
       <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           {isCollapsed ? (
-            <div className="sidebar-logo-collapsed" title="TabDo" aria-label="TabDo">
-              TD
-            </div>
+            <Link to="/dashboard" className="sidebar-logo-collapsed-link" title="TabDo" aria-label="TabDo">
+              <img src="/logo-icon.png" alt="TabDo" className="sidebar-logo-collapsed-img" />
+            </Link>
           ) : (
-            <h1>TabDo</h1>
+            <Link to="/dashboard" className="sidebar-brand-link" title="TabDo" aria-label="TabDo">
+              <img src="/logo.png" alt="TabDo" className="sidebar-logo-img" />
+              <h1 className="visually-hidden">TabDo</h1>
+            </Link>
           )}
         </div>
         <nav className="sidebar-nav">
