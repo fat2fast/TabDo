@@ -5,6 +5,8 @@ import {
   formatReminderDisplay,
   formatTaskCompletedAt,
   formatTaskDueDate,
+  formatTaskExecutionDuration,
+  formatTaskOverdueDuration,
   isTaskOverdue,
 } from '@tabdo/utils'
 import { useOptionalAuth } from '../../auth/auth-provider'
@@ -702,13 +704,22 @@ export function TaskDetailView({
                 {task.dueAt ? (
                   <span className={isOverdue ? 'overdue-text' : ''}>
                     {formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}
-                    {isOverdue && <span className="overdue-tag"> (Quá hạn)</span>}
                   </span>
                 ) : (
                   <span className="info-empty-val">Không có</span>
                 )}
               </span>
             </div>
+
+            {/* Overdue duration */}
+            {isOverdue && task.dueAt && (
+              <div className="task-info-row" data-testid="task-overdue-duration-row">
+                <span className="task-info-label">Đã quá hạn</span>
+                <span className="task-info-value overdue-text" style={{ fontWeight: 600 }}>
+                  ⚠️ {formatTaskOverdueDuration(task.dueAt, new Date())}
+                </span>
+              </div>
+            )}
 
             {/* Start date */}
             {task.startAt && (
@@ -734,14 +745,22 @@ export function TaskDetailView({
               </span>
             </div>
 
-            {/* Completed at */}
+            {/* Completed at & Execution duration */}
             {task.completedAt && (
-              <div className="task-info-row">
-                <span className="task-info-label">Hoàn thành lúc</span>
-                <span className="task-info-value completed-time-text">
-                  ✓ {formatTaskCompletedAt(task.completedAt, timeZone)}
-                </span>
-              </div>
+              <>
+                <div className="task-info-row">
+                  <span className="task-info-label">Hoàn thành lúc</span>
+                  <span className="task-info-value completed-time-text">
+                    ✓ {formatTaskCompletedAt(task.completedAt, timeZone)}
+                  </span>
+                </div>
+                <div className="task-info-row" data-testid="task-execution-duration-row">
+                  <span className="task-info-label">Tổng thời gian thực hiện</span>
+                  <span className="task-info-value execution-duration-text">
+                    ⏱️ {formatTaskExecutionDuration(task.createdAt, task.completedAt)}
+                  </span>
+                </div>
+              </>
             )}
 
             {/* Schedule count */}

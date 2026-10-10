@@ -18,10 +18,8 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
   // Apply smart view predicates
   switch (input.view) {
     case 'inbox': {
-      // 'All Tasks' view: displays all tasks without restricting due_at
-      if (!input.status) {
-        query = query.neq('status', 'done')
-      }
+      // 'All Tasks' view: displays all tasks without restricting due_at or excluding completed tasks.
+      // Active tasks will be sorted first, and completed tasks pushed to the bottom.
       break
     }
     case 'today': {
@@ -149,7 +147,15 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
     throw new Error(error.message)
   }
 
-  return ((data as TaskRow[]) || []).map(rowToTask)
+  const tasks = ((data as TaskRow[]) || []).map(rowToTask)
+
+  if (input.view === 'inbox' && !input.status) {
+    const activeTasks = tasks.filter((t) => t.status !== 'done')
+    const completedTasks = tasks.filter((t) => t.status === 'done')
+    return [...activeTasks, ...completedTasks]
+  }
+
+  return tasks
 }
 
 export async function getTaskById(id: string): Promise<Task | null> {

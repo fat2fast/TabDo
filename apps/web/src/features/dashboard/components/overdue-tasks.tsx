@@ -2,7 +2,7 @@ import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Task } from '../../tasks/types'
 import { useI18n } from '../../i18n/i18n-provider'
-import { formatTaskDueDate } from '@tabdo/utils'
+import { formatTaskDueDate, formatTaskOverdueDuration } from '@tabdo/utils'
 
 interface OverdueTasksProps {
   tasks: Task[]
@@ -57,7 +57,9 @@ export function OverdueTasks({ tasks, timeZone }: OverdueTasksProps) {
                 {task.priority === 'high' ? 'Cao' : task.priority === 'medium' ? 'Trung bình' : 'Thấp'}
               </span>
               <span className="overdue-date">
-                {formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}
+                {task.dueAt
+                  ? formatTaskOverdueDuration(task.dueAt, new Date()) || formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
+                  : ''}
               </span>
             </div>
           </li>
