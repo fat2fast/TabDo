@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './auth-provider'
 import { useI18n } from '../i18n/i18n-provider'
 import { QuickLanguageButton } from '../layout/QuickLanguageButton'
+import { BUILD_INFO_STRING } from '../../lib/build-info'
 
 interface LoginFormProps {
   portal: 'user' | 'admin'
@@ -122,6 +123,10 @@ export function LoginForm({ portal }: LoginFormProps) {
             {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
           </button>
         </form>
+
+        <div className="login-version-footer" data-testid="login-version-footer">
+          {BUILD_INFO_STRING}
+        </div>
       </div>
     </div>
   )
