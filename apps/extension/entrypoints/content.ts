@@ -1,10 +1,15 @@
 export default defineContentScript({
   registration: 'runtime',
   main() {
-    if ((window as any).__tabdo_companion_injected) {
-      return
+    // Invoke prior cleanup handler if present (e.g. from extension reload/update)
+    if (typeof (window as any).__tabdo_companion_cleanup === 'function') {
+      try {
+        (window as any).__tabdo_companion_cleanup()
+      } catch {
+        // ignore
+      }
     }
-    (window as any).__tabdo_companion_injected = true
+
     // Clean up stale host from previously reloaded extension context if present
     const existingHost = document.getElementById('tabdo-companion-root')
     if (existingHost) {
@@ -56,6 +61,53 @@ export default defineContentScript({
         justify-content: center;
         z-index: 2147483647;
         animation: tabdoOverlayFadeIn 0.2s ease;
+      }
+
+      /* Floating Selection Pill */
+      .tabdo-pill {
+        position: fixed !important;
+        pointer-events: auto !important;
+        z-index: 2147483647;
+        display: none;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: #ffffff;
+        font-size: 11.5px;
+        font-weight: 700;
+        border-radius: 9999px;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4), 0 2px 4px rgba(15, 23, 42, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        cursor: pointer;
+        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s;
+        user-select: none;
+        line-height: 1;
+        animation: tabdoPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .tabdo-pill:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+        transform: scale(1.05);
+      }
+
+      .tabdo-pill:active {
+        transform: scale(0.98);
+      }
+
+      .tabdo-pill-badge {
+        width: 14px;
+        height: 14px;
+        background: rgba(255, 255, 255, 0.25);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+      }
+
+      .tabdo-pill-label {
+        letter-spacing: -0.01em;
       }
 
       /* Modal Card */
@@ -826,8 +878,129 @@ export default defineContentScript({
 
 
 
-    // 6. Listen to messages from background (e.g. context menu clicks)
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    // 6. Floating Pill Element
+    const pill = document.createElement('button')
+    pill.type = 'button'
+    pill.className = 'tabdo-pill'
+    pill.id = 'tabdo-selection-pill'
+    pill.title = 'Tạo công việc TabDo từ văn bản đã chọn'
+    pill.innerHTML = `
+      <span class="tabdo-pill-badge">✓</span>
+      <span class="tabdo-pill-label">TabDo</span>
+    `
+    shadow.appendChild(pill)
+
+    let isPillActive = false
+    let currentSelectionText = ''
+
+    function hidePill() {
+      pill.style.display = 'none'
+      currentSelectionText = ''
+    }
+
+    // Check storage for quickPillEnabled setting
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get('quickPillEnabled', (res) => {
+        isPillActive = Boolean(res?.quickPillEnabled)
+      })
+
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.quickPillEnabled) {
+          isPillActive = Boolean(changes.quickPillEnabled.newValue)
+          if (!isPillActive) {
+            hidePill()
+          }
+        }
+      })
+    }
+
+    function handleSelectionChange() {
+      if (!isPillActive) {
+        hidePill()
+        return
+      }
+
+      if (overlay.style.display === 'flex') {
+        hidePill()
+        return
+      }
+
+      const sel = window.getSelection()
+      if (!sel || sel.isCollapsed) {
+        hidePill()
+        return
+      }
+
+      const text = sel.toString().trim()
+      if (text.length < 2) {
+        hidePill()
+        return
+      }
+
+      const anchorNode = sel.anchorNode
+      if (anchorNode && (host.contains(anchorNode) || overlay.contains(anchorNode))) {
+        hidePill()
+        return
+      }
+
+      currentSelectionText = text
+
+      try {
+        const range = sel.getRangeAt(0)
+        const rect = range.getBoundingClientRect()
+        if (!rect || (rect.width === 0 && rect.height === 0)) {
+          hidePill()
+          return
+        }
+
+        let top = rect.bottom + 8
+        if (top + 32 > window.innerHeight) {
+          top = Math.max(8, rect.top - 34)
+        }
+        const pillWidth = 76
+        let left = rect.left + rect.width / 2 - pillWidth / 2
+        left = Math.max(8, Math.min(left, window.innerWidth - pillWidth - 8))
+
+        pill.style.top = `${top}px`
+        pill.style.left = `${left}px`
+        pill.style.display = 'inline-flex'
+      } catch {
+        hidePill()
+      }
+    }
+
+    const onMouseUp = () => {
+      setTimeout(handleSelectionChange, 15)
+    }
+    const onSelectionChange = () => {
+      if (!window.getSelection()?.toString().trim()) {
+        hidePill()
+      }
+    }
+    const onMouseDown = (e: MouseEvent) => {
+      if (pill.style.display === 'inline-flex') {
+        const target = e.target as Node
+        if (!host.contains(target) && e.composedPath && !e.composedPath().includes(pill)) {
+          hidePill()
+        }
+      }
+    }
+
+    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('selectionchange', onSelectionChange)
+    document.addEventListener('mousedown', onMouseDown)
+
+    pill.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (currentSelectionText) {
+        openDialog(currentSelectionText, window.location.href)
+      }
+      hidePill()
+    })
+
+    // 7. Listen to messages from background (e.g. context menu clicks)
+    const messageListener = (message: any, _sender: any, sendResponse: (res?: any) => void) => {
       if (message?.type === 'tabdo:open-create-dialog') {
         const text = message.payload?.text || ''
         const url = message.payload?.url || window.location.href
@@ -835,6 +1008,23 @@ export default defineContentScript({
         sendResponse?.({ ok: true })
         return true
       }
-    })
+    }
+    chrome.runtime.onMessage.addListener(messageListener)
+
+    // Store cleanup handler to avoid stale runtime listeners and duplicate UI roots upon reinjection
+    ;(window as any).__tabdo_companion_cleanup = () => {
+      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('selectionchange', onSelectionChange)
+      document.removeEventListener('mousedown', onMouseDown)
+      try {
+        chrome.runtime.onMessage.removeListener(messageListener)
+      } catch {
+        // ignore
+      }
+      const hostEl = document.getElementById('tabdo-companion-root')
+      if (hostEl) {
+        hostEl.remove()
+      }
+    }
   },
 })

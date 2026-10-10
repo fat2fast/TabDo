@@ -33,5 +33,6 @@ export default defineConfig({
       'activeTab',
     ],
     host_permissions: [`${origin}/*`],
+    optional_host_permissions: ['*://*/*', 'https://*/*', 'http://*/*'],
   },
 })

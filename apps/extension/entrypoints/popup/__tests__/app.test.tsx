@@ -13,11 +13,22 @@ describe('Popup App state machine', () => {
       runtime: {
         lastError: null,
         sendMessage: vi.fn((message: ExtensionMessage, callback: (res: unknown) => void) => {
-          messageHandler(message).then((res) => callback(res))
+          messageHandler(message).then((res) => callback?.(res))
         }),
       },
       tabs: {
         create: vi.fn(),
+      },
+      permissions: {
+        contains: vi.fn().mockResolvedValue(false),
+        request: vi.fn().mockResolvedValue(true),
+        remove: vi.fn().mockResolvedValue(true),
+      },
+      storage: {
+        local: {
+          get: vi.fn().mockResolvedValue({}),
+          set: vi.fn().mockResolvedValue(undefined),
+        },
       },
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,5 +148,59 @@ describe('Popup App state machine', () => {
       expect(signedOutCalled).toBe(true)
     })
     expect(await screen.findByRole('heading', { name: 'TabDo' })).toBeInTheDocument()
+  })
+
+  it('4. companion toggle: requests permission and saves setting when enabled', async () => {
+    messageHandler = async (msg) => {
+      if (msg.type === 'get-state') {
+        return {
+          ok: true,
+          data: {
+            status: 'authenticated',
+            user: {
+              id: 'user-1',
+              email: 'phat@example.com',
+              displayName: 'Phat Phung',
+              timezone: 'Asia/Ho_Chi_Minh',
+              isActive: true,
+              mustChangePassword: false,
+              locale: 'vi',
+            },
+            todayTasks: [],
+            syncMetadata: {
+              lastSuccessfulSyncAt: '2026-10-06T10:00:00.000Z',
+              lastSyncError: null,
+              isStale: false,
+            },
+          } as ExtensionState,
+        }
+      }
+      return { ok: true, data: null }
+    }
+
+    const user = userEvent.setup()
+    render(<App />)
+
+    // Go to settings
+    const settingsBtn = await screen.findByLabelText('Cài đặt')
+    await user.click(settingsBtn)
+
+    expect(await screen.findByRole('heading', { name: 'Cài đặt kết nối' })).toBeInTheDocument()
+
+    // Find the toggle
+    const toggle = screen.getByTestId('toggle-quick-pill')
+    expect(toggle).not.toBeChecked()
+
+    // Click toggle to enable
+    await user.click(toggle)
+
+    await waitFor(() => {
+      expect(chrome.permissions.request).toHaveBeenCalledWith({
+        origins: ['*://*/*'],
+      })
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+        quickPillEnabled: true,
+      })
+    })
   })
 })

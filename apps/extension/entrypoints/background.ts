@@ -8,18 +8,61 @@ import {
   handleNotificationClicked,
   showReminderNotification,
 } from '../lib/notifications.js'
+import { handleContextMenuClick } from '../lib/context-menu.js'
 import { PERIODIC_SYNC_ALARM_NAME } from '../lib/sync.js'
+
+export async function syncPillScriptRegistration(enabled: boolean) {
+  if (typeof chrome === 'undefined' || !chrome.scripting?.registerContentScripts) {
+    return
+  }
+
+  try {
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['tabdo-pill-content'] })
+    if (enabled) {
+      const hasPerm = chrome.permissions?.contains
+        ? (await chrome.permissions.contains({ origins: ['*://*/*'] }).catch(() => false))
+          || (await chrome.permissions.contains({ origins: ['https://*/*', 'http://*/*'] }).catch(() => false))
+        : false
+      if (hasPerm && existing.length === 0) {
+        await chrome.scripting.registerContentScripts([
+          {
+            id: 'tabdo-pill-content',
+            js: ['content-scripts/content.js'],
+            matches: ['*://*/*'],
+            runAt: 'document_idle',
+          },
+        ])
+        console.log('[TabDo Background] Registered tabdo-pill-content dynamic content script.')
+      }
+    } else {
+      if (existing.length > 0) {
+        await chrome.scripting.unregisterContentScripts({ ids: ['tabdo-pill-content'] })
+        console.log('[TabDo Background] Unregistered tabdo-pill-content dynamic content script.')
+      }
+    }
+  } catch (err) {
+    console.warn('[TabDo Background] Error syncing pill content script:', err)
+  }
+}
 
 export default defineBackground(() => {
   // 1. Startup & install events
   chrome.runtime.onStartup.addListener(async () => {
     console.log('[TabDo Background] Browser startup, running serialized sync...')
     await runSerializedSync()
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const stored = await chrome.storage.local.get('quickPillEnabled')
+      await syncPillScriptRegistration(Boolean(stored?.quickPillEnabled))
+    }
   })
 
   chrome.runtime.onInstalled.addListener(async () => {
     console.log('[TabDo Background] Extension installed/updated, running serialized sync...')
     await runSerializedSync()
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const stored = await chrome.storage.local.get('quickPillEnabled')
+      await syncPillScriptRegistration(Boolean(stored?.quickPillEnabled))
+    }
 
     // Create selection context menu
     if (typeof chrome !== 'undefined' && chrome.contextMenus?.create) {
@@ -33,60 +76,37 @@ export default defineBackground(() => {
     }
   })
 
+  // 1b. Permissions lifecycle events
+  if (typeof chrome !== 'undefined' && chrome.permissions?.onAdded) {
+    chrome.permissions.onAdded.addListener(async (permissions) => {
+      console.log('[TabDo Background] Permissions added:', permissions)
+      const hasWildcard = permissions.origins?.some((o) => o.includes('*')) ?? false
+      if (hasWildcard) {
+        if (chrome.storage?.local?.set) {
+          await chrome.storage.local.set({ quickPillEnabled: true })
+        }
+        await syncPillScriptRegistration(true)
+      }
+    })
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.permissions?.onRemoved) {
+    chrome.permissions.onRemoved.addListener(async (permissions) => {
+      console.log('[TabDo Background] Permissions removed:', permissions)
+      const hasWildcard = permissions.origins?.some((o) => o.includes('*')) ?? false
+      if (hasWildcard) {
+        if (chrome.storage?.local?.set) {
+          await chrome.storage.local.set({ quickPillEnabled: false })
+        }
+        await syncPillScriptRegistration(false)
+      }
+    })
+  }
+
   // Context menu click handler with on-demand user-triggered injection
   if (typeof chrome !== 'undefined' && chrome.contextMenus?.onClicked) {
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-      if (info.menuItemId === 'tabdo:create-task-selection' && tab?.id && info.selectionText) {
-        const tabId = tab.id
-        const frameId = info.frameId
-        const pageUrl = info.pageUrl || tab.url || ''
-
-        // Gracefully ignore internal/restricted pages where injection is unsupported
-        if (
-          !pageUrl ||
-          pageUrl.startsWith('chrome://') ||
-          pageUrl.startsWith('edge://') ||
-          pageUrl.startsWith('about:') ||
-          pageUrl.startsWith('chrome-extension://') ||
-          pageUrl.startsWith('devtools://') ||
-          pageUrl.startsWith('view-source:')
-        ) {
-          console.warn('[TabDo Background] Script injection not permitted on restricted URL:', pageUrl)
-          return
-        }
-
-        const message = {
-          type: 'tabdo:open-create-dialog',
-          payload: {
-            text: info.selectionText,
-            url: pageUrl,
-          },
-        }
-
-        const targetOptions = frameId !== undefined ? { frameId } : undefined
-
-        try {
-          await chrome.tabs.sendMessage(tabId, message, targetOptions)
-        } catch {
-          // Content script not ready in this tab; inject on demand
-          try {
-            if (chrome.scripting?.executeScript) {
-              await chrome.scripting.executeScript({
-                target: { tabId, allFrames: false },
-                files: ['content-scripts/content.js'],
-              })
-              // Small delay for listener registration
-              setTimeout(() => {
-                chrome.tabs.sendMessage(tabId, message, targetOptions).catch((err) => {
-                  console.warn('[TabDo Background] Failed to send open-dialog message after injection:', err)
-                })
-              }, 60)
-            }
-          } catch (injectErr) {
-            console.warn('[TabDo Background] Could not dynamically inject content script:', injectErr)
-          }
-        }
-      }
+      await handleContextMenuClick(info, tab)
     })
   }
 
@@ -144,6 +164,13 @@ export default defineBackground(() => {
 
   // 5. Popup message routing
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === 'tabdo:sync-pill-script') {
+      syncPillScriptRegistration(Boolean(message.payload?.enabled))
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: String(err) }))
+      return true
+    }
+
     handleExtensionMessage(message)
       .then((res) => sendResponse(res))
       .catch((err) => {
