@@ -12,7 +12,7 @@ import { useAuth } from '../../auth/auth-provider'
 import type { Task } from '../../tasks/types'
 import { useReminderMutations } from '../hooks/use-reminder-mutations'
 import type { Reminder, ReminderKind } from '../types'
-import { CustomDropdown, type DropdownOption } from '../../../components/ui/custom-dropdown'
+import { CustomDropdown } from '../../../components/ui/custom-dropdown'
 import { DatePicker } from '../../../components/ui/date-picker'
 import { TimePicker24h } from '../../../components/ui/time-picker-24h'
 

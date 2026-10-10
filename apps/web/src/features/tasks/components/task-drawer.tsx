@@ -124,7 +124,7 @@ export function TaskDrawer({
           ) : isEditing ? (
             <TaskForm
               task={task}
-              onSaveSuccess={(savedTask) => {
+              onSaveSuccess={() => {
                 setIsEditing(false)
               }}
               onCancel={() => setIsEditing(false)}

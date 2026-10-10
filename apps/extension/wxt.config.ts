@@ -32,6 +32,7 @@ export default defineConfig({
       'scripting',
       'activeTab',
     ],
-    host_permissions: [`${origin}/*`, '*://*/*'],
+    host_permissions: [`${origin}/*`],
+    optional_host_permissions: ['*://*/*', 'https://*/*', 'http://*/*'],
   },
 })

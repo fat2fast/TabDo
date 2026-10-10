@@ -722,3 +722,104 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* Toggle Switch & Companion Settings */
+.tabdo-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.tabdo-toggle-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tabdo-toggle-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.tabdo-toggle-desc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.tabdo-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.tabdo-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.tabdo-switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 9999px;
+}
+
+.tabdo-switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.tabdo-switch input:checked + .tabdo-switch-slider {
+  background-color: var(--primary);
+}
+
+.tabdo-switch input:focus-visible + .tabdo-switch-slider {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+
+.tabdo-switch input:checked + .tabdo-switch-slider:before {
+  transform: translateX(18px);
+}
+
+.tabdo-switch input:disabled + .tabdo-switch-slider {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tabdo-permission-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.tabdo-permission-status.active {
+  color: var(--success);
+}
+
+.tabdo-permission-status.inactive {
+  color: var(--text-muted);
+}
+

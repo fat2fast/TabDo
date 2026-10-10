@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
 
@@ -96,19 +97,64 @@ export async function fetchAdminUsers(params: AdminUsersFilterParams = {}): Prom
   return data as AdminUsersResponse
 }
 
+/**
+ * Hook to keep admin queries in sync via Supabase Realtime with debounce.
+ * Batches incoming mutations to avoid hammering Edge Functions.
+ */
+export function useAdminRealtimeSync() {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!supabase || typeof (supabase as any).channel !== 'function') return
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const handleSync = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+        queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      }, 1500)
+    }
+
+    const channel = (supabase as any)
+      .channel(`admin-realtime-${Math.random().toString(36).slice(2, 7)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, handleSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, handleSync)
+      .subscribe()
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      if (channel && typeof (supabase as any).removeChannel === 'function') {
+        (supabase as any).removeChannel(channel)
+      }
+    }
+  }, [queryClient])
+}
+
 export function useAdminStats() {
+  useAdminRealtimeSync()
+
   return useQuery({
     queryKey: ['admin', 'stats'],
     queryFn: fetchAdminStats,
-    staleTime: 30_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 }
 
 export function useAdminUsers(params: AdminUsersFilterParams = {}) {
+  useAdminRealtimeSync()
+
   return useQuery({
     queryKey: ['admin', 'users', params],
     queryFn: () => fetchAdminUsers(params),
-    staleTime: 15_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 }
 

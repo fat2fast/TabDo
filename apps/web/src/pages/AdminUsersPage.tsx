@@ -20,7 +20,7 @@ export function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  const { data, isLoading, isError, error, refetch } = useAdminUsers({
+  const { data, isLoading, isError, error, refetch, isFetching } = useAdminUsers({
     page,
     pageSize: 10,
     search: search.trim() || undefined,
@@ -77,25 +77,67 @@ export function AdminUsersPage() {
               {t('admin.usersSubtitle')}
             </p>
           </div>
-          <button
-            type="button"
-            className="admin-submit-button"
-            onClick={() => setShowCreateForm(true)}
-            style={{
-              padding: '0.625rem 1.25rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: 600,
-              borderRadius: '8px',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>{t('admin.createUser')}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title={isFetching ? t('common.loading') : 'Làm mới danh sách'}
+              className="btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.625rem 1rem',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                cursor: isFetching ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  animation: isFetching ? 'spin 1s linear infinite' : 'none',
+                  color: isFetching ? '#0284c7' : '#64748b',
+                }}
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              <span>{isFetching ? 'Đang cập nhật...' : 'Làm mới'}</span>
+            </button>
+            <button
+              type="button"
+              className="admin-submit-button"
+              onClick={() => setShowCreateForm(true)}
+              style={{
+                padding: '0.625rem 1.25rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontWeight: 600,
+                borderRadius: '8px',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>{t('admin.createUser')}</span>
+            </button>
+          </div>
         </div>
       </div>
 

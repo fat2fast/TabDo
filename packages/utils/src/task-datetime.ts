@@ -1,4 +1,4 @@
-import { addDays, endOfDay, endOfWeek, isBefore, nextMonday, nextSaturday, startOfDay, startOfWeek } from 'date-fns'
+import { addDays, endOfDay, endOfWeek, intervalToDuration, isBefore, nextMonday, nextSaturday, startOfDay, startOfWeek } from 'date-fns'
 import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 import type { DueDateKind } from '@tabdo/types'
 
@@ -97,7 +97,7 @@ export function formatTaskDueDate(
   if (!dueAt) return ''
   const date = new Date(dueAt)
   if (dueDateKind === 'date_only') {
-    return `Đến hạn trong ngày: ${formatInTimeZone(date, timeZone, 'dd/MM/yyyy')}`
+    return formatInTimeZone(date, timeZone, 'dd/MM/yyyy')
   }
   return formatInTimeZone(date, timeZone, 'dd/MM/yyyy HH:mm')
 }
@@ -417,5 +417,130 @@ export function getCompletedRangeBoundaries(
     }
     default:
       return {}
+  }
+}
+
+/**
+ * Converts a date-only string (YYYY-MM-DD) into a reference instant on that local calendar day in the given timeZone.
+ * Uses local noon (12:00:00) to be completely safe against DST midnight transitions and browser timezone shifts.
+ */
+export function parseLocalDateReference(dateStr: string, timeZone: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr.trim())
+  if (!match) {
+    throw new Error(`Invalid local date format: "${dateStr}". Expected YYYY-MM-DD.`)
+  }
+  const wallClockNoon = `${match[1]}-${match[2]}-${match[3]}T12:00:00`
+  return fromZonedTime(wallClockNoon, timeZone)
+}
+
+/**
+ * Returns [startAt, endAt) UTC ISO boundaries for a given local date string (YYYY-MM-DD)
+ * in the specified profile timeZone.
+ */
+export function getSummaryRangeForDay(
+  dateStr: string,
+  timeZone: string
+): { startAt: string; endAt: string } {
+  const refInstant = parseLocalDateReference(dateStr, timeZone)
+  return getVisibleRangeForDay(refInstant, timeZone)
+}
+
+/**
+ * Returns [startAt, endAt) UTC ISO boundaries for the Monday–Sunday week containing
+ * the given local date string (YYYY-MM-DD) in the specified profile timeZone.
+ */
+export function getSummaryRangeForWeek(
+  dateStr: string,
+  timeZone: string
+): { startAt: string; endAt: string } {
+  const refInstant = parseLocalDateReference(dateStr, timeZone)
+  return getVisibleRangeForWeek(refInstant, timeZone)
+}
+
+/**
+ * Calculates and formats actual task execution duration between createdAt and completedAt.
+ * Supports months, days, hours, and minutes.
+ * Examples: "1 tháng 5 ngày 2 giờ 30 phút", "4 giờ 15 phút", "Dưới 1 phút".
+ */
+export function formatTaskExecutionDuration(
+  createdAt: string | Date,
+  completedAt: string | Date,
+  locale = 'vi'
+): string {
+  const start = typeof createdAt === 'string' ? new Date(createdAt) : createdAt
+  const end = typeof completedAt === 'string' ? new Date(completedAt) : completedAt
+
+  const diffMs = end.getTime() - start.getTime()
+  if (isNaN(diffMs) || diffMs <= 0) {
+    return locale === 'vi' ? 'Dưới 1 phút' : 'Less than 1 minute'
+  }
+
+  const duration = intervalToDuration({ start, end })
+
+  const years = duration.years ?? 0
+  const months = years * 12 + (duration.months ?? 0)
+  const days = duration.days ?? 0
+  const hours = duration.hours ?? 0
+  const minutes = duration.minutes ?? 0
+
+  const parts: string[] = []
+
+  if (locale === 'vi') {
+    if (months > 0) parts.push(`${months} tháng`)
+    if (days > 0) parts.push(`${days} ngày`)
+    if (hours > 0) parts.push(`${hours} giờ`)
+    if (minutes > 0) parts.push(`${minutes} phút`)
+    if (parts.length === 0) return 'Dưới 1 phút'
+    return parts.join(' ')
+  } else {
+    if (months > 0) parts.push(`${months} ${months === 1 ? 'month' : 'months'}`)
+    if (days > 0) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`)
+    if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`)
+    if (minutes > 0) parts.push(`${minutes} ${minutes === 1 ? 'min' : 'mins'}`)
+    if (parts.length === 0) return 'Less than 1 minute'
+    return parts.join(' ')
+  }
+}
+
+/**
+ * Calculates and formats actual overdue duration between dueAt and reference now.
+ * Supports months, days, hours, and minutes.
+ * Format: "Quá hạn: 1 tháng 2 ngày 5 giờ 30 phút" (or "Overdue: 1 month 2 days 5 hours 30 mins").
+ */
+export function formatTaskOverdueDuration(
+  dueAt: string | Date,
+  now: Date = new Date(),
+  locale = 'vi'
+): string {
+  const dueDate = typeof dueAt === 'string' ? new Date(dueAt) : dueAt
+  const diffMs = now.getTime() - dueDate.getTime()
+  if (isNaN(diffMs) || diffMs <= 0) {
+    return ''
+  }
+
+  const duration = intervalToDuration({ start: dueDate, end: now })
+
+  const years = duration.years ?? 0
+  const months = years * 12 + (duration.months ?? 0)
+  const days = duration.days ?? 0
+  const hours = duration.hours ?? 0
+  const minutes = duration.minutes ?? 0
+
+  const parts: string[] = []
+
+  if (locale === 'vi') {
+    if (months > 0) parts.push(`${months} tháng`)
+    if (days > 0) parts.push(`${days} ngày`)
+    if (hours > 0) parts.push(`${hours} giờ`)
+    if (minutes > 0) parts.push(`${minutes} phút`)
+    const timeStr = parts.length > 0 ? parts.join(' ') : 'Dưới 1 phút'
+    return `Quá hạn: ${timeStr}`
+  } else {
+    if (months > 0) parts.push(`${months} ${months === 1 ? 'month' : 'months'}`)
+    if (days > 0) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`)
+    if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`)
+    if (minutes > 0) parts.push(`${minutes} ${minutes === 1 ? 'min' : 'mins'}`)
+    const timeStr = parts.length > 0 ? parts.join(' ') : 'Less than 1 minute'
+    return `Overdue: ${timeStr}`
   }
 }

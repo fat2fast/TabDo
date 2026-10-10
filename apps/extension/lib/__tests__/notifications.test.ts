@@ -500,7 +500,7 @@ describe('notifications module', () => {
         if (table === 'reminders') {
           return {
             update: vi.fn((updatePayload: Record<string, unknown>) => ({
-              eq: vi.fn((field1: string, val1: string) => ({
+              eq: vi.fn((_field1: string, _val1: string) => ({
                 eq: vi.fn((field2: string, val2: string) => {
                   if (updatePayload.status === 'triggered') {
                     // Triggered update matches initialUpdatedAt

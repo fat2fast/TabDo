@@ -2,7 +2,6 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import type {
   DueDateKind,
   RecurrenceConfig,
-  RecurrenceType,
   RecurrenceWeekday,
 } from '@tabdo/types'
 import { toDateOnlyEndOfDay } from './task-datetime.js'
@@ -17,16 +16,6 @@ const WEEKDAY_TO_DAY_OF_WEEK: Record<RecurrenceWeekday, number> = {
   TH: 4,
   FR: 5,
   SA: 6,
-}
-
-const DAY_OF_WEEK_TO_WEEKDAY: Record<number, RecurrenceWeekday> = {
-  0: 'SU',
-  1: 'MO',
-  2: 'TU',
-  3: 'WE',
-  4: 'TH',
-  5: 'FR',
-  6: 'SA',
 }
 
 /**

@@ -42,10 +42,9 @@ const adminClient = createClient(supabaseUrl, secretKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-const publicClient = createClient(supabaseUrl, publishableKey, {
+const anonClient = createClient(supabaseUrl, publishableKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
-const anonClient = publicClient
 
 const itRunId = Date.now().toString(36)
 const testUsers = {
@@ -78,7 +77,7 @@ const testUsers = {
   }
 }
 
-let spawnedFunctionProc: ChildProcess | null = null
+const spawnedFunctionProcs: ChildProcess[] = []
 
 async function isFunctionRunning(url: string): Promise<boolean> {
   try {
@@ -89,33 +88,34 @@ async function isFunctionRunning(url: string): Promise<boolean> {
   }
 }
 
-async function ensureFunctionServing(functionUrl: string): Promise<void> {
+async function ensureFunctionServing(functionName: string, functionUrl: string): Promise<void> {
   const ready = await isFunctionRunning(functionUrl)
   if (ready) {
-    console.log('✓ Edge Function admin-create-user is already responding.')
+    console.log(`✓ Edge Function ${functionName} is already responding.`)
     return
   }
 
-  console.log('Starting local Edge Function runner for admin-create-user...')
-  spawnedFunctionProc = spawn('supabase', ['functions', 'serve', 'admin-create-user', '--no-verify-jwt'], {
+  console.log(`Starting local Edge Function runner for ${functionName}...`)
+  const proc = spawn('supabase', ['functions', 'serve', functionName, '--no-verify-jwt'], {
     stdio: 'ignore',
     detached: false
   })
 
-  spawnedFunctionProc.on('error', (err) => {
-    console.warn(`Could not spawn supabase functions serve: ${err.message}`)
+  proc.on('error', (err) => {
+    console.warn(`Could not spawn supabase functions serve ${functionName}: ${err.message}`)
   })
+  spawnedFunctionProcs.push(proc)
 
   // Wait up to 10 seconds for the function to respond
   for (let i = 0; i < 20; i++) {
     await new Promise((r) => setTimeout(r, 500))
     if (await isFunctionRunning(functionUrl)) {
-      console.log('✓ Local Edge Function server ready.')
+      console.log(`✓ Local Edge Function server ready for ${functionName}.`)
       return
     }
   }
 
-  throw new Error(`Edge Function at ${functionUrl} did not become ready. Ensure 'supabase functions serve admin-create-user --no-verify-jwt' is running.`)
+  throw new Error(`Edge Function at ${functionUrl} did not become ready.`)
 }
 
 async function cleanupUser(id: string) {
@@ -130,10 +130,11 @@ async function cleanupUser(id: string) {
 async function runIntegration() {
   console.log('--- Starting TabDo Integration & Security Test Suite ---')
   let createdTaskId = ''
+  let exitCode = 0
 
   try {
     // 1. Database connectivity check
-    console.log('[1/4] Verifying database connectivity & migrations...')
+    console.log('[1/5] Verifying database connectivity & migrations...')
     const { error: dbError } = await adminClient.from('profiles').select('id').limit(1)
     if (dbError) {
       throw new Error(`Database connection failed: ${dbError.message}`)
@@ -141,7 +142,7 @@ async function runIntegration() {
     console.log('✓ Database connected and tables accessible.')
 
     // 2. Provision test users
-    console.log('[2/4] Provisioning test users and sessions...')
+    console.log('[2/5] Provisioning test users and sessions...')
     for (const key of ['userA', 'userB', 'admin'] as const) {
       const u = testUsers[key]
       const { data: created, error: cErr } = await adminClient.auth.admin.createUser({
@@ -171,6 +172,41 @@ async function runIntegration() {
       u.token = authData.session.access_token
     }
 
+    // Verify public self-registration is prohibited (P0 & P2 security requirement)
+    console.log('Verifying public self-registration is disabled with fresh unauthenticated client...')
+    const freshAnonClient = createClient(supabaseUrl, publishableKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const publicAttemptEmail = `it_public_${itRunId}@tabdo.local`
+    const { data: signUpData, error: signUpError } = await freshAnonClient.auth.signUp({
+      email: publicAttemptEmail,
+      password: 'Password123!',
+    })
+
+    if (!signUpError) {
+      throw new Error('Public self-registration must be disabled, but signUp succeeded without error!')
+    }
+    const errText = signUpError.message.toLowerCase()
+    if (!errText.includes('signup') && !errText.includes('not allowed') && !errText.includes('disabled')) {
+      throw new Error(`Expected public signup rejection message, but got: "${signUpError.message}"`)
+    }
+
+    // Explicitly verify that no unauthorized user or profile was created in the database
+    const { data: listedUsers } = await adminClient.auth.admin.listUsers()
+    const leakedUser = listedUsers?.users.find((u) => u.email === publicAttemptEmail)
+    if (leakedUser) {
+      await adminClient.auth.admin.deleteUser(leakedUser.id)
+      throw new Error(`Security Violation: Unauthorized account was created in auth.users despite disabled signup!`)
+    }
+    const { data: leakedProfiles } = await adminClient
+      .from('profiles')
+      .select('id')
+      .eq('id', (signUpData as any)?.user?.id || 'none')
+    if (leakedProfiles && leakedProfiles.length > 0) {
+      throw new Error(`Security Violation: Profile row created for rejected signup!`)
+    }
+    console.log('✓ Public self-registration is prohibited and verified (no account created).')
+
     // Verify User A profile trigger created role 'user'
     const { data: profileA, error: pAErr } = await adminClient
       .from('profiles')
@@ -183,7 +219,7 @@ async function runIntegration() {
     console.log('✓ Test users provisioned and profile trigger verified.')
 
     // 3. Test RLS Personal-Data Owner Isolation & Role Immutability
-    console.log('[3/4] Testing RLS Owner Isolation & Role Immutability...')
+    console.log('[3/5] Testing RLS Owner Isolation & Role Immutability...')
     const userAClient = createClient(supabaseUrl, publishableKey, {
       global: { headers: { Authorization: `Bearer ${testUsers.userA.token}` } },
       auth: { autoRefreshToken: false, persistSession: false }
@@ -293,9 +329,9 @@ async function runIntegration() {
     console.log('✓ Personal-data owner isolation, admin boundary, and role immutability verified.')
 
     // 4. Test Edge Function admin-create-user
-    console.log('[4/4] Testing Edge Function admin-create-user authorization & status codes...')
+    console.log('[4/5] Testing Edge Function admin-create-user authorization & status codes...')
     const functionUrl = `${supabaseUrl}/functions/v1/admin-create-user`
-    await ensureFunctionServing(functionUrl)
+    await ensureFunctionServing('admin-create-user', functionUrl)
 
     // Test 401: Unauthorized (no auth header)
     const res401 = await fetch(functionUrl, {
@@ -395,31 +431,81 @@ async function runIntegration() {
     if (res409.status !== 409) {
       throw new Error(`Expected 409 Conflict for duplicate email, got ${res409.status}`)
     }
+    console.log('✓ Edge Function admin-create-user 401, 403, 400, 201, and 409 cases verified.')
 
-    console.log('✓ Edge Function 401, 403, 400, 201, and 409 cases verified.')
+    // 5. Test Edge Function admin-users authorization & response contract
+    console.log('[5/5] Testing Edge Function admin-users authorization & privacy contract...')
+    const adminUsersUrl = `${supabaseUrl}/functions/v1/admin-users`
+    await ensureFunctionServing('admin-users', adminUsersUrl)
+
+    // Test 401: Unauthorized (no auth header)
+    const resUsers401 = await fetch(adminUsersUrl, { method: 'GET' })
+    if (resUsers401.status !== 401) {
+      throw new Error(`Expected 401 Unauthorized for unauthenticated admin-users call, got ${resUsers401.status}`)
+    }
+
+    // Test 403: Forbidden (non-admin user)
+    const resUsers403 = await fetch(adminUsersUrl, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${testUsers.userA.token}` }
+    })
+    if (resUsers403.status !== 403) {
+      throw new Error(`Expected 403 Forbidden for non-admin caller to admin-users, got ${resUsers403.status}`)
+    }
+
+    // Test 200: OK (valid admin caller)
+    const resUsers200 = await fetch(adminUsersUrl, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${testUsers.admin.token}` }
+    })
+    if (resUsers200.status !== 200) {
+      const errTxt = await resUsers200.text()
+      throw new Error(`Expected 200 OK for valid admin call to admin-users, got ${resUsers200.status}: ${errTxt}`)
+    }
+    const adminUsersJson = await resUsers200.json()
+    if (!Array.isArray(adminUsersJson.users) || typeof adminUsersJson.total !== 'number') {
+      throw new Error(`admin-users response failed schema contract: ${JSON.stringify(adminUsersJson)}`)
+    }
+
+    // Strictly verify privacy boundary: numeric task counts ONLY, zero individual task content
+    for (const u of adminUsersJson.users) {
+      if (typeof u.taskCount !== 'number' || typeof u.todoCount !== 'number') {
+        throw new Error(`admin-users entry missing numerical task count statistics: ${JSON.stringify(u)}`)
+      }
+      if ('tasks' in u || 'title' in u || 'description' in u || 'reminders' in u) {
+        throw new Error(`PRIVACY VIOLATION: admin-users exposed individual task content or descriptions: ${JSON.stringify(u)}`)
+      }
+    }
+    console.log('✓ Edge Function admin-users 401, 403, 200, and privacy contract verified.')
+
     console.log('--- ALL INTEGRATION & SECURITY TESTS PASSED ---')
-    process.exit(0)
   } catch (err: any) {
     console.error('[INTEGRATION TEST FAILED]', err?.message || err)
-    process.exit(1)
+    exitCode = 1
   } finally {
     console.log('Cleaning up integration test fixtures...')
     if (createdTaskId) {
-      await adminClient.from('tasks').delete().eq('id', createdTaskId)
+      try {
+        await adminClient.from('tasks').delete().eq('id', createdTaskId)
+      } catch {
+        // ignore task delete error
+      }
     }
     await cleanupUser(testUsers.provisioned.id)
     await cleanupUser(testUsers.userA.id)
     await cleanupUser(testUsers.userB.id)
     await cleanupUser(testUsers.admin.id)
 
-    if (spawnedFunctionProc) {
+    for (const proc of spawnedFunctionProcs) {
       try {
-        spawnedFunctionProc.kill('SIGTERM')
+        proc.kill('SIGTERM')
       } catch {
-        // ignore kill errors
+        // ignore proc kill error
       }
     }
   }
+
+  process.exit(exitCode)
 }
 
 runIntegration()

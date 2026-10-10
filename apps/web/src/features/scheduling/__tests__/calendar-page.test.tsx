@@ -21,7 +21,7 @@ vi.mock('../components/day-week-calendar', () => ({
     onSelectSlot,
     onEventClick,
     onEventDrop,
-    onEventResize,
+    _onEventResize,
   }: any) => (
     <div data-testid="mock-day-week-calendar">
       <div data-testid="calendar-event-count">{events.length}</div>

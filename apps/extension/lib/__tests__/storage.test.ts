@@ -13,7 +13,6 @@ import {
   getActiveUserId,
   setActiveUserId,
   AUTH_STORAGE_KEY,
-  ACTIVE_USER_ID_KEY,
   NOTIFICATIONS_STORAGE_KEY,
 } from '../storage.js'
 import type { ExtensionNotificationContext, ExtensionUserCache } from '../types.js'

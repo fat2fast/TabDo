@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   formatTaskCompletedAt,
   fromTaskDueInstant,
@@ -39,6 +39,7 @@ import type { ScheduleBlock } from '../../scheduling/types'
 import { ReminderList } from '../../reminders/components/reminder-list'
 import { useRemindersByTask } from '../../reminders/hooks/use-reminders'
 import { useConfirm } from '../../../components/ui'
+import { AutoResizeTextarea } from '../../../components/ui/auto-resize-textarea'
 
 export interface TaskFormProps {
   task: Task
@@ -408,9 +409,8 @@ export function TaskForm({
           <label htmlFor="task-title-input" className="field-label-bold">
             Tiêu đề *
           </label>
-          <input
+          <AutoResizeTextarea
             id="task-title-input"
-            type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required

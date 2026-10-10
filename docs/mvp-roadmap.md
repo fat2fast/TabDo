@@ -46,11 +46,11 @@ Current progress across the 11 MVP implementation phases:
 | [Phase 3](#phase-3--smart-task-views--organization) | Smart Task Views & Organization | **Completed** | PR #2 (`plans/261005-1305-...`), `Inbox`, `Today`, `Upcoming`, filters, categories |
 | [Phase 4](#phase-4--scheduling--calendar) | Scheduling & Calendar | **Completed** | PR #3 (`plans/261006-0832-...`), migration `0004`, FullCalendar day/week, schedule blocks |
 | [Phase 5](#phase-5--reminder-engine) | Reminder Engine | **Completed** | PR #3 (`plans/261006-0832-...`), migration `0005`, absolute/relative triggers, drawer UI |
-| [Phase 6](#phase-6--browser-extension) | Browser Extension | **Planned (Next up)** | WXT MV3 popup, Today sync via `chrome.storage.local`, alarm runtime |
-| [Phase 7](#phase-7--recurring-tasks) | Recurring Tasks | **Planned** | Recurrence rules, auto-regeneration |
-| [Phase 8](#phase-8--dashboard) | Dashboard | **Planned** | Daily agenda, overdue alerts, productivity metrics |
-| [Phase 9](#phase-9--daily--weekly-summary) | Daily & Weekly Summary | **Planned** | Completed vs rolled over review |
-| [Phase 10](#phase-10--mvp-hardening--release-verification) | MVP Hardening & Release Verification | **Planned** | Cross-client smoke tests, performance, security gates |
+| [Phase 6](#phase-6--browser-extension) | Browser Extension | **Completed** | PR #4 & hardening, WXT MV3 popup, on-demand activation, `chrome.storage.local` sync, alarms & notifications |
+| [Phase 7](#phase-7--recurring-tasks) | Recurring Tasks | **Completed** | PR #7, migrations `0007` & `0008`, recurrence rules, auto-regeneration, cycle indicators |
+| [Phase 8](#phase-8--dashboard) | Dashboard | **Completed** | PR #7, `DashboardPage.tsx`, productivity metrics, daily agenda, overdue tracking |
+| [Phase 9](#phase-9--daily--weekly-summary) | Daily & Weekly Summary | **Completed** | Rule-based daily/weekly outcomes review, completion rates, category breakdown |
+| [Phase 10](#phase-10--mvp-hardening--release-verification) | MVP Hardening & Release Verification | **Planned** | In Progress (Cross-client smoke tests, performance, security gates) |
 
 ---
 
@@ -65,9 +65,7 @@ TabDo MVP has two roles:
 
 The admin account is created during environment/bootstrap setup.
 
-For the MVP, the admin has one elevated administrative capability:
-
-- Create normal users
+TabDo Admin Portal supports user-account administration and numerical task statistics. Administrators may view task counts by status and by account but cannot access, inspect, or modify other users' individual task data, reminders, schedules, or task content.
 
 The admin is still a normal TabDo user for personal productivity features and can use:
 
