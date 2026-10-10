@@ -527,6 +527,7 @@ export default defineContentScript({
     // 2. Create Modal Overlay & Dialog
     const overlay = document.createElement('div')
     overlay.className = 'tabdo-overlay'
+    overlay.style.display = 'none'
     overlay.innerHTML = `
       <div class="tabdo-dialog" role="dialog" aria-modal="true" aria-labelledby="tabdo-dlg-title">
         <div class="tabdo-header">
@@ -870,13 +871,12 @@ export default defineContentScript({
       }
     })
 
-    document.addEventListener('keydown', (e) => {
+    const onDocumentKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && overlay.style.display === 'flex') {
         closeDialog()
       }
-    })
-
-
+    }
+    document.addEventListener('keydown', onDocumentKeyDown)
 
     // 6. Floating Pill Element
     const pill = document.createElement('button')
@@ -884,6 +884,7 @@ export default defineContentScript({
     pill.className = 'tabdo-pill'
     pill.id = 'tabdo-selection-pill'
     pill.title = 'Tạo công việc TabDo từ văn bản đã chọn'
+    pill.style.display = 'none'
     pill.innerHTML = `
       <span class="tabdo-pill-badge">✓</span>
       <span class="tabdo-pill-label">TabDo</span>
@@ -894,24 +895,46 @@ export default defineContentScript({
     let currentSelectionText = ''
 
     function hidePill() {
-      pill.style.display = 'none'
+      pill.style.setProperty('display', 'none', 'important')
       currentSelectionText = ''
     }
 
     // Check storage for quickPillEnabled setting
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.get('quickPillEnabled', (res) => {
-        isPillActive = Boolean(res?.quickPillEnabled)
-      })
-
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === 'local' && changes.quickPillEnabled) {
-          isPillActive = Boolean(changes.quickPillEnabled.newValue)
-          if (!isPillActive) {
-            hidePill()
-          }
+      try {
+        const p = chrome.storage.local.get('quickPillEnabled')
+        if (p && typeof p.then === 'function') {
+          p.then((res: any) => {
+            if (res && typeof res.quickPillEnabled !== 'undefined') {
+              isPillActive = Boolean(res.quickPillEnabled)
+            }
+          }).catch(() => {})
         }
-      })
+      } catch {
+        // ignore
+      }
+      try {
+        chrome.storage.local.get('quickPillEnabled', (res: any) => {
+          if (res && typeof res.quickPillEnabled !== 'undefined') {
+            isPillActive = Boolean(res.quickPillEnabled)
+          }
+        })
+      } catch {
+        // ignore
+      }
+    }
+
+    // Named storage listener to ensure full lifecycle release and immediate deactivation
+    const onStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName === 'local' && changes.quickPillEnabled) {
+        isPillActive = Boolean(changes.quickPillEnabled.newValue)
+        if (!isPillActive) {
+          hidePill()
+        }
+      }
+    }
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(onStorageChange)
     }
 
     function handleSelectionChange() {
@@ -961,20 +984,29 @@ export default defineContentScript({
         let left = rect.left + rect.width / 2 - pillWidth / 2
         left = Math.max(8, Math.min(left, window.innerWidth - pillWidth - 8))
 
-        pill.style.top = `${top}px`
-        pill.style.left = `${left}px`
-        pill.style.display = 'inline-flex'
+        pill.style.setProperty('top', `${top}px`, 'important')
+        pill.style.setProperty('left', `${left}px`, 'important')
+        pill.style.setProperty('display', 'inline-flex', 'important')
       } catch {
         hidePill()
       }
     }
 
+    let selectionTimeout: any = null
+    const scheduleSelectionCheck = () => {
+      if (selectionTimeout) clearTimeout(selectionTimeout)
+      selectionTimeout = setTimeout(handleSelectionChange, 20)
+    }
+
     const onMouseUp = () => {
-      setTimeout(handleSelectionChange, 15)
+      scheduleSelectionCheck()
     }
     const onSelectionChange = () => {
-      if (!window.getSelection()?.toString().trim()) {
+      const sel = window.getSelection()
+      if (!sel || !sel.toString().trim()) {
         hidePill()
+      } else if (isPillActive) {
+        scheduleSelectionCheck()
       }
     }
     const onMouseDown = (e: MouseEvent) => {
@@ -989,6 +1021,10 @@ export default defineContentScript({
     document.addEventListener('mouseup', onMouseUp)
     document.addEventListener('selectionchange', onSelectionChange)
     document.addEventListener('mousedown', onMouseDown)
+
+    pill.addEventListener('mousedown', (e) => {
+      e.stopPropagation()
+    })
 
     pill.addEventListener('click', (e) => {
       e.preventDefault()
@@ -1009,15 +1045,28 @@ export default defineContentScript({
         return true
       }
     }
-    chrome.runtime.onMessage.addListener(messageListener)
+    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(messageListener)
+    }
 
     // Store cleanup handler to avoid stale runtime listeners and duplicate UI roots upon reinjection
     ;(window as any).__tabdo_companion_cleanup = () => {
+      if (selectionTimeout) clearTimeout(selectionTimeout)
+      document.removeEventListener('keydown', onDocumentKeyDown)
       document.removeEventListener('mouseup', onMouseUp)
       document.removeEventListener('selectionchange', onSelectionChange)
       document.removeEventListener('mousedown', onMouseDown)
       try {
-        chrome.runtime.onMessage.removeListener(messageListener)
+        if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+          chrome.runtime.onMessage.removeListener(messageListener)
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+          chrome.storage.onChanged.removeListener(onStorageChange)
+        }
       } catch {
         // ignore
       }
@@ -1025,6 +1074,7 @@ export default defineContentScript({
       if (hostEl) {
         hostEl.remove()
       }
+      ;(window as any).__tabdo_companion_cleanup = undefined
     }
   },
 })

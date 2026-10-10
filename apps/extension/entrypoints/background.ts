@@ -8,8 +8,14 @@ import {
   handleNotificationClicked,
   showReminderNotification,
 } from '../lib/notifications.js'
-import { handleContextMenuClick } from '../lib/context-menu.js'
+import { handleContextMenuClick, isRestrictedUrl } from '../lib/context-menu.js'
 import { PERIODIC_SYNC_ALARM_NAME } from '../lib/sync.js'
+import {
+  FLOATING_PILL_ORIGINS,
+  hasFloatingPillPermissions,
+} from '../lib/permissions.js'
+
+export const DYNAMIC_PILL_SCRIPT_ID = 'tabdo-pill-content'
 
 export async function syncPillScriptRegistration(enabled: boolean) {
   if (typeof chrome === 'undefined' || !chrome.scripting?.registerContentScripts) {
@@ -17,26 +23,56 @@ export async function syncPillScriptRegistration(enabled: boolean) {
   }
 
   try {
-    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['tabdo-pill-content'] })
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [DYNAMIC_PILL_SCRIPT_ID] })
     if (enabled) {
-      const hasPerm = chrome.permissions?.contains
-        ? (await chrome.permissions.contains({ origins: ['*://*/*'] }).catch(() => false))
-          || (await chrome.permissions.contains({ origins: ['https://*/*', 'http://*/*'] }).catch(() => false))
-        : false
-      if (hasPerm && existing.length === 0) {
-        await chrome.scripting.registerContentScripts([
-          {
-            id: 'tabdo-pill-content',
-            js: ['content-scripts/content.js'],
-            matches: ['*://*/*'],
-            runAt: 'document_idle',
-          },
-        ])
-        console.log('[TabDo Background] Registered tabdo-pill-content dynamic content script.')
+      const hasPerm = await hasFloatingPillPermissions()
+      if (hasPerm) {
+        if (existing.length > 0) {
+          await chrome.scripting.unregisterContentScripts({ ids: [DYNAMIC_PILL_SCRIPT_ID] }).catch(() => {})
+        }
+
+        try {
+          await chrome.scripting.registerContentScripts([
+            {
+              id: DYNAMIC_PILL_SCRIPT_ID,
+              js: ['content-scripts/content.js'],
+              matches: ['https://*/*', 'http://*/*'],
+              runAt: 'document_idle',
+            },
+          ])
+          console.log('[TabDo Background] Registered tabdo-pill-content dynamic content script.')
+        } catch (regErr) {
+          console.warn('[TabDo Background] Register with explicit schemes failed, fallback to wildcard:', regErr)
+          await chrome.scripting.registerContentScripts([
+            {
+              id: DYNAMIC_PILL_SCRIPT_ID,
+              js: ['content-scripts/content.js'],
+              matches: ['*://*/*'],
+              runAt: 'document_idle',
+            },
+          ])
+        }
+
+        // Live injection into currently open tabs so users don't need to reload open pages
+        if (typeof chrome.tabs?.query === 'function' && typeof chrome.scripting?.executeScript === 'function') {
+          try {
+            const tabs = await chrome.tabs.query({ url: ['https://*/*', 'http://*/*'] })
+            for (const tab of tabs) {
+              if (tab.id && !isRestrictedUrl(tab.url)) {
+                chrome.scripting.executeScript({
+                  target: { tabId: tab.id },
+                  files: ['content-scripts/content.js'],
+                }).catch(() => {})
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
       }
     } else {
       if (existing.length > 0) {
-        await chrome.scripting.unregisterContentScripts({ ids: ['tabdo-pill-content'] })
+        await chrome.scripting.unregisterContentScripts({ ids: [DYNAMIC_PILL_SCRIPT_ID] }).catch(() => {})
         console.log('[TabDo Background] Unregistered tabdo-pill-content dynamic content script.')
       }
     }
@@ -76,13 +112,15 @@ export default defineBackground(() => {
     }
   })
 
-  // 1b. Permissions lifecycle events
+  // 1b. Permissions lifecycle events: manage Floating Pill permissions separately from Supabase
   if (typeof chrome !== 'undefined' && chrome.permissions?.onAdded) {
-    chrome.permissions.onAdded.addListener(async (permissions) => {
-      console.log('[TabDo Background] Permissions added:', permissions)
-      const hasWildcard = permissions.origins?.some((o) => o.includes('*')) ?? false
-      if (hasWildcard) {
-        if (chrome.storage?.local?.set) {
+    chrome.permissions.onAdded.addListener(async (added) => {
+      const isPillOrigin = added.origins?.some((o) =>
+        (FLOATING_PILL_ORIGINS as readonly string[]).includes(o) ||
+        o === '<all_urls>'
+      )
+      if (isPillOrigin) {
+        if (chrome.storage?.local) {
           await chrome.storage.local.set({ quickPillEnabled: true })
         }
         await syncPillScriptRegistration(true)
@@ -91,11 +129,13 @@ export default defineBackground(() => {
   }
 
   if (typeof chrome !== 'undefined' && chrome.permissions?.onRemoved) {
-    chrome.permissions.onRemoved.addListener(async (permissions) => {
-      console.log('[TabDo Background] Permissions removed:', permissions)
-      const hasWildcard = permissions.origins?.some((o) => o.includes('*')) ?? false
-      if (hasWildcard) {
-        if (chrome.storage?.local?.set) {
+    chrome.permissions.onRemoved.addListener(async (removed) => {
+      const isPillOrigin = removed.origins?.some((o) =>
+        (FLOATING_PILL_ORIGINS as readonly string[]).includes(o) ||
+        o === '<all_urls>'
+      )
+      if (isPillOrigin) {
+        if (chrome.storage?.local) {
           await chrome.storage.local.set({ quickPillEnabled: false })
         }
         await syncPillScriptRegistration(false)

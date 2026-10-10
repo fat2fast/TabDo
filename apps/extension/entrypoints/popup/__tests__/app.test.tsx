@@ -186,6 +186,8 @@ describe('Popup App state machine', () => {
     await user.click(settingsBtn)
 
     expect(await screen.findByRole('heading', { name: 'Cài đặt kết nối' })).toBeInTheDocument()
+    expect(screen.getByTestId('settings-email')).toHaveTextContent('phat@example.com')
+    expect(screen.getByTestId('settings-timezone')).toHaveTextContent('Asia/Ho_Chi_Minh')
 
     // Find the toggle
     const toggle = screen.getByTestId('toggle-quick-pill')

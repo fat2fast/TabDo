@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { formatReminderDisplay } from '@tabdo/utils'
 import type { ExtensionAuthUser, ExtensionSyncMetadata } from '../lib/types.js'
+import {
+  hasFloatingPillPermissions,
+  requestFloatingPillPermissions,
+  revokeFloatingPillPermissions,
+} from '../lib/permissions.js'
 
 interface SettingsViewProps {
   user: ExtensionAuthUser
@@ -32,21 +37,19 @@ export function SettingsView({
     async function checkPillStatus() {
       if (typeof chrome === 'undefined') return
       try {
-        const hasPerm = chrome.permissions?.contains
-          ? (await chrome.permissions.contains({ origins: ['*://*/*'] }).catch(() => false))
-            || (await chrome.permissions.contains({ origins: ['https://*/*', 'http://*/*'] }).catch(() => false))
-          : false
+        const hasPerm = await hasFloatingPillPermissions()
         const stored = chrome.storage?.local?.get
           ? await chrome.storage.local.get('quickPillEnabled')
           : {}
 
-        // If permission has been granted, default to enabled unless explicitly turned off
-        const isEnabled = Boolean(hasPerm && stored?.quickPillEnabled !== false)
+        // Floating Pill is disabled by default. Enabled only if host permissions exist AND quickPillEnabled is explicitly true
+        const isEnabled = Boolean(hasPerm && stored?.quickPillEnabled === true)
         if (mounted) {
           setIsPillEnabled(isEnabled)
         }
-        if (hasPerm && stored?.quickPillEnabled !== isEnabled && chrome.storage?.local?.set) {
-          await chrome.storage.local.set({ quickPillEnabled: isEnabled })
+        // If stored was true but permissions were revoked externally, reconcile stored state
+        if (!hasPerm && stored?.quickPillEnabled === true && chrome.storage?.local?.set) {
+          await chrome.storage.local.set({ quickPillEnabled: false })
         }
       } catch {
         // ignore in non-extension environment
@@ -63,50 +66,30 @@ export function SettingsView({
     setPermissionError(null)
 
     if (nextVal) {
-      // Optimistically flip the switch so UI reflects state immediately
-      setIsPillEnabled(true)
       setIsRequestingPermission(true)
       try {
-        if (typeof chrome !== 'undefined' && chrome.permissions?.request) {
-          // Pre-save enabled in storage so if popup closes due to browser prompt blur,
-          // it stays enabled upon reopening
-          if (chrome.storage?.local?.set) {
-            await chrome.storage.local.set({ quickPillEnabled: true })
-          }
+        // Request host permissions only after direct user interaction
+        const granted = await requestFloatingPillPermissions()
 
-          let granted = false
-          try {
-            granted = await chrome.permissions.request({
-              origins: ['*://*/*'],
-            })
-          } catch (requestErr: any) {
-            // Fallback in case specific Chromium versions require explicit schemes
-            try {
-              granted = await chrome.permissions.request({
-                origins: ['https://*/*', 'http://*/*'],
-              })
-            } catch {
-              throw requestErr
+        if (granted) {
+          setIsPillEnabled(true)
+          if (typeof chrome !== 'undefined') {
+            if (chrome.storage?.local?.set) {
+              await chrome.storage.local.set({ quickPillEnabled: true })
             }
-          }
-
-          if (granted) {
-            setIsPillEnabled(true)
             if (chrome.runtime?.sendMessage) {
               chrome.runtime.sendMessage({
                 type: 'tabdo:sync-pill-script',
                 payload: { enabled: true },
               }).catch(() => {})
             }
-          } else {
-            // User declined/dismissed prompt
-            setIsPillEnabled(false)
-            if (chrome.storage?.local?.set) {
-              await chrome.storage.local.set({ quickPillEnabled: false })
-            }
           }
         } else {
-          setIsPillEnabled(true)
+          // Permission denied or dismissed
+          setIsPillEnabled(false)
+          if (typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
+            await chrome.storage.local.set({ quickPillEnabled: false })
+          }
         }
       } catch (err: any) {
         setPermissionError(err?.message || 'Không thể yêu cầu quyền truy cập')
@@ -129,22 +112,9 @@ export function SettingsView({
             payload: { enabled: false },
           }).catch(() => {})
         }
-        // Completely revoke all granted host origins
-        try {
-          if (chrome.permissions?.getAll) {
-            const current = await chrome.permissions.getAll()
-            const wildcardOrigins = (current.origins || []).filter((o) => o.includes('*'))
-            if (wildcardOrigins.length > 0 && chrome.permissions.remove) {
-              await chrome.permissions.remove({ origins: wildcardOrigins })
-            }
-          }
-          if (chrome.permissions?.remove) {
-            await chrome.permissions.remove({ origins: ['*://*/*'] }).catch(() => {})
-            await chrome.permissions.remove({ origins: ['https://*/*', 'http://*/*'] }).catch(() => {})
-          }
-        } catch {
-          // ignore
-        }
+        // Only revoke optional permissions associated with Floating Pill
+        // Never touch required Supabase host permissions
+        await revokeFloatingPillPermissions()
       }
     }
   }
