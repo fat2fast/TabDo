@@ -69,6 +69,103 @@ body {
   white-space: nowrap;
 }
 
+.sidebar-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sidebar-brand-link:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.sidebar-brand-link:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.sidebar-logo-img {
+  height: 34px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+  display: block;
+}
+
+.sidebar-logo-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sidebar-logo-collapsed-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+  overflow: hidden;
+}
+
+.sidebar-logo-collapsed-link:hover {
+  transform: scale(1.06);
+}
+
+.sidebar-logo-collapsed-link:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.sidebar-logo-collapsed-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: contain;
+  display: block;
+}
+
+.admin-sidebar .sidebar-brand-link:focus-visible,
+.admin-sidebar .sidebar-logo-collapsed-link:focus-visible {
+  outline-color: #7c3aed;
+}
+
+.admin-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-brand-link h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #7c3aed;
+  white-space: nowrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .sidebar-logo-collapsed {
   width: 36px;
   height: 36px;

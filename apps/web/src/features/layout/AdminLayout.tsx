@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { QuickLanguageButton } from './QuickLanguageButton'
 import { AccountDropdown } from './AccountDropdown'
 import { useI18n } from '../i18n/i18n-provider'
@@ -17,11 +17,14 @@ export function AdminLayout() {
       <aside className={`app-sidebar admin-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           {isCollapsed ? (
-            <div className="sidebar-logo-collapsed" title={t('admin.portalTitle')} aria-label={t('admin.portalTitle')}>
-              AD
-            </div>
+            <Link to="/admin/dashboard" className="sidebar-logo-collapsed-link" title={t('admin.portalTitle')} aria-label={t('admin.portalTitle')}>
+              <img src="/logo-icon.png" alt={t('admin.portalTitle')} className="sidebar-logo-collapsed-img" />
+            </Link>
           ) : (
-            <h1>{t('admin.portalTitle')}</h1>
+            <Link to="/admin/dashboard" className="sidebar-brand-link admin-brand-link" title={t('admin.portalTitle')} aria-label={t('admin.portalTitle')}>
+              <img src="/logo-icon.png" alt="TabDo" className="sidebar-logo-icon" />
+              <h1>{t('admin.portalTitle')}</h1>
+            </Link>
           )}
         </div>
         <nav className="sidebar-nav">
