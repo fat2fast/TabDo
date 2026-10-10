@@ -38,6 +38,8 @@ export const viCatalog = {
   'nav.signOut': 'Đăng xuất',
   'nav.adminUsers': 'Quản lý người dùng',
   'nav.adminDashboard': 'Tổng quan Quản trị',
+  'nav.collapseSidebar': 'Thu gọn thanh bên',
+  'nav.expandSidebar': 'Mở rộng thanh bên',
 
   // Header & User Menu
   'menu.theme': 'Giao diện',
@@ -290,6 +292,8 @@ export const enCatalog: Record<TranslationKey, string> = {
   'nav.signOut': 'Sign out',
   'nav.adminUsers': 'User Management',
   'nav.adminDashboard': 'Admin Overview',
+  'nav.collapseSidebar': 'Collapse sidebar',
+  'nav.expandSidebar': 'Expand sidebar',
 
   // Header & User Menu
   'menu.theme': 'Theme',

@@ -25,6 +25,7 @@ import {
 } from '../utils/task-attachments'
 import { embedLinkedTaskIds } from '../utils/task-linking'
 import { getCleanTaskDescription } from '../utils/task-description'
+import { AutoResizeTextarea } from '../../../components/ui/auto-resize-textarea'
 
 export interface TaskCreateModalProps {
   isOpen: boolean
@@ -398,9 +399,8 @@ export function TaskCreateModal({
                 <label htmlFor="create-task-title-input" className="field-label-bold">
                   Tiêu đề *
                 </label>
-                <input
+                <AutoResizeTextarea
                   id="create-task-title-input"
-                  type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
