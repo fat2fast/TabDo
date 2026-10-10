@@ -5,7 +5,7 @@ import { useI18n } from '../features/i18n/i18n-provider'
 
 export function AdminDashboardPage() {
   const { t } = useI18n()
-  const { data: stats, isLoading, isError, error, refetch } = useAdminStats()
+  const { data: stats, isLoading, isError, error, refetch, isFetching } = useAdminStats()
 
   if (isLoading) {
     return (
@@ -121,30 +121,72 @@ export function AdminDashboardPage() {
               {t('admin.dashboardSubtitle')}
             </p>
           </div>
-          <Link
-            to="/admin/users"
-            className="admin-submit-button"
-            style={{
-              textDecoration: 'none',
-              padding: '0.625rem 1.25rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              borderRadius: '8px',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <line x1="19" y1="8" x2="19" y2="14" />
-              <line x1="22" y1="11" x2="16" y2="11" />
-            </svg>
-            <span>{t('admin.usersTitle')}</span>
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title={isFetching ? t('common.loading') : 'Làm mới dữ liệu'}
+              className="btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.625rem 1rem',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                cursor: isFetching ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  animation: isFetching ? 'spin 1s linear infinite' : 'none',
+                  color: isFetching ? '#0284c7' : '#64748b',
+                }}
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              <span>{isFetching ? 'Đang cập nhật...' : 'Làm mới'}</span>
+            </button>
+            <Link
+              to="/admin/users"
+              className="admin-submit-button"
+              style={{
+                textDecoration: 'none',
+                padding: '0.625rem 1.25rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" y1="8" x2="19" y2="14" />
+                <line x1="22" y1="11" x2="16" y2="11" />
+              </svg>
+              <span>{t('admin.usersTitle')}</span>
+            </Link>
+          </div>
         </div>
       </div>
 

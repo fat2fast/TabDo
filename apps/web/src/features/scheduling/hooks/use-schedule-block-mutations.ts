@@ -6,6 +6,7 @@ import {
   updateScheduleBlock,
 } from '../api/schedule-blocks'
 import { scheduleQueryKeys } from '../query-keys'
+import { summaryQueryKeys } from '../../summary/query-keys'
 import type {
   CreateScheduleBlockInput,
   DeleteScheduleBlockInput,
@@ -20,6 +21,7 @@ export function useScheduleBlockMutations() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
       if (data.taskId) {
         queryClient.invalidateQueries({ queryKey: taskQueryKeys.all })
       }
@@ -33,6 +35,7 @@ export function useScheduleBlockMutations() {
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
     },
   })
 
@@ -43,6 +46,7 @@ export function useScheduleBlockMutations() {
       queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
     },
   })
 

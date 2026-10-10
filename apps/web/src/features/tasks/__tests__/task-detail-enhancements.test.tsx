@@ -26,6 +26,7 @@ import { getCleanTaskDescription } from '../utils/task-description'
 import { TaskAttachments } from '../components/task-attachments'
 import { TaskForm } from '../components/task-form'
 import { TaskRow } from '../components/task-row'
+import { TaskDetailView } from '../components/task-detail-view'
 import type { Task } from '../types'
 
 vi.mock('../../../lib/supabase', () => ({
@@ -468,6 +469,81 @@ describe('Task Detail Enhancements (UI/UX Pro Max)', () => {
       expect(screen.getByTestId('task-form-sticky-footer')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /lưu thay đổi/i })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /xóa công việc/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('TaskDetailView execution duration display', () => {
+    it('displays "Tổng thời gian thực hiện" with formatted duration when completedAt is present', () => {
+      const completedTask: Task = {
+        id: 'task-completed-1',
+        userId: 'u-1',
+        title: 'Task Hoàn Thành',
+        description: 'Mô tả',
+        status: 'done',
+        priority: 'high',
+        dueDateKind: 'date_time',
+        dueAt: '2026-10-05T12:00:00Z',
+        createdAt: '2026-10-01T08:00:00Z',
+        completedAt: '2026-10-05T10:30:00Z',
+        updatedAt: '2026-10-05T10:30:00Z',
+        parentId: null,
+        categoryId: null,
+        startAt: null,
+        sourceUrl: null,
+        recurrenceRule: null,
+      }
+
+      render(
+        <TaskDetailView
+          task={completedTask}
+          onEdit={vi.fn()}
+          onClose={vi.fn()}
+        />,
+        { wrapper: createWrapper() }
+      )
+
+      expect(screen.getByTestId('task-execution-duration-row')).toBeInTheDocument()
+      expect(screen.getByText(/tổng thời gian thực hiện/i)).toBeInTheDocument()
+      expect(screen.getByText(/4 ngày 2 giờ 30 phút/i)).toBeInTheDocument()
+    })
+
+    it('displays "Đã quá hạn" with overdue duration and clean due date when task is overdue', () => {
+      // Overdue task due on 2026-10-09
+      const overdueTask: Task = {
+        id: 'task-overdue-1',
+        userId: 'u-1',
+        title: 'Task Quá Hạn',
+        description: 'Mô tả',
+        status: 'todo',
+        priority: 'high',
+        dueDateKind: 'date_only',
+        dueAt: '2026-10-09T16:59:59.999Z',
+        createdAt: '2026-10-01T08:00:00Z',
+        completedAt: null,
+        updatedAt: '2026-10-01T08:00:00Z',
+        parentId: null,
+        categoryId: null,
+        startAt: null,
+        sourceUrl: null,
+        recurrenceRule: null,
+      }
+
+      render(
+        <TaskDetailView
+          task={overdueTask}
+          onEdit={vi.fn()}
+          onClose={vi.fn()}
+        />,
+        { wrapper: createWrapper() }
+      )
+
+      expect(screen.getByTestId('task-overdue-duration-row')).toBeInTheDocument()
+      expect(screen.getByText(/đã quá hạn/i)).toBeInTheDocument()
+      expect(screen.getByText(/quá hạn:/i)).toBeInTheDocument()
+
+      // Due date should not have awkward "(Quá hạn)" text wrapping
+      expect(screen.getByText('09/10/2026')).toBeInTheDocument()
+      expect(screen.queryByText(/\(quá hạn\)/i)).not.toBeInTheDocument()
     })
   })
 })

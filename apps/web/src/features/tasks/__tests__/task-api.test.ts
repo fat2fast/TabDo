@@ -64,8 +64,8 @@ describe('task-api functions', () => {
       await getTaskList(input)
 
       expect(supabase.from).toHaveBeenCalledWith('tasks')
-      expect(mockQueryBuilder.neq).toHaveBeenCalledWith('status', 'done')
-      // By default all active tasks are returned in Tất cả view
+      // By default both active and completed tasks are included in Tất cả view
+      expect(mockQueryBuilder.neq).not.toHaveBeenCalledWith('status', 'done')
       expect(mockQueryBuilder.is).not.toHaveBeenCalledWith('due_at', null)
 
       // When scope is unorganized, applies or condition
@@ -75,6 +75,63 @@ describe('task-api functions', () => {
       // When scope is no_due, applies is null condition
       await getTaskList({ ...input, scope: 'no_due' })
       expect(mockQueryBuilder.is).toHaveBeenCalledWith('due_at', null)
+    })
+
+    it('inbox view places completed tasks at the bottom after active tasks', async () => {
+      const mockRows = [
+        {
+          id: 'task-done-1',
+          user_id: 'user-1',
+          category_id: null,
+          parent_id: null,
+          title: 'Done task 1',
+          description: null,
+          status: 'done',
+          priority: 'medium',
+          due_date_kind: 'date_time',
+          due_at: null,
+          start_at: null,
+          source_url: null,
+          completed_at: '2026-10-05T10:00:00Z',
+          recurrence_rule: null,
+          created_at: '2026-10-05T09:00:00Z',
+          updated_at: '2026-10-05T10:00:00Z',
+        },
+        {
+          id: 'task-active-1',
+          user_id: 'user-1',
+          category_id: null,
+          parent_id: null,
+          title: 'Active task 1',
+          description: null,
+          status: 'todo',
+          priority: 'high',
+          due_date_kind: 'date_time',
+          due_at: null,
+          start_at: null,
+          source_url: null,
+          completed_at: null,
+          recurrence_rule: null,
+          created_at: '2026-10-05T08:00:00Z',
+          updated_at: '2026-10-05T08:00:00Z',
+        },
+      ]
+
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: mockRows, error: null }),
+      }
+
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder)
+
+      const result = await getTaskList({
+        view: 'inbox',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        now: new Date('2026-10-05T12:00:00Z'),
+      })
+
+      expect(result.map((t) => t.id)).toEqual(['task-active-1', 'task-done-1'])
     })
 
     it('applies category_id IS NULL when categoryId is none or null', async () => {

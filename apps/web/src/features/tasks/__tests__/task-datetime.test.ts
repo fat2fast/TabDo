@@ -5,6 +5,9 @@ import {
   getThisWeekEnd,
   toDateOnlyEndOfDay,
   isTaskOverdue,
+  formatTaskDueDate,
+  formatTaskExecutionDuration,
+  formatTaskOverdueDuration,
 } from '@tabdo/utils'
 
 describe('task-datetime timezone utilities', () => {
@@ -88,5 +91,72 @@ describe('task-datetime timezone utilities', () => {
     // Null or undefined due date -> not overdue
     expect(isTaskOverdue(null, 'todo', referenceNow)).toBe(false)
     expect(isTaskOverdue(undefined, 'todo', referenceNow)).toBe(false)
+  })
+
+  it('formats task execution duration supporting months, days, hours, and minutes', () => {
+    // 1 month, 5 days, 2 hours, 30 minutes
+    const created = '2026-08-01T10:00:00.000Z'
+    const completed = '2026-09-06T12:30:00.000Z'
+    expect(formatTaskExecutionDuration(created, completed, 'vi')).toBe(
+      '1 tháng 5 ngày 2 giờ 30 phút'
+    )
+    expect(formatTaskExecutionDuration(created, completed, 'en')).toBe(
+      '1 month 5 days 2 hours 30 mins'
+    )
+
+    // Just hours and minutes
+    const created2 = '2026-10-10T08:00:00.000Z'
+    const completed2 = '2026-10-10T12:15:00.000Z'
+    expect(formatTaskExecutionDuration(created2, completed2, 'vi')).toBe(
+      '4 giờ 15 phút'
+    )
+    expect(formatTaskExecutionDuration(created2, completed2, 'en')).toBe(
+      '4 hours 15 mins'
+    )
+
+    // Under 1 minute
+    const created3 = '2026-10-10T10:00:00.000Z'
+    const completed3 = '2026-10-10T10:00:20.000Z'
+    expect(formatTaskExecutionDuration(created3, completed3, 'vi')).toBe('Dưới 1 phút')
+    expect(formatTaskExecutionDuration(created3, completed3, 'en')).toBe('Less than 1 minute')
+
+    // Invalid / negative duration fallback
+    const invalidCompleted = '2026-10-09T10:00:00.000Z'
+    expect(formatTaskExecutionDuration(created3, invalidCompleted, 'vi')).toBe('Dưới 1 phút')
+  })
+
+  it('formats task due date cleanly without prefix to prevent wrapping', () => {
+    const tz = 'Asia/Ho_Chi_Minh'
+    const dueAt = '2026-10-09T16:59:59.999Z' // 23:59:59 ICT on 2026-10-09
+    expect(formatTaskDueDate(dueAt, 'date_only', tz)).toBe('09/10/2026')
+    expect(formatTaskDueDate(dueAt, 'date_time', tz)).toBe('09/10/2026 23:59')
+  })
+
+  it('formats task overdue duration supporting months, days, hours, and minutes', () => {
+    // 1 month 2 days 5 hours 30 minutes overdue
+    const dueAt = '2026-08-01T10:00:00.000Z'
+    const now = new Date('2026-09-03T15:30:00.000Z')
+    expect(formatTaskOverdueDuration(dueAt, now, 'vi')).toBe(
+      'Quá hạn: 1 tháng 2 ngày 5 giờ 30 phút'
+    )
+    expect(formatTaskOverdueDuration(dueAt, now, 'en')).toBe(
+      'Overdue: 1 month 2 days 5 hours 30 mins'
+    )
+
+    // Overdue by 16 hours
+    const dueAt2 = '2026-10-09T17:00:00.000Z'
+    const now2 = new Date('2026-10-10T09:00:00.000Z')
+    expect(formatTaskOverdueDuration(dueAt2, now2, 'vi')).toBe('Quá hạn: 16 giờ')
+    expect(formatTaskOverdueDuration(dueAt2, now2, 'en')).toBe('Overdue: 16 hours')
+
+    // Under 1 minute overdue
+    const dueAt3 = '2026-10-10T10:00:00.000Z'
+    const now3 = new Date('2026-10-10T10:00:30.000Z')
+    expect(formatTaskOverdueDuration(dueAt3, now3, 'vi')).toBe('Quá hạn: Dưới 1 phút')
+    expect(formatTaskOverdueDuration(dueAt3, now3, 'en')).toBe('Overdue: Less than 1 minute')
+
+    // Not overdue (future date) returns empty string
+    const futureDue = '2026-10-11T10:00:00.000Z'
+    expect(formatTaskOverdueDuration(futureDue, now3, 'vi')).toBe('')
   })
 })

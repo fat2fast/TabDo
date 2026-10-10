@@ -49,7 +49,7 @@ Current progress across the 11 MVP implementation phases:
 | [Phase 6](#phase-6--browser-extension) | Browser Extension | **Completed** | PR #4 & hardening, WXT MV3 popup, on-demand activation, `chrome.storage.local` sync, alarms & notifications |
 | [Phase 7](#phase-7--recurring-tasks) | Recurring Tasks | **Completed** | PR #7, migrations `0007` & `0008`, recurrence rules, auto-regeneration, cycle indicators |
 | [Phase 8](#phase-8--dashboard) | Dashboard | **Completed** | PR #7, `DashboardPage.tsx`, productivity metrics, daily agenda, overdue tracking |
-| [Phase 9](#phase-9--daily--weekly-summary) | Daily & Weekly Summary | **Planned** | Completed vs rolled over review |
+| [Phase 9](#phase-9--daily--weekly-summary) | Daily & Weekly Summary | **Completed** | Rule-based daily/weekly outcomes review, completion rates, category breakdown |
 | [Phase 10](#phase-10--mvp-hardening--release-verification) | MVP Hardening & Release Verification | **Planned** | In Progress (Cross-client smoke tests, performance, security gates) |
 
 ---

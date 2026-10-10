@@ -15,7 +15,7 @@ This directory contains the original MVP Phase 0–10 specifications and propose
 | [Phase 6](./phase-06-browser-extension.md) | Browser Extension | **Completed** | PR #4 (`plans/261006-1645-...`) | WXT MV3 popup, Today sync via `chrome.storage.local`, alarms via `chrome.alarms` & notifications |
 | [Phase 7](./phase-07-recurring-tasks.md) | Recurring Tasks | **Completed** | PR #7 (`0007`, `0008`, `recurrence.ts`) | Recurrence rule schema, auto-regeneration on completion, timezone/DST handling |
 | [Phase 8](./phase-08-dashboard.md) | Dashboard | **Completed** | PR #7 (`DashboardPage.tsx`, metrics) | Productive day metrics, today's agenda, overdue tracking, priority overview |
-| [Phase 9](./phase-09-daily-weekly-summary.md) | Daily & Weekly Summary | **Planned** | Planned | Rule-based daily/weekly summary of completed, pending, carried-over, and overdue work |
+| [Phase 9](./phase-09-daily-weekly-summary.md) | Daily & Weekly Summary | **Completed** | PR (`SummaryPage.tsx`, metrics) | Rule-based daily/weekly summary of completed, pending, carried-over, and overdue work |
 | [Phase 10](./phase-10-hardening-and-release.md) | MVP Hardening & Release Verification | **Planned** | In Progress | Cross-client smoke tests, performance, end-to-end verification, security audits |
 
 ## Proposed Post-MVP Phases 11–20

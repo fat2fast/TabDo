@@ -3,6 +3,7 @@ import {
   formatRecurrenceRuleSummary,
   formatTaskCompletedAt,
   formatTaskDueDate,
+  formatTaskOverdueDuration,
   isTaskOverdue,
 } from '@tabdo/utils'
 import { useAuth } from '../../auth/auth-provider'
@@ -260,7 +261,11 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
         ) : task.dueAt ? (
           <div
             className={`task-due-chip ${isOverdue ? 'due-overdue' : ''}`}
-            title={`Hạn chót: ${formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}`}
+            title={
+              isOverdue
+                ? `Hạn chót: ${formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)} (${formatTaskOverdueDuration(task.dueAt, new Date())})`
+                : `Hạn chót: ${formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}`
+            }
             onClick={() => onSelect(task.id)}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -268,7 +273,9 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
               <polyline points="12 6 12 12 16 14" />
             </svg>
             <span className="due-chip-text">
-              {formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}
+              {isOverdue
+                ? formatTaskOverdueDuration(task.dueAt, new Date()) || formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
+                : formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}
             </span>
           </div>
         ) : (
