@@ -12,10 +12,10 @@ import {
 import { useOptionalAuth } from '../../auth/auth-provider'
 import { useCategories } from '../hooks/use-categories'
 import { useTaskMutations } from '../hooks/use-task-mutations'
-import { useLinkedTasks, useSubtasks, useTaskDetail } from '../hooks/use-tasks'
+import { useLinkedTasks, useSubtasks, useTaskAttachments, useTaskDetail } from '../hooks/use-tasks'
+import { downloadAndOpenAttachment } from '../api/tasks'
 import type { Task } from '../types'
 import {
-  extractTaskAttachments,
   formatFileSize,
 } from '../utils/task-attachments'
 import {
@@ -28,6 +28,7 @@ import { MarkdownViewer } from './ui/markdown-viewer'
 import { useScheduleBlocksByTask } from '../../scheduling/hooks/use-schedule-blocks'
 import { useRemindersByTask } from '../../reminders/hooks/use-reminders'
 import { useConfirm } from '../../../components/ui'
+import { useI18n } from '../../i18n/i18n-provider'
 
 export interface TaskDetailViewProps {
   task: Task
@@ -44,6 +45,7 @@ export function TaskDetailView({
   onDeleted,
   onNavigateParent,
 }: TaskDetailViewProps) {
+  const { t } = useI18n()
   const auth = useOptionalAuth()
   const timeZone = auth?.profile?.timezone || 'Asia/Ho_Chi_Minh'
   const { data: categories = [] } = useCategories()
@@ -51,11 +53,15 @@ export function TaskDetailView({
     completeTaskMutation,
     reopenTaskMutation,
     deleteTaskMutation,
+    restoreTaskMutation,
+    purgeTaskMutation,
     updateTaskMutation,
   } = useTaskMutations()
   const confirm = useConfirm()
 
   const isCompleted = task.status === 'done'
+  const isTrashed = Boolean(task.deletedAt)
+  const isLocked = isCompleted || isTrashed
   const isOverdue = isTaskOverdue(task.dueAt, task.status, new Date())
   const category = categories.find((c) => c.id === task.categoryId)
 
@@ -74,10 +80,7 @@ export function TaskDetailView({
     () => extractTaskChecklist(task.description),
     [task.description]
   )
-  const attachments = useMemo(
-    () => extractTaskAttachments(task.description),
-    [task.description]
-  )
+  const { data: attachments = [] } = useTaskAttachments(task.id, task.description)
   const linkedTaskIds = useMemo(
     () => extractLinkedTaskIds(task.description),
     [task.description]
@@ -123,7 +126,7 @@ export function TaskDetailView({
 
   // Toggle checklist item status in read mode
   const handleToggleChecklistItem = async (itemIndex: number) => {
-    if (isCompleted) return
+    if (isLocked) return
     const updatedItems = checklistItems.map((item, idx) =>
       idx === itemIndex ? { ...item, completed: !item.completed } : item
     )
@@ -131,9 +134,11 @@ export function TaskDetailView({
     let fullDesc = cleanDescription
     fullDesc = embedTaskChecklist(fullDesc, updatedItems)
     const { embedLinkedTaskIds } = await import('../utils/task-linking')
-    const { embedTaskAttachments } = await import('../utils/task-attachments')
     fullDesc = embedLinkedTaskIds(fullDesc, linkedTaskIds)
-    fullDesc = embedTaskAttachments(fullDesc, attachments)
+    const legacyAttMatch = task.description?.match(/<!--\s*tabdo_attachments:[\s\S]*?-->/)
+    if (legacyAttMatch) {
+      fullDesc = `${fullDesc}\n\n${legacyAttMatch[0]}`.trim()
+    }
 
     await updateTaskMutation.mutateAsync({
       id: task.id,
@@ -169,6 +174,50 @@ export function TaskDetailView({
     }
   }
 
+  const handleRestore = async () => {
+    try {
+      await restoreTaskMutation.mutateAsync({ id: task.id, parentId: task.parentId })
+      onClose()
+    } catch (err: any) {
+      confirm({
+        title: 'Lỗi khôi phục',
+        message: err?.message || 'Không thể khôi phục công việc.',
+        confirmText: 'Đã hiểu',
+        cancelText: null,
+        variant: 'warning',
+      })
+    }
+  }
+
+  const handlePermanentDelete = async () => {
+    const confirmed = await confirm({
+      title: t('tasks.confirmPurgeTitle') || 'Xóa vĩnh viễn công việc?',
+      message: (
+        <span>
+          {t('tasks.confirmPurgeMessage') ||
+            'Hành động này không thể hoàn tác. Mọi dữ liệu liên quan sẽ bị xóa vĩnh viễn.'}
+          <br />
+          <strong>"{task.title}"</strong>
+        </span>
+      ),
+      confirmText: t('tasks.purgePermanently') || 'Xóa vĩnh viễn',
+      cancelText: 'Hủy',
+      variant: 'danger',
+    })
+    if (!confirmed) return
+
+    try {
+      await purgeTaskMutation.mutateAsync({ id: task.id, parentId: task.parentId })
+      if (onDeleted) {
+        onDeleted()
+      } else {
+        onClose()
+      }
+    } catch {
+      // Handled by query mutation
+    }
+  }
+
   const completedChecklistCount = checklistItems.filter((i) => i.completed).length
 
   return (
@@ -177,8 +226,54 @@ export function TaskDetailView({
           LEFT MAIN WORKSPACE COLUMN (Header, Markdown prose, Vertical Tabs)
           ========================================================================= */}
       <div className="task-detail-main-col">
+        {/* Deleted / Trashed Status Banner */}
+        {isTrashed && (
+          <div className="task-deleted-locked-banner" role="status" data-testid="task-deleted-locked-banner">
+            <div className="banner-status-info">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="banner-trash-icon"
+              >
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <div className="banner-text-details">
+                <span className="banner-status-heading">{t('tasks.deletedTaskBanner')}</span>
+                <span className="banner-status-sub">
+                  {t('tasks.trashRetentionNotice')}
+                </span>
+              </div>
+            </div>
+            <div className="banner-actions-group">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm banner-restore-btn"
+                onClick={handleRestore}
+                disabled={restoreTaskMutation.isPending}
+                title="Khôi phục công việc"
+              >
+                {t('tasks.restore')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger-ghost btn-sm"
+                onClick={handlePermanentDelete}
+                disabled={purgeTaskMutation.isPending}
+                title="Xóa vĩnh viễn công việc"
+              >
+                {t('tasks.purgePermanently')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Completed Status Banner */}
-        {isCompleted && (
+        {isCompleted && !isTrashed && (
           <div className="task-completed-locked-banner" role="status" data-testid="task-completed-locked-banner">
             <div className="banner-status-info">
               <svg
@@ -243,11 +338,11 @@ export function TaskDetailView({
         <div className="task-detail-title-view-wrap">
           <button
             type="button"
-            className={`detail-view-status-checkbox ${isCompleted ? 'checked' : ''}`}
+            className={`detail-view-status-checkbox ${isCompleted ? 'checked' : ''} ${isTrashed ? 'trashed-disabled' : ''}`}
             onClick={handleToggleComplete}
-            disabled={completeTaskMutation.isPending || reopenTaskMutation.isPending}
-            title={isCompleted ? 'Mở lại công việc' : 'Đánh dấu hoàn thành'}
-            aria-label={isCompleted ? 'Mở lại công việc' : 'Đánh dấu hoàn thành'}
+            disabled={completeTaskMutation.isPending || reopenTaskMutation.isPending || isTrashed}
+            title={isTrashed ? t('tasks.deletedTaskBanner') : isCompleted ? 'Mở lại công việc' : 'Đánh dấu hoàn thành'}
+            aria-label={isTrashed ? t('tasks.deletedTaskBanner') : isCompleted ? 'Mở lại công việc' : 'Đánh dấu hoàn thành'}
           >
             {isCompleted && (
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -256,7 +351,7 @@ export function TaskDetailView({
             )}
           </button>
           <h2
-            className={`task-detail-heading ${isCompleted ? 'completed-heading' : ''}`}
+            className={`task-detail-heading ${isCompleted ? 'completed-heading' : ''} ${isTrashed ? 'trashed-heading' : ''}`}
             data-testid="detail-view-title"
           >
             {task.title}
@@ -556,15 +651,14 @@ export function TaskDetailView({
                           <span className="att-name">{att.name}</span>
                           {att.size && <span className="att-size">{formatFileSize(att.size)}</span>}
                         </div>
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
                           className="btn btn-secondary btn-xs"
-                          download={att.name}
+                          onClick={() => downloadAndOpenAttachment(att)}
+                          title="Tải về hoặc mở tệp"
                         >
-                          Tải về / Mở ↗
-                        </a>
+                          {att.kind === 'link' || att.type === 'link' ? 'Mở ↗' : 'Tải về / Mở ↗'}
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -800,15 +894,27 @@ export function TaskDetailView({
 
       {/* Sticky Bottom Actions Bar */}
       <div className="task-detail-sticky-footer" data-testid="detail-view-sticky-footer">
-        <button
-          type="button"
-          className="btn btn-ghost-danger btn-delete-action"
-          onClick={handleDelete}
-          disabled={deleteTaskMutation.isPending}
-          data-testid="detail-delete-btn"
-        >
-          🗑️ Xóa công việc
-        </button>
+        {isTrashed ? (
+          <button
+            type="button"
+            className="btn btn-ghost-danger btn-delete-action"
+            onClick={handlePermanentDelete}
+            disabled={purgeTaskMutation.isPending}
+            data-testid="detail-purge-btn"
+          >
+            🗑️ {t('tasks.purgePermanently')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-ghost-danger btn-delete-action"
+            onClick={handleDelete}
+            disabled={deleteTaskMutation.isPending}
+            data-testid="detail-delete-btn"
+          >
+            🗑️ Xóa công việc
+          </button>
+        )}
 
         <div className="sticky-footer-right">
           <button
@@ -819,7 +925,17 @@ export function TaskDetailView({
             Đóng
           </button>
 
-          {!isCompleted ? (
+          {isTrashed ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-edit-action"
+              onClick={handleRestore}
+              disabled={restoreTaskMutation.isPending}
+              data-testid="detail-restore-btn"
+            >
+              ↺ {t('tasks.restore')}
+            </button>
+          ) : !isCompleted ? (
             <button
               type="button"
               className="btn btn-primary btn-edit-action"

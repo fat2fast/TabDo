@@ -1,20 +1,60 @@
 import React, { useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  createTaskLinkAttachment,
+  deleteTaskAttachment,
+  downloadAndOpenAttachment,
+  uploadTaskAttachment,
+} from '../api/tasks'
+import { taskQueryKeys } from '../query-keys'
 import { formatFileSize, type TaskAttachment } from '../utils/task-attachments'
 
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/json',
+])
+
+function isAllowedFile(file: File): boolean {
+  if (ALLOWED_MIME_TYPES.has(file.type)) return true
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'pdf', 'txt', 'md', 'csv', 'json'].includes(ext || '')
+}
+
+function useSafeQueryClient() {
+  try {
+    return useQueryClient()
+  } catch {
+    return null
+  }
+}
+
 export interface TaskAttachmentsProps {
+  taskId?: string
   attachments: TaskAttachment[]
-  onChangeAttachments: (newAttachments: TaskAttachment[]) => void
+  onChangeAttachments?: (newAttachments: TaskAttachment[]) => void
   disabled?: boolean
 }
 
 export function TaskAttachments({
-  attachments,
+  taskId,
+  attachments = [],
   onChangeAttachments,
   disabled = false,
 }: TaskAttachmentsProps) {
+  const queryClient = useSafeQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isAddingLink, setIsAddingLink] = useState(false)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [linkName, setLinkName] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -24,33 +64,60 @@ export function TaskAttachments({
     if (!files || files.length === 0 || disabled) return
 
     const newItems: TaskAttachment[] = []
+    const maxBytes = 10 * 1024 * 1024 // 10MB
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
 
-      // Guard file size (max 4MB per file for base64 storage)
-      if (file.size > 4 * 1024 * 1024) {
-        setErrorMsg(`Tệp "${file.name}" vượt quá kích thước cho phép (tối đa 4MB).`)
+      // Guard file size (max 10MB per file)
+      if (file.size > maxBytes) {
+        setErrorMsg(`Tệp "${file.name}" vượt quá kích thước cho phép (tối đa 10MB).`)
         continue
       }
 
-      try {
-        const dataUrl = await readFileAsDataUrl(file)
+      // Guard MIME type
+      if (!isAllowedFile(file)) {
+        setErrorMsg(
+          `Định dạng tệp "${file.name}" không được hỗ trợ. Chỉ chấp nhận hình ảnh, PDF, tài liệu văn bản (TXT, MD, CSV, JSON).`
+        )
+        continue
+      }
+
+      if (taskId) {
+        // Direct upload to Supabase Storage + task_attachments table
+        try {
+          setIsUploading(true)
+          const uploaded = await uploadTaskAttachment(taskId, file)
+          newItems.push(uploaded)
+        } catch (err: any) {
+          setErrorMsg(err?.message || `Không thể tải lên tệp "${file.name}".`)
+        } finally {
+          setIsUploading(false)
+        }
+      } else {
+        // Staged upload for new task draft without Base64 conversion
+        const isImage = file.type.startsWith('image/')
+        const previewUrl = isImage && typeof URL !== 'undefined' ? URL.createObjectURL(file) : undefined
         newItems.push({
           id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           name: file.name,
           size: file.size,
           type: file.type || 'application/octet-stream',
-          url: dataUrl,
+          url: previewUrl,
+          kind: 'file',
+          rawFile: file,
           createdAt: new Date().toISOString(),
-        })
-      } catch {
-        setErrorMsg(`Không thể đọc tệp "${file.name}".`)
+        } as any)
       }
     }
 
     if (newItems.length > 0) {
-      onChangeAttachments([...attachments, ...newItems])
+      if (taskId && queryClient) {
+        queryClient.invalidateQueries({ queryKey: taskQueryKeys.attachments(taskId) })
+      }
+      if (onChangeAttachments) {
+        onChangeAttachments([...attachments, ...newItems])
+      }
     }
   }
 
@@ -92,7 +159,7 @@ export function TaskAttachments({
     }
   }
 
-  const handleAddLink = (e?: React.SyntheticEvent) => {
+  const handleAddLink = async (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault()
       e.stopPropagation()
@@ -111,33 +178,74 @@ export function TaskAttachments({
       }
     }
 
-    const newAttachment: TaskAttachment = {
-      id: `att-link-${Date.now()}`,
-      name: resolvedName,
-      size: 0,
-      type: 'link',
-      url: trimmedUrl,
-      createdAt: new Date().toISOString(),
-    }
+    if (taskId) {
+      try {
+        const createdLink = await createTaskLinkAttachment(taskId, resolvedName, trimmedUrl)
+        queryClient?.invalidateQueries({ queryKey: taskQueryKeys.attachments(taskId) })
+        if (onChangeAttachments) {
+          onChangeAttachments([...attachments, createdLink])
+        }
+        setLinkUrl('')
+        setLinkName('')
+        setIsAddingLink(false)
+      } catch (err: any) {
+        setErrorMsg(err?.message || 'Không thể thêm liên kết.')
+      }
+    } else {
+      const newAttachment: TaskAttachment = {
+        id: `att-link-${Date.now()}`,
+        name: resolvedName,
+        size: 0,
+        type: 'link',
+        kind: 'link',
+        url: trimmedUrl,
+        externalUrl: trimmedUrl,
+        createdAt: new Date().toISOString(),
+      }
 
-    onChangeAttachments([...attachments, newAttachment])
-    setLinkUrl('')
-    setLinkName('')
-    setIsAddingLink(false)
+      if (onChangeAttachments) {
+        onChangeAttachments([...attachments, newAttachment])
+      }
+      setLinkUrl('')
+      setLinkName('')
+      setIsAddingLink(false)
+    }
   }
 
-  const handleDeleteAttachment = (id: string) => {
+  const handleDeleteAttachment = async (target: TaskAttachment) => {
     if (disabled) return
-    onChangeAttachments(attachments.filter((item) => item.id !== id))
+    if (taskId && target.id && target.kind) {
+      try {
+        await deleteTaskAttachment(target)
+        queryClient?.invalidateQueries({ queryKey: taskQueryKeys.attachments(taskId) })
+      } catch (err: any) {
+        console.warn('[handleDeleteAttachment] error:', err)
+      }
+    }
+    if (onChangeAttachments) {
+      onChangeAttachments(attachments.filter((item) => item.id !== target.id))
+    }
+  }
+
+  const handleOpenOrDownload = async (att: TaskAttachment) => {
+    try {
+      setDownloadingId(att.id)
+      await downloadAndOpenAttachment(att)
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Không thể mở hoặc tải xuống tệp.')
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   const getFileIcon = (att: TaskAttachment) => {
-    if (att.type === 'link') return '🔗'
-    if (att.type.startsWith('image/')) return '🖼️'
-    if (att.type.includes('pdf')) return '📕'
-    if (att.type.includes('word') || att.name.endsWith('.doc') || att.name.endsWith('.docx')) return '📘'
-    if (att.type.includes('sheet') || att.name.endsWith('.xls') || att.name.endsWith('.xlsx')) return '📗'
-    if (att.type.includes('zip') || att.type.includes('rar') || att.name.endsWith('.7z')) return '📦'
+    if (att.kind === 'link' || att.type === 'link') return '🔗'
+    const typeStr = att.type || ''
+    if (typeStr.startsWith('image/')) return '🖼️'
+    if (typeStr.includes('pdf')) return '📕'
+    if (typeStr.includes('word') || att.name.endsWith('.doc') || att.name.endsWith('.docx')) return '📘'
+    if (typeStr.includes('sheet') || att.name.endsWith('.xls') || att.name.endsWith('.xlsx')) return '📗'
+    if (typeStr.includes('zip') || att.name.endsWith('.zip')) return '📦'
     return '📄'
   }
 
@@ -157,16 +265,16 @@ export function TaskAttachments({
             type="button"
             className="btn-upload-attachment"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
+            disabled={disabled || isUploading}
             title="Tải tệp từ máy tính"
           >
-            + Chọn tệp
+            {isUploading ? 'Đang tải...' : '+ Chọn tệp'}
           </button>
           <button
             type="button"
             className="btn-link-attachment"
             onClick={() => setIsAddingLink(!isAddingLink)}
-            disabled={disabled}
+            disabled={disabled || isUploading}
             title="Thêm liên kết tài liệu trực tuyến"
           >
             {isAddingLink ? 'Đóng link' : '+ Thêm link'}
@@ -180,7 +288,7 @@ export function TaskAttachments({
         multiple
         style={{ display: 'none' }}
         onChange={handleFileSelect}
-        disabled={disabled}
+        disabled={disabled || isUploading}
       />
 
       {errorMsg && (
@@ -275,12 +383,13 @@ export function TaskAttachments({
       {attachments.length > 0 && (
         <div className="attachments-grid">
           {attachments.map((att) => {
-            const isImage = att.type.startsWith('image/')
+            const isImage = (att.type || '').startsWith('image/')
+            const previewUrl = att.url
             return (
               <div key={att.id} className="attachment-card">
                 <div className="card-file-preview">
-                  {isImage && att.url.startsWith('data:') ? (
-                    <img src={att.url} alt={att.name} className="img-thumbnail" />
+                  {isImage && previewUrl ? (
+                    <img src={previewUrl} alt={att.name} className="img-thumbnail" />
                   ) : (
                     <span className="file-icon">{getFileIcon(att)}</span>
                   )}
@@ -291,25 +400,26 @@ export function TaskAttachments({
                     {att.name}
                   </span>
                   <span className="card-file-sub">
-                    {att.size > 0 ? formatFileSize(att.size) : 'Liên kết ngoài'}
+                    {(att.size || 0) > 0
+                      ? formatFileSize(att.size)
+                      : 'Liên kết ngoài'}
                   </span>
                 </div>
 
                 <div className="card-file-actions">
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={att.type !== 'link' ? att.name : undefined}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenOrDownload(att)}
                     className="attachment-view-link"
                     title="Mở hoặc tải về"
+                    disabled={downloadingId === att.id}
                   >
-                    Mở ↗
-                  </a>
+                    {downloadingId === att.id ? '...' : 'Mở ↗'}
+                  </button>
                   <button
                     type="button"
                     className="attachment-delete-btn"
-                    onClick={() => handleDeleteAttachment(att.id)}
+                    onClick={() => handleDeleteAttachment(att)}
                     disabled={disabled}
                     title="Xóa tệp đính kèm này"
                     aria-label={`Xóa tệp: ${att.name}`}
@@ -324,13 +434,4 @@ export function TaskAttachments({
       )}
     </div>
   )
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
 }

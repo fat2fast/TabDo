@@ -15,7 +15,8 @@
     "lint": "oxlint apps packages",
     "test": "pnpm --filter @tabdo/web test && pnpm --filter @tabdo/extension test",
     "test:integration": "node --experimental-strip-types scripts/test-integration.ts",
-    "bootstrap:admin": "node --experimental-strip-types scripts/bootstrap-admin.ts"
+    "bootstrap:admin": "node --experimental-strip-types scripts/bootstrap-admin.ts",
+    "migrate:attachments": "node --experimental-strip-types scripts/migrate-task-attachments.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.117.2",

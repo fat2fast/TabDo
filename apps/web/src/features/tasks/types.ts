@@ -10,7 +10,7 @@ import type {
   UpdateTaskInput,
 } from '@tabdo/types'
 
-export type TaskView = 'inbox' | 'today' | 'upcoming' | 'overdue' | 'completed'
+export type TaskView = 'inbox' | 'today' | 'upcoming' | 'overdue' | 'completed' | 'trash'
 
 export type TaskSortOption =
   | 'default'
@@ -57,6 +57,9 @@ export interface TaskRow {
   recurrence_parent_id?: string | null
   recurrence_timezone?: string | null
   recurrence_anchor_at?: string | null
+  deleted_at?: string | null
+  deletion_batch_id?: string | null
+  purge_status?: string | null
   created_at: string
   updated_at: string
   subtasks_count?: number
@@ -92,6 +95,9 @@ export function rowToTask(row: TaskRow): Task {
     recurrenceParentId: row.recurrence_parent_id ?? null,
     recurrenceTimezone: row.recurrence_timezone ?? null,
     recurrenceAnchorAt: row.recurrence_anchor_at ?? null,
+    deletedAt: row.deleted_at ?? null,
+    deletionBatchId: row.deletion_batch_id ?? null,
+    purgeStatus: row.purge_status ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

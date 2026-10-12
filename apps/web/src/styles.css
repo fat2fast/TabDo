@@ -10637,3 +10637,391 @@ body {
   color: #f8fafc;
 }
 
+/* =========================================================================
+   TASK TRASH & DATA SAFETY (UI/UX PRO MAX)
+   ========================================================================= */
+
+.task-trash-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* 30-Day Retention Notice Banner */
+.trash-retention-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.trash-retention-banner .banner-icon {
+  color: #d97706;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trash-retention-banner .banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.875rem;
+  color: #92400e;
+}
+
+.trash-retention-banner .banner-text strong {
+  font-weight: 600;
+  color: #78350f;
+}
+
+.trash-retention-banner .banner-subtext {
+  font-size: 0.8rem;
+  color: #b45309;
+}
+
+/* Toast Action Feedback */
+.trash-feedback-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  color: #065f46;
+  font-size: 0.85rem;
+  font-weight: 500;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.feedback-dismiss-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: #047857;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+/* Trash Search Controls */
+.trash-controls {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--color-bg-card, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.trash-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.trash-search-icon {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.trash-search-input {
+  width: 100%;
+  padding: 9px 36px 9px 38px;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--color-bg-input, #f8fafc);
+  color: var(--color-text-main, #0f172a);
+  transition: all 0.15s ease;
+}
+
+.trash-search-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.trash-search-clear {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 1.15rem;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.trash-search-clear:hover {
+  color: #475569;
+}
+
+/* Trash Task List */
+.trash-content-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trash-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trash-task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--color-bg-card, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.trash-task-row:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+}
+
+.trash-task-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.trash-task-icon {
+  font-size: 1.25rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.trash-task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.trash-task-title-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.trash-task-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475569;
+  text-decoration: line-through;
+  text-decoration-color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trash-task-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.days-left-badge {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.days-left-warning {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+}
+
+.purge-pending-badge {
+  background: #fff7ed !important;
+  color: #c2410c !important;
+  border-color: #fed7aa !important;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.trash-task-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Task Detail Trashed Status Banner */
+.task-deleted-locked-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  margin-bottom: 4px;
+}
+
+.task-deleted-locked-banner .banner-trash-icon {
+  color: #e11d48;
+  flex-shrink: 0;
+}
+
+.task-deleted-locked-banner .banner-status-heading {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #9f1239;
+}
+
+.task-deleted-locked-banner .banner-status-sub {
+  font-size: 0.775rem;
+  color: #be123c;
+}
+
+.task-deleted-locked-banner .banner-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.detail-view-status-checkbox.trashed-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.task-detail-heading.trashed-heading {
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  .trash-task-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .trash-task-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .task-deleted-locked-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .task-deleted-locked-banner .banner-actions-group {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* Dark mode adjustments */
+.dark .trash-retention-banner {
+  background: #451a03;
+  border-color: #78350f;
+  color: #fef3c7;
+}
+
+.dark .trash-retention-banner .banner-icon {
+  color: #fbbf24;
+}
+
+.dark .trash-retention-banner .banner-text {
+  color: #fde68a;
+}
+
+.dark .trash-retention-banner .banner-text strong {
+  color: #fef3c7;
+}
+
+.dark .trash-retention-banner .banner-subtext {
+  color: #fcd34d;
+}
+
+.dark .trash-controls {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .trash-search-input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark .trash-task-row {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .trash-task-row:hover {
+  background: #273549;
+  border-color: #475569;
+}
+
+.dark .trash-task-title {
+  color: #94a3b8;
+  text-decoration-color: #64748b;
+}
+
+.dark .days-left-badge {
+  background: #0f172a;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark .days-left-warning {
+  background: #450a0a !important;
+  color: #fca5a5 !important;
+  border-color: #7f1d1d !important;
+}
+
+.dark .task-deleted-locked-banner {
+  background: #4c0519;
+  border-color: #881337;
+}
+
+.dark .task-deleted-locked-banner .banner-status-heading {
+  color: #ffe4e6;
+}
+
+.dark .task-deleted-locked-banner .banner-status-sub {
+  color: #fecdd3;
+}

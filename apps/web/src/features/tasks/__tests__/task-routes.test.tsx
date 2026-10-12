@@ -94,7 +94,7 @@ describe('task-routes', () => {
     expect(await screen.findByRole('heading', { name: /tất cả|all|hộp thư đến|inbox/i })).toBeInTheDocument()
   })
 
-  it('renders smart views on static paths /tasks/today, /tasks/upcoming, /tasks/overdue, /tasks/completed', async () => {
+  it('renders smart views on static paths /tasks/today, /tasks/upcoming, /tasks/overdue, /tasks/completed, /tasks/trash', async () => {
     const { unmount: unmountToday } = renderRoute('/tasks/today')
     expect(await screen.findByRole('heading', { name: /hôm nay|today/i })).toBeInTheDocument()
     unmountToday()
@@ -110,6 +110,10 @@ describe('task-routes', () => {
     const { unmount: unmountCompleted } = renderRoute('/tasks/completed')
     expect(await screen.findByRole('heading', { name: /đã hoàn thành|completed/i })).toBeInTheDocument()
     unmountCompleted()
+
+    const { unmount: unmountTrash } = renderRoute('/tasks/trash')
+    expect(await screen.findByRole('heading', { name: /thùng rác|trash/i })).toBeInTheDocument()
+    unmountTrash()
   })
 
   it('redirects obsolete /tasks/:id route safely to /dashboard without collision', async () => {

@@ -3,14 +3,9 @@
  * Format: <!-- tabdo_attachments: [...] -->
  */
 
-export interface TaskAttachment {
-  id: string
-  name: string
-  size: number
-  type: string
-  url: string
-  createdAt: string
-}
+import type { TaskAttachment } from '@tabdo/types'
+
+export type { TaskAttachment }
 
 const ATTACHMENTS_METADATA_REGEX = /<!--\s*tabdo_attachments:[\s\S]*?-->/gi
 const ATTACHMENTS_EXTRACT_REGEX = /<!--\s*tabdo_attachments:\s*(\[[\s\S]*?\])\s*-->/i
@@ -56,4 +51,21 @@ export function formatFileSize(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   const size = bytes / Math.pow(1024, i)
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+export function mergeTaskAttachments(
+  normalized: TaskAttachment[],
+  legacy: TaskAttachment[]
+): TaskAttachment[] {
+  const merged: TaskAttachment[] = [...normalized]
+  const seenIds = new Set(normalized.map((a) => a.id))
+  const seenNames = new Set(normalized.map((a) => `${a.name}-${a.size}`))
+
+  for (const leg of legacy) {
+    if (seenIds.has(leg.id)) continue
+    if (seenNames.has(`${leg.name}-${leg.size}`)) continue
+    merged.push(leg)
+  }
+
+  return merged
 }
