@@ -7,10 +7,9 @@ import {
 import { useAuth } from '../../auth/auth-provider'
 import { useCategories } from '../hooks/use-categories'
 import { useTaskMutations } from '../hooks/use-task-mutations'
-import { useSubtasks, useTaskDetail } from '../hooks/use-tasks'
+import { useSubtasks, useTaskAttachments, useTaskDetail } from '../hooks/use-tasks'
 import type { DueDateKind, Task, TaskPriority, TaskStatus } from '../types'
 import {
-  embedTaskAttachments,
   extractTaskAttachments,
   type TaskAttachment,
 } from '../utils/task-attachments'
@@ -66,6 +65,7 @@ export function TaskForm({
   const { data: subtasks = [] } = useSubtasks(task.parentId ? null : task.id)
   const { data: scheduleBlocks = [] } = useScheduleBlocksByTask(task.id)
   const { data: taskReminders = [] } = useRemindersByTask(task.id)
+  const { data: serverAttachments = [] } = useTaskAttachments(task.id, task.description)
   const [isScheduleEditorOpen, setIsScheduleEditorOpen] = useState(false)
   const [editingScheduleBlock, setEditingScheduleBlock] = useState<ScheduleBlock | null>(null)
 
@@ -131,7 +131,7 @@ export function TaskForm({
     setDescription(getCleanTaskDescription(task.description))
     setChecklistItems(extractTaskChecklist(task.description))
     setLinkedTaskIds(extractLinkedTaskIds(task.description))
-    setAttachments(extractTaskAttachments(task.description))
+    setAttachments(serverAttachments.length > 0 ? serverAttachments : extractTaskAttachments(task.description))
     setStatus(task.status)
     setPriority(task.priority)
     setCategoryId(task.categoryId || '')
@@ -166,7 +166,10 @@ export function TaskForm({
     let fullDescription = getCleanTaskDescription(description)
     fullDescription = embedTaskChecklist(fullDescription, checklistItems)
     fullDescription = embedLinkedTaskIds(fullDescription, linkedTaskIds)
-    fullDescription = embedTaskAttachments(fullDescription, attachments)
+    const legacyAttMatch = task.description?.match(/<!--\s*tabdo_attachments:[\s\S]*?-->/)
+    if (legacyAttMatch) {
+      fullDescription = `${fullDescription}\n\n${legacyAttMatch[0]}`.trim()
+    }
 
     if (fullDescription && fullDescription.length > 10000) {
       setErrorMsg('Mô tả không được vượt quá 10,000 ký tự.')
@@ -594,6 +597,7 @@ export function TaskForm({
 
           {activeTab === 'attachments' && (
             <TaskAttachments
+              taskId={task.id}
               attachments={attachments}
               onChangeAttachments={setAttachments}
               disabled={isCompleted || updateTaskMutation.isPending}

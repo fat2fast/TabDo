@@ -1,6 +1,6 @@
 import { getLocalDayBoundaries } from '@tabdo/utils'
 import { completeTaskAndGenerateNext } from '@tabdo/supabase'
-import type { CompleteTaskAndGenerateNextResult } from '@tabdo/types'
+import type { CompleteTaskAndGenerateNextResult, TaskAttachment } from '@tabdo/types'
 import { supabase } from '../../../lib/supabase'
 import {
   type CreateTaskInput,
@@ -11,9 +11,24 @@ import {
   rowToTask,
 } from '../types'
 import { recordTaskActivity } from './task-activities'
+import {
+  extractTaskAttachments,
+  mergeTaskAttachments,
+} from '../utils/task-attachments'
 
 export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
   let query = supabase.from('tasks').select('*')
+
+  // Explicit active vs trash projection
+  if (typeof (query as any).is === 'function') {
+    if (input.view === 'trash') {
+      if (typeof (query as any).not === 'function') {
+        query = query.not('deleted_at', 'is', null)
+      }
+    } else {
+      query = query.is('deleted_at', null)
+    }
+  }
 
   // Apply smart view predicates
   switch (input.view) {
@@ -49,6 +64,9 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
     }
     case 'completed': {
       query = query.eq('status', 'done')
+      break
+    }
+    case 'trash': {
       break
     }
   }
@@ -172,12 +190,18 @@ export async function getTaskById(id: string): Promise<Task | null> {
   return data ? rowToTask(data as TaskRow) : null
 }
 
-export async function getSubtasks(parentId: string): Promise<Task[]> {
-  const { data, error } = await supabase
+export async function getSubtasks(parentId: string, includeDeleted = false): Promise<Task[]> {
+  let query = supabase
     .from('tasks')
     .select('*')
     .eq('parent_id', parentId)
     .order('created_at', { ascending: true })
+
+  if (!includeDeleted && typeof (query as any).is === 'function') {
+    query = query.is('deleted_at', null)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     throw new Error(error.message)
@@ -415,11 +439,48 @@ export async function updateTask(
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  const { error } = await supabase.rpc('trash_task', { p_task_id: id })
   if (error) {
     throw new Error(error.message)
   }
-  // Deliberately do not insert activity for hard deletion because FK cascades
+}
+
+export async function trashTask(id: string): Promise<void> {
+  return deleteTask(id)
+}
+
+export async function restoreTask(id: string): Promise<void> {
+  const { error } = await supabase.rpc('restore_task', { p_task_id: id })
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function purgeTask(id: string): Promise<void> {
+  const { error } = await supabase.rpc('request_purge_task', { p_task_id: id })
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function getTrashTasks(search?: string): Promise<Task[]> {
+  let query = supabase
+    .from('tasks')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .is('purge_status', null)
+    .order('deleted_at', { ascending: false })
+
+  if (search && search.trim()) {
+    query = query.ilike('title', `%${search.trim()}%`)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return ((data as TaskRow[]) || []).map(rowToTask)
 }
 
 export async function completeTask(task: Task): Promise<CompleteTaskAndGenerateNextResult> {
@@ -457,10 +518,15 @@ export async function reopenTask(task: Task): Promise<Task> {
 
 export async function getTasksByIds(ids: string[]): Promise<Task[]> {
   if (!ids || ids.length === 0) return []
-  const { data, error } = await supabase
+  let q = supabase
     .from('tasks')
     .select('*')
-    .in('id', ids)
+
+  if (typeof (q as any).is === 'function') {
+    q = q.is('deleted_at', null)
+  }
+
+  const { data, error } = await q.in('id', ids)
 
   if (error) {
     throw new Error(error.message)
@@ -471,9 +537,15 @@ export async function getTasksByIds(ids: string[]): Promise<Task[]> {
 
 export async function getCategoryRelatedTasks(categoryId: string, excludeTaskId: string): Promise<Task[]> {
   if (!categoryId) return []
-  const { data, error } = await supabase
+  let q = supabase
     .from('tasks')
     .select('*')
+
+  if (typeof (q as any).is === 'function') {
+    q = q.is('deleted_at', null)
+  }
+
+  const { data, error } = await q
     .eq('category_id', categoryId)
     .neq('id', excludeTaskId)
     .neq('status', 'done')
@@ -488,9 +560,15 @@ export async function getCategoryRelatedTasks(categoryId: string, excludeTaskId:
 
 export async function getSiblingTasks(parentId: string, currentTaskId: string): Promise<Task[]> {
   if (!parentId) return []
-  const { data, error } = await supabase
+  let q = supabase
     .from('tasks')
     .select('*')
+
+  if (typeof (q as any).is === 'function') {
+    q = q.is('deleted_at', null)
+  }
+
+  const { data, error } = await q
     .eq('parent_id', parentId)
     .neq('id', currentTaskId)
     .order('created_at', { ascending: true })
@@ -506,7 +584,12 @@ export async function searchTasksCandidate(queryStr: string, currentTaskId?: str
   let query = supabase
     .from('tasks')
     .select('*')
-    .limit(10)
+
+  if (typeof (query as any).is === 'function') {
+    query = query.is('deleted_at', null)
+  }
+
+  query = query.limit(10)
 
   if (currentTaskId) {
     query = query.neq('id', currentTaskId)
@@ -524,9 +607,15 @@ export async function searchTasksCandidate(queryStr: string, currentTaskId?: str
 }
 
 export async function getSchedulableTasks(limit = 100): Promise<Task[]> {
-  const { data, error } = await supabase
+  let q = supabase
     .from('tasks')
     .select('*')
+
+  if (typeof (q as any).is === 'function') {
+    q = q.is('deleted_at', null)
+  }
+
+  const { data, error } = await q
     .order('updated_at', { ascending: false })
     .limit(limit)
 
@@ -537,3 +626,235 @@ export async function getSchedulableTasks(limit = 100): Promise<Task[]> {
   return ((data as TaskRow[]) || []).map(rowToTask)
 }
 
+export interface TaskAttachmentRow {
+  id: string
+  user_id: string
+  task_id: string
+  bucket: string
+  object_path: string | null
+  file_name: string
+  mime_type: string | null
+  byte_size: number | null
+  kind: 'file' | 'link'
+  external_url: string | null
+  checksum: string | null
+  upload_status: 'pending' | 'ready' | 'failed'
+  created_at: string
+  updated_at: string
+}
+
+function rowToAttachment(row: TaskAttachmentRow): TaskAttachment {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    taskId: row.task_id,
+    name: row.file_name,
+    size: row.byte_size || 0,
+    type:
+      row.mime_type ||
+      (row.kind === 'link' ? 'link' : 'application/octet-stream'),
+    url: row.external_url || undefined,
+    kind: row.kind,
+    bucket: row.bucket,
+    objectPath: row.object_path,
+    externalUrl: row.external_url,
+    checksum: row.checksum,
+    uploadStatus: row.upload_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export async function getTaskAttachments(
+  taskId: string,
+  legacyDescription?: string | null
+): Promise<TaskAttachment[]> {
+  const { data, error } = await supabase
+    .from('task_attachments')
+    .select('*')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.warn('[getTaskAttachments] error reading attachments:', error.message)
+  }
+
+  const normalized = ((data as TaskAttachmentRow[]) || []).map(rowToAttachment)
+  const legacy = extractTaskAttachments(legacyDescription)
+  return mergeTaskAttachments(normalized, legacy)
+}
+
+export async function uploadTaskAttachment(
+  taskId: string,
+  file: File
+): Promise<TaskAttachment> {
+  const maxBytes = 10 * 1024 * 1024 // 10MB
+  if (file.size > maxBytes) {
+    throw new Error('Tệp vượt quá kích thước cho phép (tối đa 10MB).')
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) {
+    throw new Error('Chưa đăng nhập.')
+  }
+
+  const attachmentId =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `att-${Date.now()}`
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const objectPath = `${userId}/${taskId}/${attachmentId}_${sanitizedName}`
+
+  // 1. Upload to Storage bucket
+  const { error: uploadError } = await supabase.storage
+    .from('task-attachments')
+    .upload(objectPath, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    })
+
+  if (uploadError) {
+    throw new Error(`Tải tệp lên thất bại: ${uploadError.message}`)
+  }
+
+  // 2. Insert metadata row
+  const { data, error: insertError } = await supabase
+    .from('task_attachments')
+    .insert({
+      id: attachmentId,
+      task_id: taskId,
+      user_id: userId,
+      bucket: 'task-attachments',
+      object_path: objectPath,
+      file_name: file.name,
+      mime_type: file.type || 'application/octet-stream',
+      byte_size: file.size,
+      kind: 'file',
+      upload_status: 'ready',
+    })
+    .select()
+    .single()
+
+  if (insertError) {
+    // Attempt rollback of storage object if metadata insert fails
+    await supabase.storage.from('task-attachments').remove([objectPath])
+    throw new Error(`Lưu thông tin tệp thất bại: ${insertError.message}`)
+  }
+
+  return rowToAttachment(data as TaskAttachmentRow)
+}
+
+export async function createTaskLinkAttachment(
+  taskId: string,
+  name: string,
+  url: string
+): Promise<TaskAttachment> {
+  const trimmedUrl = url.trim()
+  if (!/^https?:\/\//i.test(trimmedUrl)) {
+    throw new Error('Liên kết phải bắt đầu bằng http:// hoặc https://')
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const userId = session?.user?.id
+  if (!userId) {
+    throw new Error('Chưa đăng nhập.')
+  }
+
+  const { data, error } = await supabase
+    .from('task_attachments')
+    .insert({
+      task_id: taskId,
+      user_id: userId,
+      bucket: 'task-attachments',
+      object_path: null,
+      file_name: name.trim() || trimmedUrl,
+      mime_type: 'link',
+      byte_size: null,
+      kind: 'link',
+      external_url: trimmedUrl,
+      upload_status: 'ready',
+    })
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Thêm liên kết thất bại: ${error.message}`)
+  }
+
+  return rowToAttachment(data as TaskAttachmentRow)
+}
+
+export async function deleteTaskAttachment(
+  attachment: TaskAttachment
+): Promise<void> {
+  // If storage object exists, remove it
+  if (attachment.kind === 'file' && attachment.objectPath) {
+    const { error: storageError } = await supabase.storage
+      .from(attachment.bucket || 'task-attachments')
+      .remove([attachment.objectPath])
+    if (storageError) {
+      console.warn('[deleteTaskAttachment] storage remove error:', storageError.message)
+    }
+  }
+
+  // Remove database metadata row
+  if (attachment.id) {
+    const { error: dbError } = await supabase
+      .from('task_attachments')
+      .delete()
+      .eq('id', attachment.id)
+    if (dbError) {
+      console.warn('[deleteTaskAttachment] db delete error:', dbError.message)
+    }
+  }
+}
+
+export async function downloadTaskAttachment(
+  attachment: TaskAttachment
+): Promise<{ blob: Blob; fileName: string }> {
+  if (attachment.objectPath) {
+    const { data, error } = await supabase.storage
+      .from(attachment.bucket || 'task-attachments')
+      .download(attachment.objectPath)
+
+    if (error || !data) {
+      throw new Error(`Tải xuống thất bại: ${error?.message || 'Không tìm thấy tệp'}`)
+    }
+    return { blob: data, fileName: attachment.name }
+  }
+
+  if (attachment.url) {
+    const res = await fetch(attachment.url)
+    const blob = await res.blob()
+    return { blob, fileName: attachment.name }
+  }
+
+  throw new Error('Không có đường dẫn tệp để tải xuống.')
+}
+
+export async function downloadAndOpenAttachment(
+  attachment: TaskAttachment
+): Promise<void> {
+  if (attachment.kind === 'link' || attachment.type === 'link') {
+    const targetUrl = attachment.externalUrl || attachment.url
+    if (targetUrl) {
+      window.open(targetUrl, '_blank', 'noopener,noreferrer')
+    }
+    return
+  }
+
+  const { blob, fileName } = await downloadTaskAttachment(attachment)
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}

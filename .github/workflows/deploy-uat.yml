@@ -104,6 +104,8 @@ jobs:
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
           supabase functions deploy complete-initial-password \
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
+          supabase functions deploy purge-deleted-tasks \
+            --project-ref "$SUPABASE_UAT_PROJECT_REF"
 
       - name: Install Vercel CLI
         run: npm install --global vercel@63.0.2

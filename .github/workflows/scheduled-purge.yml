@@ -1,0 +1,27 @@
+name: Scheduled Purge Worker
+
+on:
+  schedule:
+    # Runs daily at 03:00 UTC (10:00 ICT)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger purge-deleted-tasks edge function
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.SUPABASE_UAT_URL }}
+          PURGE_WORKER_SECRET: ${{ secrets.PURGE_WORKER_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${PURGE_WORKER_SECRET:-}" ]; then
+            echo "Skipping purge run: SUPABASE_URL or PURGE_WORKER_SECRET not configured in secrets."
+            exit 0
+          fi
+          response=$(curl --fail --silent --show-error \
+            -X POST "${SUPABASE_URL}/functions/v1/purge-deleted-tasks" \
+            -H "Content-Type: application/json" \
+            -H "x-purge-secret: ${PURGE_WORKER_SECRET}")
+          echo "Purge result: $response"

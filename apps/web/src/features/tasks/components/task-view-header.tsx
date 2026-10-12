@@ -15,6 +15,7 @@ const VIEW_ICONS: Record<TaskView, string> = {
   upcoming: '📅',
   overdue: '⚠️',
   completed: '✅',
+  trash: '🗑️',
 }
 
 export function TaskViewHeader({
@@ -36,6 +37,8 @@ export function TaskViewHeader({
         return t('tasks.viewOverdueTitle')
       case 'completed':
         return t('tasks.viewCompletedTitle')
+      case 'trash':
+        return t('tasks.viewTrashTitle')
       default:
         return t('tasks.viewInboxTitle')
     }
@@ -53,6 +56,8 @@ export function TaskViewHeader({
         return t('tasks.viewOverdueSubtitle')
       case 'completed':
         return t('tasks.viewCompletedSubtitle')
+      case 'trash':
+        return t('tasks.viewTrashSubtitle')
       default:
         return t('tasks.viewInboxSubtitle')
     }
@@ -71,7 +76,7 @@ export function TaskViewHeader({
         </div>
 
         <div className="header-actions-group">
-          {onOpenCreateModal && (
+          {onOpenCreateModal && currentView !== 'trash' && (
             <button
               type="button"
               className="btn btn-primary btn-sm btn-header-create-task"
@@ -144,6 +149,14 @@ export function TaskViewHeader({
           }
         >
           {t('tasks.tabCompleted')}
+        </NavLink>
+        <NavLink
+          to="/tasks/trash"
+          className={({ isActive }) =>
+            `view-tab ${isActive ? 'active' : ''}`
+          }
+        >
+          {t('tasks.tabTrash')}
         </NavLink>
       </nav>
     </div>

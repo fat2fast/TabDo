@@ -22,17 +22,29 @@ export async function fetchDashboardSnapshot(
   const { startAt: localStartIso, endAt: nextLocalStartIso } = getVisibleRangeForDay(now, timeZone)
   const { endAt: nextSevenDaysEndIso } = getVisibleRangeForNextDays(now, timeZone, 7)
 
-  // 1. Incomplete tasks projection
-  const incompleteTasksPromise = client
+  // 1. Incomplete tasks projection (active only)
+  let incompleteQuery = client
     .from('tasks')
     .select('*')
+
+  if (typeof (incompleteQuery as any).is === 'function') {
+    incompleteQuery = incompleteQuery.is('deleted_at', null)
+  }
+
+  const incompleteTasksPromise = incompleteQuery
     .neq('status', 'done')
     .order('priority_rank', { ascending: false })
 
   // 2. Tasks completed in local today [localStartIso, nextLocalStartIso)
-  const completedTodayTasksPromise = client
+  let completedTodayQuery = client
     .from('tasks')
     .select('*')
+
+  if (typeof (completedTodayQuery as any).is === 'function') {
+    completedTodayQuery = completedTodayQuery.is('deleted_at', null)
+  }
+
+  const completedTodayTasksPromise = completedTodayQuery
     .eq('status', 'done')
     .gte('completed_at', localStartIso)
     .lt('completed_at', nextLocalStartIso)
@@ -75,7 +87,7 @@ export async function fetchDashboardSnapshot(
     const block = toScheduleBlock(row)
     return {
       ...block,
-      task: row.tasks ? rowToTask(row.tasks) : null,
+      task: row.tasks && !row.tasks.deleted_at ? rowToTask(row.tasks) : null,
     }
   })
 

@@ -1,5 +1,5 @@
 begin;
-select plan(108);
+select plan(136);
 
 -- 1. Table existence and RLS active tests (12 tests)
 select has_table('public', 'profiles', 'Profiles table exists');
@@ -112,12 +112,13 @@ select is(
 
 set local role authenticated;
 set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
-delete from public.tasks where id = '11111111-1111-1111-1111-111111111111';
-set local role postgres;
-select ok(
-  exists(select 1 from public.tasks where id = '11111111-1111-1111-1111-111111111111'),
-  'User B cannot delete User A task'
+select throws_ok(
+  'delete from public.tasks where id = ''11111111-1111-1111-1111-111111111111''',
+  '42501',
+  null,
+  'User B cannot delete User A task (direct delete revoked)'
 );
+set local role postgres;
 
 -- 5. Admin cross-user denial (1 test)
 -- Even with role = 'admin', personal records are isolated by auth.uid() = user_id
@@ -950,6 +951,316 @@ select is(
   (select count(*)::int from public.reminders where task_id = (select id from public.tasks where recurrence_parent_id = 'a3333333-3333-3333-3333-333333333333')),
   0,
   'No relative reminders copied for date_only successor task'
+);
+
+-- 21. Phase 11 Task Trash Lifecycle & Durable Purge (10 tests)
+set local role postgres;
+
+-- Fixtures for User A task, subtask, schedule block, reminder
+insert into public.tasks (id, user_id, title, status, recurrence_rule, recurrence_series_id, recurrence_timezone, recurrence_anchor_at, due_at, due_date_kind, updated_at)
+values ('77777777-7777-7777-7777-777777777771', 'a0000000-0000-0000-0000-000000000001', 'Trash Parent Task', 'todo', 'FREQ=DAILY', '77777777-7777-7777-7777-777777777770', 'Asia/Ho_Chi_Minh', now() + interval '1 day', now() + interval '1 day', 'date_time', '2026-10-11 00:00:00+00')
+on conflict (id) do nothing;
+
+insert into public.tasks (id, user_id, parent_id, title, status)
+values ('77777777-7777-7777-7777-777777777772', 'a0000000-0000-0000-0000-000000000001', '77777777-7777-7777-7777-777777777771', 'Trash Batch Subtask', 'todo')
+on conflict (id) do nothing;
+
+insert into public.schedule_blocks (id, user_id, task_id, title, start_at, end_at)
+values ('77777777-7777-7777-7777-777777777773', 'a0000000-0000-0000-0000-000000000001', '77777777-7777-7777-7777-777777777771', 'Trash Schedule Block', now(), now() + interval '1 hour')
+on conflict (id) do nothing;
+
+insert into public.reminders (id, user_id, task_id, reminder_kind, remind_at, status)
+values ('77777777-7777-7777-7777-777777777774', 'a0000000-0000-0000-0000-000000000001', '77777777-7777-7777-7777-777777777771', 'absolute', now() + interval '2 hours', 'pending')
+on conflict (id) do nothing;
+
+-- 1. User B cannot trash User A task
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+select throws_ok(
+  'select public.trash_task(''77777777-7777-7777-7777-777777777771''::uuid)',
+  'P0002',
+  null,
+  'User B cannot trash User A task'
+);
+
+-- 2. User A can trash own task
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select ok(
+  ((public.trash_task('77777777-7777-7777-7777-777777777771'::uuid)->>'success')::boolean),
+  'User A can trash own task'
+);
+
+-- 3. Verify parent is trashed
+select ok(
+  (select deleted_at is not null from public.tasks where id = '77777777-7777-7777-7777-777777777771'),
+  'Parent task marked deleted_at'
+);
+
+-- 4. Verify subtask is trashed in the same batch
+select ok(
+  (select deleted_at is not null and deletion_batch_id is not null from public.tasks where id = '77777777-7777-7777-7777-777777777772'),
+  'Subtask in same batch is also trashed'
+);
+
+-- 5. Verify reminder was dismissed
+select is(
+  (select status from public.reminders where id = '77777777-7777-7777-7777-777777777774'),
+  'dismissed',
+  'Reminder on trashed task is dismissed'
+);
+
+-- 6. User A cannot complete a trashed recurring task
+select throws_ok(
+  'select public.complete_task_and_generate_next(''77777777-7777-7777-7777-777777777771''::uuid, ''2026-10-11 00:00:00+00''::timestamptz)',
+  'P0002',
+  null,
+  'Cannot complete a trashed task'
+);
+
+-- 7. User B cannot restore User A task
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+select throws_ok(
+  'select public.restore_task(''77777777-7777-7777-7777-777777777771''::uuid)',
+  'P0002',
+  null,
+  'User B cannot restore User A task'
+);
+
+-- 8. User A can restore task and subtask
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select ok(
+  ((public.restore_task('77777777-7777-7777-7777-777777777771'::uuid)->>'success')::boolean),
+  'User A can restore task'
+);
+
+-- 9. Verify restored tasks have deleted_at IS NULL
+select ok(
+  (select deleted_at is null from public.tasks where id = '77777777-7777-7777-7777-777777777771')
+  and (select deleted_at is null from public.tasks where id = '77777777-7777-7777-7777-777777777772'),
+  'Restored parent and subtask have deleted_at cleared'
+);
+
+-- 9.1. Verify future reminder was restored to pending
+select is(
+  (select status from public.reminders where id = '77777777-7777-7777-7777-777777777774'),
+  'pending',
+  'Future reminder on restored task is restored to pending'
+);
+
+-- 10. Purge lifecycle: User A requests purge (pending_purge), worker executes purge_task_internal
+-- First re-trash the task
+select public.trash_task('77777777-7777-7777-7777-777777777771'::uuid);
+
+-- Then user requests purge
+select ok(
+  ((public.request_purge_task('77777777-7777-7777-7777-777777777771'::uuid)->>'success')::boolean),
+  'User A can request purge on trashed task'
+);
+
+-- Task is marked pending_purge
+select is(
+  (select purge_status from public.tasks where id = '77777777-7777-7777-7777-777777777771'),
+  'pending_purge',
+  'Task is marked pending_purge after request'
+);
+
+-- Service role executes purge_task_internal
+set local role service_role;
+set local "request.jwt.claim.role" to 'service_role';
+select ok(
+  public.purge_task_internal('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  'Service role executes purge_task_internal'
+);
+
+set local role postgres;
+select is(
+  (select task_id from public.schedule_blocks where id = '77777777-7777-7777-7777-777777777773'),
+  null,
+  'Schedule block task_id set to null after task purge'
+);
+
+select is(
+  (select count(*) from public.tasks where id = '77777777-7777-7777-7777-777777777771'),
+  0::bigint,
+  'Task record permanently deleted after worker purge'
+);
+
+-- ============================================================================
+-- 22. Phase 6: Private Task Attachments & Storage Security (11 tests)
+-- ============================================================================
+
+-- Table existence and RLS active (2 tests)
+select has_table('public', 'task_attachments', 'Task attachments table exists');
+select ok((select relrowsecurity from pg_class where oid = 'public.task_attachments'::regclass), 'Task attachments has RLS enabled');
+
+-- Set up User A active task for attachment tests
+set local role postgres;
+insert into public.tasks (
+  id, user_id, title, status, priority, due_date_kind
+) values (
+  '88888888-8888-8888-8888-888888888881',
+  'a0000000-0000-0000-0000-000000000001',
+  'User A Active Task for Attachments',
+  'todo',
+  'medium',
+  'date_time'
+) on conflict do nothing;
+
+-- 1. User A can insert file attachment on own active task (1 test)
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+
+insert into public.task_attachments (
+  id, user_id, task_id, bucket, object_path, file_name, mime_type, byte_size, kind
+) values (
+  '88888888-8888-8888-8888-888888888882',
+  'a0000000-0000-0000-0000-000000000001',
+  '88888888-8888-8888-8888-888888888881',
+  'task-attachments',
+  'a0000000-0000-0000-0000-000000000001/88888888-8888-8888-8888-888888888881/doc.pdf',
+  'doc.pdf',
+  'application/pdf',
+  1024,
+  'file'
+);
+
+select ok(
+  (select count(*) = 1 from public.task_attachments where id = '88888888-8888-8888-8888-888888888882'),
+  'User A can insert file attachment on own task'
+);
+
+-- 2. User A can select own attachment (1 test)
+select is(
+  (select file_name from public.task_attachments where id = '88888888-8888-8888-8888-888888888882'),
+  'doc.pdf',
+  'User A can read own attachment'
+);
+
+-- 3. User B cannot select User A attachment (1 test)
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+select is(
+  (select count(*) from public.task_attachments where id = '88888888-8888-8888-8888-888888888882'),
+  0::bigint,
+  'User B cannot select User A attachment'
+);
+
+-- 4. User B cannot insert attachment on User A task (1 test)
+select throws_ok(
+  $$insert into public.task_attachments (
+    user_id, task_id, bucket, object_path, file_name, mime_type, byte_size, kind
+  ) values (
+    'b0000000-0000-0000-0000-000000000002',
+    '88888888-8888-8888-8888-888888888881',
+    'task-attachments',
+    'b0000000-0000-0000-0000-000000000002/task/file.png',
+    'file.png',
+    'image/png',
+    500,
+    'file'
+  )$$,
+  '42501',
+  null,
+  'User B cannot insert attachment referencing User A task'
+);
+
+-- 5. User A cannot insert attachment on trashed task (1 test)
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select public.trash_task('88888888-8888-8888-8888-888888888881'::uuid);
+
+select throws_ok(
+  $$insert into public.task_attachments (
+    user_id, task_id, bucket, object_path, file_name, mime_type, byte_size, kind
+  ) values (
+    'a0000000-0000-0000-0000-000000000001',
+    '88888888-8888-8888-8888-888888888881',
+    'task-attachments',
+    'a0000000-0000-0000-0000-000000000001/task/file2.png',
+    'file2.png',
+    'image/png',
+    500,
+    'file'
+  )$$,
+  '42501',
+  null,
+  'User A cannot insert attachment on trashed task'
+);
+
+-- Restore task for remaining checks
+select public.restore_task('88888888-8888-8888-8888-888888888881'::uuid);
+
+-- 6. Check constraint rejects byte_size > 10MB (1 test)
+select throws_matching(
+  $$insert into public.task_attachments (
+    user_id, task_id, bucket, object_path, file_name, mime_type, byte_size, kind
+  ) values (
+    'a0000000-0000-0000-0000-000000000001',
+    '88888888-8888-8888-8888-888888888881',
+    'task-attachments',
+    'a0000000-0000-0000-0000-000000000001/task/huge.png',
+    'huge.png',
+    'image/png',
+    10485761,
+    'file'
+  )$$,
+  'violates check constraint',
+  'Attachment byte_size over 10MB is rejected by constraint'
+);
+
+-- 7. Check constraint validates kind = link requirements (1 test)
+select throws_matching(
+  $$insert into public.task_attachments (
+    user_id, task_id, file_name, kind, external_url
+  ) values (
+    'a0000000-0000-0000-0000-000000000001',
+    '88888888-8888-8888-8888-888888888881',
+    'bad-link',
+    'link',
+    'ftp://invalid-protocol.com'
+  )$$,
+  'violates check constraint',
+  'Attachment link with non-http/https protocol is rejected'
+);
+
+-- 7.1. User A cannot update attachment to another user path (1 test)
+select throws_ok(
+  $$update public.task_attachments
+    set object_path = 'b0000000-0000-0000-0000-000000000002/stolen.png'
+    where id = '88888888-8888-8888-8888-888888888882'$$,
+  '42501',
+  null,
+  'User A cannot update attachment to claim another user object path'
+);
+
+-- 8. Storage.objects policies: User A can select own path, User B denied, Deactivated User C denied (3 tests)
+set local role postgres;
+insert into storage.objects (
+  id, bucket_id, name, owner
+) values (
+  gen_random_uuid(),
+  'task-attachments',
+  'a0000000-0000-0000-0000-000000000001/task/test-file.png',
+  'a0000000-0000-0000-0000-000000000001'
+) on conflict do nothing;
+
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select ok(
+  (select count(*) >= 1 from storage.objects where bucket_id = 'task-attachments' and name = 'a0000000-0000-0000-0000-000000000001/task/test-file.png'),
+  'User A can select own storage object'
+);
+
+set local "request.jwt.claim.sub" to 'b0000000-0000-0000-0000-000000000002';
+select is(
+  (select count(*) from storage.objects where bucket_id = 'task-attachments' and name = 'a0000000-0000-0000-0000-000000000001/task/test-file.png'),
+  0::bigint,
+  'User B cannot select User A storage object'
+);
+
+set local "request.jwt.claim.sub" to 'c0000000-0000-0000-0000-000000000003';
+select is(
+  (select count(*) from storage.objects where bucket_id = 'task-attachments'),
+  0::bigint,
+  'Deactivated User C cannot read storage objects'
 );
 
 select * from finish();

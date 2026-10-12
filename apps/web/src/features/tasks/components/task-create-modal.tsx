@@ -16,13 +16,14 @@ import { RelatedTasks } from './related-tasks'
 import { DatePicker } from '../../../components/ui/date-picker'
 import { TimePicker24h } from '../../../components/ui/time-picker-24h'
 import {
+  createTaskLinkAttachment,
+  uploadTaskAttachment,
+} from '../api/tasks'
+import {
   embedTaskChecklist,
   type TaskChecklistItem,
 } from '../utils/task-checklist'
-import {
-  embedTaskAttachments,
-  type TaskAttachment,
-} from '../utils/task-attachments'
+import { type TaskAttachment } from '../utils/task-attachments'
 import { embedLinkedTaskIds } from '../utils/task-linking'
 import { getCleanTaskDescription } from '../utils/task-description'
 import { AutoResizeTextarea } from '../../../components/ui/auto-resize-textarea'
@@ -219,7 +220,6 @@ export function TaskCreateModal({
     let fullDescription = getCleanTaskDescription(description)
     fullDescription = embedTaskChecklist(fullDescription, checklistItems)
     fullDescription = embedLinkedTaskIds(fullDescription, linkedTaskIds)
-    fullDescription = embedTaskAttachments(fullDescription, attachments)
 
     if (fullDescription && fullDescription.length > 10000) {
       setErrorMsg('Mô tả không được vượt quá 10,000 ký tự.')
@@ -328,7 +328,39 @@ export function TaskCreateModal({
         }
       }
 
+      const failedAttachments: TaskAttachment[] = []
+      const failedErrors: string[] = []
+
+      // Upload staged attachments to created task
+      if (attachments.length > 0) {
+        for (const att of attachments) {
+          try {
+            if ((att as any).rawFile) {
+              await uploadTaskAttachment(created.id, (att as any).rawFile)
+            } else if (att.kind === 'link' || att.type === 'link') {
+              const linkUrl = att.externalUrl || att.url
+              if (linkUrl) {
+                await createTaskLinkAttachment(created.id, att.name, linkUrl)
+              }
+            }
+          } catch (attErr: any) {
+            console.warn('Could not auto-upload attachment:', attErr)
+            failedAttachments.push(att)
+            failedErrors.push(`${att.name}: ${attErr?.message || 'Tải lên thất bại'}`)
+          }
+        }
+      }
+
       onTaskCreated?.(created)
+
+      if (failedAttachments.length > 0) {
+        setAttachments(failedAttachments)
+        setErrorMsg(
+          `Công việc đã được tạo, nhưng không thể tải lên các tệp sau: ${failedErrors.join(', ')}`
+        )
+        return
+      }
+
       onClose()
     } catch (err: any) {
       setErrorMsg(err.message || 'Không thể tạo công việc. Vui lòng thử lại.')

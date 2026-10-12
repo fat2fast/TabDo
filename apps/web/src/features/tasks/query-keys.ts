@@ -31,6 +31,10 @@ export const taskQueryKeys = {
     [...taskQueryKeys.all, 'candidates', currentTaskId, query] as const,
   schedulable: (limit = 100) =>
     [...taskQueryKeys.all, 'schedulable', limit] as const,
+  trash: (search?: string) =>
+    [...taskQueryKeys.all, 'trash', search || ''] as const,
+  attachments: (taskId: string) =>
+    [...taskQueryKeys.all, 'attachments', taskId] as const,
 }
 
 export const categoryQueryKeys = {

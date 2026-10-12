@@ -65,6 +65,35 @@ export async function showReminderNotification(
     return
   }
 
+  // Remote eligibility revalidation before alarm notification display
+  try {
+    if (client.from && typeof client.from === 'function') {
+      const query = client.from('tasks')
+      if (query && typeof query.select === 'function') {
+        const selectQuery = query.select('id, deleted_at, status')
+        if (selectQuery && typeof selectQuery.eq === 'function') {
+          const eqQuery = selectQuery.eq('id', reminder.taskId)
+          if (eqQuery && typeof eqQuery.maybeSingle === 'function') {
+            const { data: remoteTask, error: taskErr } = await eqQuery.maybeSingle()
+            if (!taskErr && remoteTask) {
+              if (remoteTask.deleted_at || remoteTask.status === 'done') {
+                console.warn('[TabDo Notification] Task is remotely deleted or completed:', reminder.taskId)
+                await syncExtensionState(client)
+                return
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (networkErr) {
+    console.warn('[TabDo Notification] Remote check failed due to network; using cached context:', networkErr)
+    if (cache.metadata) {
+      cache.metadata.isStale = true
+      await setUserCache(activeUserId, cache)
+    }
+  }
+
   const notificationId = `notif:${reminder.id}:${Date.now()}`
   const context: ExtensionNotificationContext = {
     notificationId,

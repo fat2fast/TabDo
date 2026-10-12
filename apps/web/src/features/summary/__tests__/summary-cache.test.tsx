@@ -1,6 +1,6 @@
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useScheduleBlockMutations } from '../../scheduling/hooks/use-schedule-block-mutations'
 import { useTaskMutations } from '../../tasks/hooks/use-task-mutations'

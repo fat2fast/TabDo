@@ -32,7 +32,7 @@ export async function getUpcomingReminders(
   const windowStart = now.toISOString()
   const windowEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  const { data, error } = await client
+  let query = client
     .from('reminders')
     .select(`
       id,
@@ -49,10 +49,17 @@ export async function getUpcomingReminders(
         title,
         status,
         due_at,
-        updated_at
+        updated_at,
+        deleted_at
       )
     `)
     .in('status', ['pending', 'snoozed'])
+
+  if (typeof (query as any).is === 'function') {
+    query = query.is('tasks.deleted_at', null)
+  }
+
+  const { data, error } = await query
     .gte('effective_at', windowStart)
     .lt('effective_at', windowEnd)
     .order('effective_at', { ascending: true })

@@ -34,6 +34,7 @@ export function App() {
           <Route path="/tasks/upcoming" element={<TasksPage />} />
           <Route path="/tasks/overdue" element={<TasksPage />} />
           <Route path="/tasks/completed" element={<TasksPage />} />
+          <Route path="/tasks/trash" element={<TasksPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/summary" element={<SummaryPage />} />
           <Route path="/settings" element={<SettingsPage />} />

@@ -7,6 +7,8 @@ import {
   getTaskList,
   getTasksByIds,
   getSchedulableTasks,
+  getTrashTasks,
+  getTaskAttachments,
   searchTasksCandidate,
 } from '../api/tasks'
 import { taskQueryKeys } from '../query-keys'
@@ -71,6 +73,21 @@ export function useSchedulableTasks(limit = 100) {
   return useQuery({
     queryKey: taskQueryKeys.schedulable(limit),
     queryFn: () => getSchedulableTasks(limit),
+  })
+}
+
+export function useTrashTasks(search?: string) {
+  return useQuery({
+    queryKey: taskQueryKeys.trash(search),
+    queryFn: () => getTrashTasks(search),
+  })
+}
+
+export function useTaskAttachments(taskId: string | null | undefined, legacyDescription?: string | null) {
+  return useQuery({
+    queryKey: taskQueryKeys.attachments(taskId || ''),
+    queryFn: () => getTaskAttachments(taskId!, legacyDescription),
+    enabled: Boolean(taskId),
   })
 }
 
