@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -79,6 +79,12 @@ vi.mock('../../tasks/hooks/use-tasks', () => ({
   useTaskDetail: vi.fn(),
   useSubtasks: vi.fn(),
   useSchedulableTasks: vi.fn(),
+}))
+
+vi.mock('../../tasks/hooks/use-task-mutations', () => ({
+  useTaskMutations: () => ({
+    completeTaskMutation: { mutateAsync: vi.fn(), isPending: false },
+  }),
 }))
 
 describe('CalendarPage', () => {
@@ -171,7 +177,7 @@ describe('CalendarPage', () => {
     expect(screen.getByText('Lên lịch làm việc')).toBeInTheDocument()
   })
 
-  it('opens schedule editor in edit mode when event is clicked', async () => {
+  it('opens schedule detail modal when event is clicked, and can transition to edit modal', async () => {
     const user = userEvent.setup()
 
     render(
@@ -182,7 +188,14 @@ describe('CalendarPage', () => {
       </MemoryRouter>
     )
 
+    // Click event in calendar -> opens ScheduleDetailModal
     await user.click(screen.getByTestId('click-event-b-1'))
+    const detailModal = screen.getByTestId('schedule-detail-modal')
+    expect(detailModal).toBeInTheDocument()
+    expect(within(detailModal).getByText('Planning Session')).toBeInTheDocument()
+
+    // Click edit button in detail modal -> opens ScheduleEditor
+    await user.click(screen.getByTestId('schedule-detail-edit-btn'))
     expect(screen.getByTestId('schedule-editor-modal')).toBeInTheDocument()
     expect(screen.getByText('Chỉnh sửa lịch trình')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Planning Session')).toBeInTheDocument()

@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react'
+import { useI18n } from '../../i18n/i18n-provider'
 
 export interface TaskSearchProps {
   value: string
   onChange: (value: string) => void
   debounceMs?: number
+  placeholder?: string
 }
 
-export function TaskSearch({ value, onChange, debounceMs = 300 }: TaskSearchProps) {
+export function TaskSearch({ value, onChange, debounceMs = 300, placeholder }: TaskSearchProps) {
+  const { t } = useI18n()
   const [localValue, setLocalValue] = useState(value)
 
   useEffect(() => {
@@ -28,6 +31,8 @@ export function TaskSearch({ value, onChange, debounceMs = 300 }: TaskSearchProp
     onChange('')
   }
 
+  const effectivePlaceholder = placeholder || t('tasks.searchPlaceholder')
+
   return (
     <div className="task-search-wrapper" data-testid="task-search">
       <svg
@@ -45,10 +50,10 @@ export function TaskSearch({ value, onChange, debounceMs = 300 }: TaskSearchProp
       <input
         type="text"
         className="task-search-input"
-        placeholder="Tìm kiếm theo tiêu đề..."
+        placeholder={effectivePlaceholder}
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
-        aria-label="Tìm kiếm công việc"
+        aria-label={effectivePlaceholder}
       />
       {localValue && (
         <button

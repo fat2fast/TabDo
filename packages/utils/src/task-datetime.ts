@@ -544,3 +544,27 @@ export function formatTaskOverdueDuration(
     return `Overdue: ${timeStr}`
   }
 }
+
+/**
+ * Checks if a schedule block represents an all-day event in the given time zone.
+ * Matches blocks starting at midnight (00:00) with a duration of ~24h or ending at 23:55/23:59/00:00.
+ */
+export function isScheduleBlockAllDay(
+  startAt: string,
+  endAt: string,
+  timeZone: string
+): boolean {
+  try {
+    const startParsed = fromScheduleInstant(startAt, timeZone)
+    const endParsed = fromScheduleInstant(endAt, timeZone)
+    const diffMs = new Date(endAt).getTime() - new Date(startAt).getTime()
+    const isStartMidnight = startParsed.timeStr === '00:00'
+    const isEndMidnightOrEndOfDay =
+      endParsed.timeStr === '23:59' ||
+      endParsed.timeStr === '23:55' ||
+      endParsed.timeStr === '00:00'
+    return isStartMidnight && (isEndMidnightOrEndOfDay || diffMs >= 23 * 3600 * 1000)
+  } catch {
+    return false
+  }
+}

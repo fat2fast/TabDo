@@ -6,11 +6,18 @@ export interface DeriveDashboardSnapshotInput {
   incompleteTasks: Task[]
   completedTodayTasks: Task[]
   todayBlocks: (ScheduleBlock & { task?: Task | null })[]
+  priorityTotal?: number
+  todayScheduleTotal?: number
+  upcomingTasks?: Task[]
+  upcomingTotal?: number
+  inProgressTasks?: Task[]
+  inProgressTotal?: number
   referenceNow: Date
   localStartIso: string
   nextLocalStartIso: string
   nextSevenDaysEndIso: string
 }
+
 
 function priorityToRank(priority: TaskPriority | undefined): number {
   switch (priority) {
@@ -146,7 +153,8 @@ export function deriveDashboardSnapshot(input: DeriveDashboardSnapshotInput): Da
   }
 
   // 3. Priority tasks: Top 3-5 incomplete relevant tasks (overdue first, high priority first, earliest due date first)
-  const priorityTasks = [...remainingTasks]
+  const priorityPool = remainingTasks.length > 0 ? remainingTasks : incompleteTasks
+  const priorityTasks = [...priorityPool]
     .sort((a, b) => {
       const aDueMs = toMs(a.dueAt)
       const bDueMs = toMs(b.dueAt)
@@ -171,8 +179,11 @@ export function deriveDashboardSnapshot(input: DeriveDashboardSnapshotInput): Da
     })
     .slice(0, 5)
 
+  const priorityTotal =
+    input.priorityTotal ?? (remainingTasks.length > 0 ? remainingTasks.length : incompleteTasks.length)
+
   // 4. Upcoming deadlines: Incomplete tasks due in next 7 complete local days [nextLocalStart, nextSevenDaysEnd)
-  const upcomingTasks = incompleteTasks
+  const allUpcomingTasks = incompleteTasks
     .filter((t) => {
       const dueMs = toMs(t.dueAt)
       return (
@@ -183,7 +194,9 @@ export function deriveDashboardSnapshot(input: DeriveDashboardSnapshotInput): Da
       )
     })
     .sort((a, b) => toMs(a.dueAt) - toMs(b.dueAt))
-    .slice(0, 5)
+
+  const upcomingTasks = input.upcomingTasks ?? allUpcomingTasks.slice(0, 5)
+  const upcomingTotal = input.upcomingTotal ?? allUpcomingTasks.length
 
   // 5. Today's schedule items
   const todaySchedule: TodayScheduleItem[] = overlappingBlocks
@@ -198,12 +211,23 @@ export function deriveDashboardSnapshot(input: DeriveDashboardSnapshotInput): Da
       taskStatus: b.task?.status ?? null,
       taskPriority: b.task?.priority ?? null,
     }))
+  const todayScheduleTotal = input.todayScheduleTotal ?? overlappingBlocks.length
+
+  const inProgressList =
+    input.inProgressTasks ??
+    incompleteTasks.filter((t) => t.status === 'in_progress').slice(0, 5)
+  const inProgressTotal = input.inProgressTotal ?? inProgressList.length
 
   return {
     metrics,
     priorityTasks,
+    priorityTotal,
     overdueTasks,
     todaySchedule,
+    todayScheduleTotal,
     upcomingTasks,
+    upcomingTotal,
+    inProgressTasks: inProgressList,
+    inProgressTotal,
   }
 }

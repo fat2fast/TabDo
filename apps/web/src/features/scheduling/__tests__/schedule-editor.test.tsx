@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ScheduleEditor } from '../components/schedule-editor'
@@ -248,5 +248,68 @@ describe('ScheduleEditor', () => {
 
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' })
     expect(mockOnClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('supports creating all-day schedule block without hour pickers', async () => {
+    const user = userEvent.setup()
+    mockMutateCreate.mockResolvedValueOnce({ id: 'block-allday', title: 'All Day Planning' })
+
+    render(
+      <ScheduleEditor
+        isOpen={true}
+        onClose={mockOnClose}
+        onSuccess={mockOnSuccess}
+        initialStartAt="2026-10-14T02:00:00.000Z"
+        initialEndAt="2026-10-14T04:00:00.000Z"
+      />
+    )
+
+    await user.type(screen.getByTestId('schedule-title-input'), 'All Day Planning')
+
+    // Click "Cả ngày" checkbox
+    const allDayCheckbox = screen.getByTestId('schedule-all-day-checkbox')
+    await user.click(allDayCheckbox)
+
+    // Time pickers should be hidden
+    expect(screen.queryByTestId('schedule-start-time')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('schedule-end-time')).not.toBeInTheDocument()
+
+    // Save all-day schedule
+    await user.click(screen.getByTestId('schedule-save-btn'))
+
+    await waitFor(() => {
+      expect(mockMutateCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'All Day Planning',
+          startAt: expect.stringMatching(/2026-10-13T17:00:00/), // 00:00 ICT on Oct 14 is 17:00 UTC on Oct 13
+          endAt: expect.stringMatching(/2026-10-14T16:59:00/),   // 23:59 ICT on Oct 14 is 16:59 UTC on Oct 14
+        })
+      )
+    })
+  })
+
+  it('supports fast search in linked task dropdown', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ScheduleEditor
+        isOpen={true}
+        onClose={mockOnClose}
+        initialStartAt="2026-10-06T02:00:00.000Z"
+      />
+    )
+
+    // Open task dropdown trigger
+    const dropdownTrigger = screen.getByTestId('schedule-task-select-trigger')
+    await user.click(dropdownTrigger)
+
+    // Search input should be rendered
+    const searchInput = screen.getByTestId('schedule-task-select-search-input')
+    expect(searchInput).toBeInTheDocument()
+
+    // Type query
+    await user.type(searchInput, 'Task 1')
+    const listbox = screen.getByRole('listbox')
+    expect(within(listbox).getByText('Task 1')).toBeInTheDocument()
   })
 })

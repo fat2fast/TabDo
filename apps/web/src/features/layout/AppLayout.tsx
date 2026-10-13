@@ -7,6 +7,7 @@ import { AccountDropdown } from './AccountDropdown'
 
 import { useSidebarCollapse } from './use-sidebar-collapse'
 import { BUILD_INFO_STRING } from '../../lib/build-info'
+import { TaskTopBarControls } from '../tasks/components/task-topbar-controls'
 
 export function AppLayout() {
   const { profile } = useAuth()
@@ -186,6 +187,13 @@ export function AppLayout() {
           <div className="topbar-left">
             <span className="topbar-breadcrumb">{getBreadcrumb()}</span>
           </div>
+
+          {location.pathname.startsWith('/tasks') && (
+            <div className="topbar-center" id="topbar-task-search-slot">
+              <TaskTopBarControls />
+            </div>
+          )}
+
           <div className="topbar-right">
             <QuickLanguageButton />
             <AccountDropdown />

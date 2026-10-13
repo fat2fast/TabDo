@@ -39,6 +39,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Seed safety check
+        run: pnpm seed:local:safety
+
       - name: Build
         run: pnpm build
 
@@ -86,3 +89,15 @@ jobs:
 
       - name: Run integration tests
         run: pnpm test:integration
+
+      - name: Seed safety check
+        run: pnpm seed:local:safety
+
+      - name: Smoke test local demo seed
+        env:
+          TABDO_ADMIN_PASSWORD: ${{ env.TABDO_ADMIN_PASSWORD }}
+          TABDO_USER_PASSWORD: UserPassword123!
+        run: |
+          pnpm db:reset:local
+          pnpm seed:local:accounts
+          pnpm seed:local:verify

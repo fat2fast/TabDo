@@ -36,6 +36,7 @@ export interface Task {
   recurrenceParentId?: string | null
   recurrenceTimezone?: string | null
   recurrenceAnchorAt?: string | null
+  boardOrder?: number | null
   deletedAt?: string | null
   deletionBatchId?: string | null
   purgeStatus?: string | null
@@ -74,6 +75,7 @@ export interface CreateTaskInput {
   recurrenceParentId?: string | null
   recurrenceTimezone?: string | null
   recurrenceAnchorAt?: string | null
+  boardOrder?: number | null
 }
 
 export interface UpdateTaskInput {
@@ -93,6 +95,7 @@ export interface UpdateTaskInput {
   recurrenceParentId?: string | null
   recurrenceTimezone?: string | null
   recurrenceAnchorAt?: string | null
+  boardOrder?: number | null
   previousUpdatedAt?: string
 }
 

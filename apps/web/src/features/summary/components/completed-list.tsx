@@ -25,42 +25,44 @@ export function CompletedList({ tasks, timeZone, onSelectTask }: CompletedListPr
           <p className="summary-empty-text">{t('summary.completedEmpty')}</p>
         </div>
       ) : (
-        <ul className="summary-task-list" aria-label={t('summary.completedSection')}>
-          {tasks.map((task) => {
-            const formattedCompleted = formatTaskCompletedAt(task.completedAt, timeZone)
-            return (
-              <li
-                key={task.id}
-                className={`summary-task-item is-completed ${onSelectTask ? 'is-clickable' : ''}`}
-                onClick={() => onSelectTask?.(task.id)}
-                role={onSelectTask ? 'button' : undefined}
-                tabIndex={onSelectTask ? 0 : undefined}
-                onKeyDown={
-                  onSelectTask
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          onSelectTask(task.id)
+        <div className="summary-scrollable-container">
+          <ul className="summary-task-list" aria-label={t('summary.completedSection')}>
+            {tasks.map((task) => {
+              const formattedCompleted = formatTaskCompletedAt(task.completedAt, timeZone)
+              return (
+                <li
+                  key={task.id}
+                  className={`summary-task-item is-completed ${onSelectTask ? 'is-clickable' : ''}`}
+                  onClick={() => onSelectTask?.(task.id)}
+                  role={onSelectTask ? 'button' : undefined}
+                  tabIndex={onSelectTask ? 0 : undefined}
+                  onKeyDown={
+                    onSelectTask
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onSelectTask(task.id)
+                          }
                         }
-                      }
-                    : undefined
-                }
-                data-testid={`summary-task-item-${task.id}`}
-              >
-                <span className="summary-task-check-icon" aria-hidden="true">✓</span>
-                <div className="summary-task-content">
-                  <span className="summary-task-title">{task.title}</span>
-                  {formattedCompleted && (
-                    <span className="summary-task-meta">{formattedCompleted}</span>
-                  )}
-                </div>
-                <span className={`summary-priority-badge priority-${task.priority}`}>
-                  {task.priority}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
+                      : undefined
+                  }
+                  data-testid={`summary-task-item-${task.id}`}
+                >
+                  <span className="summary-task-check-icon" aria-hidden="true">✓</span>
+                  <div className="summary-task-content">
+                    <span className="summary-task-title">{task.title}</span>
+                    {formattedCompleted && (
+                      <span className="summary-task-meta">{formattedCompleted}</span>
+                    )}
+                  </div>
+                  <span className={`summary-priority-badge priority-${task.priority}`}>
+                    {task.priority}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
     </section>
   )
