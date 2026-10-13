@@ -10,6 +10,7 @@ import { DashboardPage } from '../pages/DashboardPage'
 import { TasksPage } from '../pages/TasksPage'
 import { CalendarPage } from '../pages/CalendarPage'
 import { SummaryPage } from '../pages/SummaryPage'
+import { MonthlyReportPage } from '../pages/MonthlyReportPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { AdminUsersPage } from '../pages/AdminUsersPage'
 import { AdminDashboardPage } from '../pages/AdminDashboardPage'
@@ -37,6 +38,7 @@ export function App() {
           <Route path="/tasks/trash" element={<TasksPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/summary" element={<SummaryPage />} />
+          <Route path="/summary/monthly" element={<MonthlyReportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Route>

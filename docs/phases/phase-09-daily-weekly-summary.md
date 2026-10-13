@@ -317,3 +317,21 @@ Phase 9 is done when users can review daily and weekly output using understandab
 - **Overdue Duration Formatter:** Overdue tasks across task lists, dashboard widgets, and detail views display human-readable duration (`formatTaskOverdueDuration`) supporting months, days, hours, and minutes with localized strings.
 - **Total Completion Duration:** For completed tasks, total execution time is computed between `created_at` and `completed_at` to provide clear feedback on actual elapsed duration.
 - **Admin Real-Time Sync & Safe Polling:** Admin dashboard and user management pages incorporate debounced Supabase Realtime channel subscription alongside safe background-paused polling (`refetchIntervalInBackground: false`) and window focus revalidation to keep metrics fresh without overloading Edge Functions.
+
+---
+
+## 22. Work Report Export (XLSX)
+
+- **Route:** `/summary/monthly` (accessible via action button on `/summary`).
+- **Export Modes:**
+  1. *Theo tháng (Monthly):* Select Year and Month based on user profile timezone.
+  2. *Theo khoảng thời gian (Custom Date Range):* Select arbitrary Start Date and End Date.
+- **Candidate Task Query:** Loads tasks matching the selected period (`due_at`, `completed_at`, `created_at`, `start_at` or schedule interval overlap), excluding `deleted_at != null`. Candidate tasks are deduplicated by ID and sorted stably.
+- **Interactive Selection:** Users review candidate tasks in the UI with category tags, due dates, and status badges; they can toggle individual tasks or use select/deselect all before exporting.
+- **OOXML Generation:** Uses `fflate` in the browser to populate the clean template (`public/report-templates/monthly-work-report-v1.xlsx`).
+  - Automatically clones work rows and summary group rows according to actual record counts without legacy limits.
+  - Recalculates formula ranges (`COUNTIF`, `COUNTIFS`), shifts merged cells and conditional formatting.
+  - Removes `calcChain.xml` to let Excel recalculate cleanly upon opening.
+  - Stores text strictly as XLSX strings to prevent formula injection.
+  - Intentionally leaves outcome, issues, solutions, notes, department, job title, support, and next-month rows blank for manual Excel input.
+- **Security & Boundaries:** Entirely client-side generation using the current user's authenticated session under RLS. No server-side export endpoints or privileged leaks.
