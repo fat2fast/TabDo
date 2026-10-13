@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { formatInTimeZone } from 'date-fns-tz'
 import { useAuth } from '../features/auth/auth-provider'
 import { useI18n } from '../features/i18n/i18n-provider'
@@ -90,6 +90,15 @@ export function SummaryPage() {
     <div className="summary-page-container">
       <header className="summary-header">
         <h1 className="summary-page-title">{t('summary.title')}</h1>
+        <div className="summary-header-actions">
+          <Link
+            to="/summary/monthly"
+            className="btn btn-secondary btn-sm"
+            data-testid="monthly-report-nav-btn"
+          >
+            <span aria-hidden="true">📊</span> {t('summary.exportReportBtn')}
+          </Link>
+        </div>
       </header>
 
       {/* Approximation Notice Banner */}
