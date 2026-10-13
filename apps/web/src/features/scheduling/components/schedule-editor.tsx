@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   fromScheduleInstant,
+  isScheduleBlockAllDay,
   parseScheduleLocalDateTime,
 } from '@tabdo/utils'
 import { useAuth } from '../../auth/auth-provider'
@@ -76,6 +77,7 @@ export function ScheduleEditor({
   // State
   const [title, setTitle] = useState('')
   const [taskId, setTaskId] = useState<string>('')
+  const [isAllDay, setIsAllDay] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -95,10 +97,12 @@ export function ScheduleEditor({
       setTaskId(initialBlock.taskId || '')
       const startParsed = fromScheduleInstant(initialBlock.startAt, timeZone)
       const endParsed = fromScheduleInstant(initialBlock.endAt, timeZone)
+      const isBlockAllDay = isScheduleBlockAllDay(initialBlock.startAt, initialBlock.endAt, timeZone)
+      setIsAllDay(isBlockAllDay)
       setStartDate(startParsed.dateStr)
-      setStartTime(startParsed.timeStr)
       setEndDate(endParsed.dateStr)
-      setEndTime(endParsed.timeStr)
+      setStartTime(isBlockAllDay ? '00:00' : startParsed.timeStr)
+      setEndTime(isBlockAllDay ? '23:59' : endParsed.timeStr)
     } else {
       setTitle(initialTask ? initialTask.title : '')
       setTaskId(initialTask ? initialTask.id : '')
@@ -106,18 +110,34 @@ export function ScheduleEditor({
       const startInstant = initialStartAt || new Date().toISOString()
       const startParsed = fromScheduleInstant(startInstant, timeZone)
       setStartDate(startParsed.dateStr)
-      setStartTime(startParsed.timeStr || '09:00')
 
-      if (initialEndAt) {
-        const endParsed = fromScheduleInstant(initialEndAt, timeZone)
-        setEndDate(endParsed.dateStr)
-        setEndTime(endParsed.timeStr)
+      const isPresetAllDay =
+        Boolean(initialStartAt && initialEndAt && isScheduleBlockAllDay(initialStartAt, initialEndAt, timeZone))
+      setIsAllDay(isPresetAllDay)
+
+      if (isPresetAllDay) {
+        setStartTime('00:00')
+        setEndTime('23:59')
+        if (initialEndAt) {
+          const endParsed = fromScheduleInstant(initialEndAt, timeZone)
+          setEndDate(endParsed.dateStr)
+        } else {
+          setEndDate(startParsed.dateStr)
+        }
       } else {
-        // Default 1 hour later
-        setEndDate(startParsed.dateStr)
-        const [hours, mins] = (startParsed.timeStr || '09:00').split(':').map(Number)
-        const nextHour = (hours + 1) % 24
-        setEndTime(`${String(nextHour).padStart(2, '0')}:${String(mins).padStart(2, '0')}`)
+        setStartTime(startParsed.timeStr || '09:00')
+
+        if (initialEndAt) {
+          const endParsed = fromScheduleInstant(initialEndAt, timeZone)
+          setEndDate(endParsed.dateStr)
+          setEndTime(endParsed.timeStr)
+        } else {
+          // Default 1 hour later
+          setEndDate(startParsed.dateStr)
+          const [hours, mins] = (startParsed.timeStr || '09:00').split(':').map(Number)
+          const nextHour = (hours + 1) % 24
+          setEndTime(`${String(nextHour).padStart(2, '0')}:${String(mins).padStart(2, '0')}`)
+        }
       }
     }
   }, [isOpen, initialBlock, initialStartAt, initialEndAt, initialTask, timeZone])
@@ -196,18 +216,40 @@ export function ScheduleEditor({
       return
     }
 
-    if (!startDate || !startTime || !endDate || !endTime) {
-      setErrorMsg('Vui lòng chọn đầy đủ thời gian bắt đầu và kết thúc.')
-      return
-    }
+    let parsedStartInstant: string
+    let parsedEndInstant: string
 
     try {
-      const parsedStart = parseScheduleLocalDateTime(startDate, startTime, timeZone)
-      const parsedEnd = parseScheduleLocalDateTime(endDate, endTime, timeZone)
+      if (isAllDay) {
+        if (!startDate) {
+          setErrorMsg('Vui lòng chọn ngày cho lịch trình cả ngày.')
+          return
+        }
+        const finalEndDate = endDate || startDate
+        if (finalEndDate < startDate) {
+          setErrorMsg('Ngày kết thúc phải diễn ra sau hoặc cùng ngày bắt đầu.')
+          return
+        }
+        const parsedStart = parseScheduleLocalDateTime(startDate, '00:00', timeZone)
+        const parsedEnd = parseScheduleLocalDateTime(finalEndDate, '23:59', timeZone)
+        parsedStartInstant = parsedStart.instant
+        parsedEndInstant = parsedEnd.instant
+      } else {
+        if (!startDate || !startTime || !endDate || !endTime) {
+          setErrorMsg('Vui lòng chọn đầy đủ thời gian bắt đầu và kết thúc.')
+          return
+        }
 
-      if (new Date(parsedEnd.instant).getTime() <= new Date(parsedStart.instant).getTime()) {
-        setErrorMsg('Thời gian kết thúc phải diễn ra sau thời gian bắt đầu.')
-        return
+        const parsedStart = parseScheduleLocalDateTime(startDate, startTime, timeZone)
+        const parsedEnd = parseScheduleLocalDateTime(endDate, endTime, timeZone)
+
+        if (new Date(parsedEnd.instant).getTime() <= new Date(parsedStart.instant).getTime()) {
+          setErrorMsg('Thời gian kết thúc phải diễn ra sau thời gian bắt đầu.')
+          return
+        }
+
+        parsedStartInstant = parsedStart.instant
+        parsedEndInstant = parsedEnd.instant
       }
 
       if (isEditing && initialBlock) {
@@ -216,8 +258,8 @@ export function ScheduleEditor({
           input: {
             title: trimmedTitle,
             taskId: taskId || null,
-            startAt: parsedStart.instant,
-            endAt: parsedEnd.instant,
+            startAt: parsedStartInstant,
+            endAt: parsedEndInstant,
             previousUpdatedAt: initialBlock.updatedAt,
           },
         })
@@ -226,8 +268,8 @@ export function ScheduleEditor({
         const created = await createMutation.mutateAsync({
           title: trimmedTitle,
           taskId: taskId || null,
-          startAt: parsedStart.instant,
-          endAt: parsedEnd.instant,
+          startAt: parsedStartInstant,
+          endAt: parsedEndInstant,
         })
         onSuccess?.(created)
       }
@@ -308,6 +350,8 @@ export function ScheduleEditor({
               label="Liên kết công việc (Tùy chọn)"
               value={taskId}
               options={taskOptions}
+              searchable={true}
+              searchPlaceholder="Tìm kiếm nhanh công việc..."
               onChange={(selectedId: string) => {
                 setTaskId(selectedId)
                 if (selectedId && (!title || title.trim() === '')) {
@@ -356,89 +400,149 @@ export function ScheduleEditor({
             )}
           </div>
 
-          <div className="form-row">
-            <div className="form-group col-6">
-              <DatePicker
-                id="schedule-start-date"
-                testId="schedule-start-date"
-                label="Ngày bắt đầu"
-                value={startDate}
-                onChange={(newStartDate: string) => {
-                  setStartDate(newStartDate)
-                  if (endDate && newStartDate > endDate) {
-                    setEndDate(newStartDate)
+          {/* All day checkbox */}
+          <div className="schedule-all-day-row">
+            <label className="schedule-checkbox-label" htmlFor="schedule-all-day-checkbox">
+              <input
+                id="schedule-all-day-checkbox"
+                type="checkbox"
+                className="form-checkbox"
+                checked={isAllDay}
+                onChange={(e) => {
+                  const checked = e.target.checked
+                  setIsAllDay(checked)
+                  if (checked) {
+                    setStartTime('00:00')
+                    setEndTime('23:59')
+                    if (!endDate) setEndDate(startDate)
+                  } else {
+                    setStartTime('09:00')
+                    setEndTime('10:00')
                   }
                 }}
-                timeZone={timeZone}
-                required
+                data-testid="schedule-all-day-checkbox"
               />
-            </div>
-            <div className="form-group col-6">
-              <TimePicker24h
-                id="schedule-start-time"
-                testId="schedule-start-time"
-                label="Giờ bắt đầu (24h)"
-                value={startTime}
-                onChange={(newStartTime: string) => setStartTime(newStartTime)}
-                required
-              />
-            </div>
+              <span className="checkbox-text">Cả ngày</span>
+            </label>
           </div>
 
-          {/* Quick Duration Buttons */}
-          <div className="quick-duration-wrapper">
-            <span className="quick-duration-label">Thời lượng nhanh:</span>
-            <div className="quick-duration-chips">
-              {[
-                { label: '+15p', minutes: 15 },
-                { label: '+30p', minutes: 30 },
-                { label: '+45p', minutes: 45 },
-                { label: '+1h', minutes: 60 },
-                { label: '+2h', minutes: 120 },
-              ].map(({ label, minutes }) => (
-                <button
-                  key={minutes}
-                  type="button"
-                  className="quick-duration-btn"
-                  onClick={() => handleSetDuration(minutes)}
-                  title={`Đặt thời lượng ${minutes} phút`}
-                >
-                  {label}
-                </button>
-              ))}
+          {isAllDay ? (
+            <div className="form-row">
+              <div className="form-group col-6">
+                <DatePicker
+                  id="schedule-start-date"
+                  testId="schedule-start-date"
+                  label="Ngày bắt đầu"
+                  value={startDate}
+                  onChange={(newStartDate: string) => {
+                    setStartDate(newStartDate)
+                    if (endDate && newStartDate > endDate) {
+                      setEndDate(newStartDate)
+                    }
+                  }}
+                  timeZone={timeZone}
+                  required
+                />
+              </div>
+              <div className="form-group col-6">
+                <DatePicker
+                  id="schedule-end-date"
+                  testId="schedule-end-date"
+                  label="Ngày kết thúc"
+                  value={endDate || startDate}
+                  onChange={(newEndDate: string) => setEndDate(newEndDate)}
+                  timeZone={timeZone}
+                  required
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="form-row">
+                <div className="form-group col-6">
+                  <DatePicker
+                    id="schedule-start-date"
+                    testId="schedule-start-date"
+                    label="Ngày bắt đầu"
+                    value={startDate}
+                    onChange={(newStartDate: string) => {
+                      setStartDate(newStartDate)
+                      if (endDate && newStartDate > endDate) {
+                        setEndDate(newStartDate)
+                      }
+                    }}
+                    timeZone={timeZone}
+                    required
+                  />
+                </div>
+                <div className="form-group col-6">
+                  <TimePicker24h
+                    id="schedule-start-time"
+                    testId="schedule-start-time"
+                    label="Giờ bắt đầu (24h)"
+                    value={startTime}
+                    onChange={(newStartTime: string) => setStartTime(newStartTime)}
+                    required
+                  />
+                </div>
+              </div>
 
-          <div className="form-row">
-            <div className="form-group col-6">
-              <DatePicker
-                id="schedule-end-date"
-                testId="schedule-end-date"
-                label="Ngày kết thúc"
-                value={endDate}
-                onChange={(newEndDate: string) => setEndDate(newEndDate)}
-                timeZone={timeZone}
-                required
-              />
-            </div>
-            <div className="form-group col-6">
-              <div className="label-with-duration">
-                <span className="duration-label-text">Giờ kết thúc (24h)</span>
+              {/* Quick Duration Buttons & Duration Pill */}
+              <div className="quick-duration-wrapper">
+                <div className="quick-duration-left">
+                  <span className="quick-duration-label">Thời lượng nhanh:</span>
+                  <div className="quick-duration-chips">
+                    {[
+                      { label: '+15p', minutes: 15 },
+                      { label: '+30p', minutes: 30 },
+                      { label: '+45p', minutes: 45 },
+                      { label: '+1h', minutes: 60 },
+                      { label: '+2h', minutes: 120 },
+                    ].map(({ label, minutes }) => (
+                      <button
+                        key={minutes}
+                        type="button"
+                        className="quick-duration-btn"
+                        onClick={() => handleSetDuration(minutes)}
+                        title={`Đặt thời lượng ${minutes} phút`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {calculatedDuration && (
-                  <span className="duration-pill" title="Thời lượng phiên làm việc">
+                  <div className="duration-pill" title="Thời lượng dự kiến">
                     ⏱️ {calculatedDuration}
-                  </span>
+                  </div>
                 )}
               </div>
-              <TimePicker24h
-                id="schedule-end-time"
-                testId="schedule-end-time"
-                value={endTime}
-                onChange={(newEndTime: string) => setEndTime(newEndTime)}
-                required
-              />
-            </div>
-          </div>
+
+              <div className="form-row">
+                <div className="form-group col-6">
+                  <DatePicker
+                    id="schedule-end-date"
+                    testId="schedule-end-date"
+                    label="Ngày kết thúc"
+                    value={endDate}
+                    onChange={(newEndDate: string) => setEndDate(newEndDate)}
+                    timeZone={timeZone}
+                    required
+                  />
+                </div>
+                <div className="form-group col-6">
+                  <TimePicker24h
+                    id="schedule-end-time"
+                    testId="schedule-end-time"
+                    label="Giờ kết thúc (24h)"
+                    value={endTime}
+                    onChange={(newEndTime: string) => setEndTime(newEndTime)}
+                    required
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="timezone-hint">
             <span>Múi giờ áp dụng: </span>

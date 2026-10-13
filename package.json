@@ -15,7 +15,12 @@
     "lint": "oxlint apps packages",
     "test": "pnpm --filter @tabdo/web test && pnpm --filter @tabdo/extension test",
     "test:integration": "node --experimental-strip-types scripts/test-integration.ts",
+    "db:reset:local": "node --experimental-strip-types scripts/reset-local-db.ts",
+    "seed:local:safety": "node --experimental-strip-types scripts/check-seed-safety.ts",
+    "seed:local:accounts": "node --experimental-strip-types scripts/set-local-seed-passwords.ts",
+    "seed:local:verify": "node --experimental-strip-types scripts/verify-local-seed.ts",
     "bootstrap:admin": "node --experimental-strip-types scripts/bootstrap-admin.ts",
+    "check:uat:config": "node --experimental-strip-types scripts/check-uat-build-config.ts",
     "migrate:attachments": "node --experimental-strip-types scripts/migrate-task-attachments.ts"
   },
   "devDependencies": {

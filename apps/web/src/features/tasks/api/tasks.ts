@@ -3,43 +3,195 @@ import { completeTaskAndGenerateNext } from '@tabdo/supabase'
 import type { CompleteTaskAndGenerateNextResult, TaskAttachment } from '@tabdo/types'
 import { supabase } from '../../../lib/supabase'
 import {
+  type BoardLaneStatus,
   type CreateTaskInput,
   type Task,
+  type TaskBoardLaneQueryInput,
+  type TaskBoardLaneResult,
   type TaskListQueryInput,
   type TaskRow,
+  type TaskSortOption,
+  type TaskStatus,
+  type TaskView,
   type UpdateTaskInput,
   rowToTask,
 } from '../types'
+
 import { recordTaskActivity } from './task-activities'
 import {
   extractTaskAttachments,
   mergeTaskAttachments,
 } from '../utils/task-attachments'
 
-export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
-  let query = supabase.from('tasks').select('*')
+export async function getMatchingCategoryIds(searchTerm: string | undefined): Promise<string[]> {
+  if (!searchTerm || !searchTerm.trim()) return []
+  const sanitized = searchTerm.trim().replace(/[,()]/g, ' ').trim()
+  if (!sanitized) return []
+  try {
+    const catQuery: any = supabase.from('categories').select('id')
+    if (typeof catQuery.ilike === 'function') {
+      const { data: matchedCats } = await catQuery.ilike('name', `%${sanitized}%`)
+      if (matchedCats && matchedCats.length > 0) {
+        return matchedCats.map((c: any) => c.id).filter(Boolean)
+      }
+    }
+  } catch {
+    // Graceful fallback
+  }
+  return []
+}
+
+export function applyCommonTaskPredicates<T>(
+  query: T,
+  input: {
+    view: TaskView
+    search?: string
+    priority?: string
+    categoryId?: string | null
+    dueFrom?: string
+    dueTo?: string
+    completedFrom?: string
+    completedTo?: string
+    scope?: string
+  },
+  matchingCategoryIds: string[] = []
+): T {
+  let q: any = query
 
   // Explicit active vs trash projection
-  if (typeof (query as any).is === 'function') {
+  if (typeof q.is === 'function') {
     if (input.view === 'trash') {
-      if (typeof (query as any).not === 'function') {
-        query = query.not('deleted_at', 'is', null)
+      if (typeof q.not === 'function') {
+        q = q.not('deleted_at', 'is', null)
       }
     } else {
-      query = query.is('deleted_at', null)
+      q = q.is('deleted_at', null)
     }
   }
 
+  // Scope filter (e.g. Unorganized / No due date / Uncategorized)
+  if (input.scope === 'unorganized') {
+    q = q.or('category_id.is.null,due_at.is.null')
+  } else if (input.scope === 'no_due') {
+    q = q.is('due_at', null)
+  } else if (input.scope === 'uncategorized') {
+    q = q.is('category_id', null)
+  }
+
+  // Search filter across title, description, and matching category names
+  if (input.search && input.search.trim()) {
+    const rawTerm = input.search.trim()
+    const sanitizedTerm = rawTerm.replace(/[,()]/g, ' ').trim()
+    if (sanitizedTerm) {
+      if (typeof q.or === 'function') {
+        if (matchingCategoryIds && matchingCategoryIds.length > 0) {
+          q = q.or(
+            `title.ilike.%${sanitizedTerm}%,description.ilike.%${sanitizedTerm}%,category_id.in.(${matchingCategoryIds.join(',')})`
+          )
+        } else {
+          q = q.or(`title.ilike.%${sanitizedTerm}%,description.ilike.%${sanitizedTerm}%`)
+        }
+      } else if (typeof q.ilike === 'function') {
+        q = q.ilike('title', `%${sanitizedTerm}%`)
+      }
+    }
+  }
+  if (input.priority) {
+    q = q.eq('priority', input.priority)
+  }
+  if (input.categoryId !== undefined) {
+    if (input.categoryId === null || input.categoryId === 'none') {
+      q = q.is('category_id', null)
+    } else if (input.categoryId !== '') {
+      q = q.eq('category_id', input.categoryId)
+    }
+  }
+  if (input.dueFrom) {
+    q = q.gte('due_at', input.dueFrom)
+  }
+  if (input.dueTo) {
+    q = q.lte('due_at', input.dueTo)
+  }
+  if (input.completedFrom) {
+    q = q.gte('completed_at', input.completedFrom)
+  }
+  if (input.completedTo) {
+    q = q.lte('completed_at', input.completedTo)
+  }
+
+  return q
+}
+
+export function applyTaskSorting<T>(
+  query: T,
+  sort: TaskSortOption | undefined,
+  view: TaskView,
+  lane?: BoardLaneStatus
+): T {
+  let q: any = query
+  if (sort && sort !== 'default') {
+    switch (sort) {
+      case 'priority':
+        return q
+          .order('priority_rank', { ascending: false })
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
+      case 'due_asc':
+        return q
+          .order('due_at', { ascending: true, nullsFirst: false })
+          .order('priority_rank', { ascending: false })
+          .order('id', { ascending: true })
+      case 'due_desc':
+        return q
+          .order('due_at', { ascending: false, nullsFirst: false })
+          .order('priority_rank', { ascending: false })
+          .order('id', { ascending: true })
+      case 'created_desc':
+        return q.order('created_at', { ascending: false }).order('id', { ascending: true })
+      case 'updated_desc':
+        return q.order('updated_at', { ascending: false }).order('id', { ascending: true })
+    }
+  }
+
+  // Default sort per lane / view
+  if (lane) {
+    if (lane === 'done') {
+      return q
+        .order('board_order', { ascending: false, nullsLast: true })
+        .order('completed_at', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: true })
+    }
+    return q
+      .order('board_order', { ascending: false, nullsLast: true })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+  }
+  if (view === 'completed') {
+    return q.order('completed_at', { ascending: false, nullsFirst: false }).order('id', { ascending: true })
+  }
+  if (view === 'today' || view === 'upcoming' || view === 'overdue') {
+    return q
+      .order('due_at', { ascending: true, nullsFirst: false })
+      .order('priority_rank', { ascending: false })
+      .order('id', { ascending: true })
+  }
+
+  return q.order('created_at', { ascending: false }).order('id', { ascending: true })
+}
+
+export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
+  let query = supabase.from('tasks').select('*')
+
+  // Common active/trash, search, category, priority, due, completed, scope
+  const matchingCategoryIds = await getMatchingCategoryIds(input.search)
+  query = applyCommonTaskPredicates(query, input, matchingCategoryIds)
+
   // Apply smart view predicates
   switch (input.view) {
-    case 'inbox': {
-      // 'All Tasks' view: displays all tasks without restricting due_at or excluding completed tasks.
-      // Active tasks will be sorted first, and completed tasks pushed to the bottom.
+    case 'inbox':
       break
-    }
     case 'today': {
       const { endOfDay } = getLocalDayBoundaries(input.now, input.timeZone)
-      // Active tasks due on or before local end-of-today (includes overdue + due today)
       query = query
         .neq('status', 'done')
         .not('due_at', 'is', null)
@@ -48,7 +200,6 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
     }
     case 'upcoming': {
       const { endOfDay } = getLocalDayBoundaries(input.now, input.timeZone)
-      // Active tasks due after local end-of-today
       query = query
         .neq('status', 'done')
         .not('due_at', 'is', null)
@@ -71,89 +222,11 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
     }
   }
 
-  // Scope filter (e.g. Unorganized / No due date / Uncategorized)
-  if (input.scope === 'unorganized') {
-    query = query.or('category_id.is.null,due_at.is.null')
-  } else if (input.scope === 'no_due') {
-    query = query.is('due_at', null)
-  } else if (input.scope === 'uncategorized') {
-    query = query.is('category_id', null)
-  }
-
-  // Filter overrides if provided
-  if (input.search && input.search.trim()) {
-    query = query.ilike('title', `%${input.search.trim()}%`)
-  }
   if (input.status) {
     query = query.eq('status', input.status)
   }
-  if (input.priority) {
-    query = query.eq('priority', input.priority)
-  }
-  if (input.categoryId !== undefined) {
-    if (input.categoryId === null || input.categoryId === 'none') {
-      query = query.is('category_id', null)
-    } else if (input.categoryId !== '') {
-      query = query.eq('category_id', input.categoryId)
-    }
-  }
-  if (input.dueFrom) {
-    query = query.gte('due_at', input.dueFrom)
-  }
-  if (input.dueTo) {
-    query = query.lte('due_at', input.dueTo)
-  }
-  if (input.completedFrom) {
-    query = query.gte('completed_at', input.completedFrom)
-  }
-  if (input.completedTo) {
-    query = query.lte('completed_at', input.completedTo)
-  }
 
-  // Sorting
-  if (input.sort && input.sort !== 'default') {
-    switch (input.sort) {
-      case 'priority':
-        query = query
-          .order('priority_rank', { ascending: false })
-          .order('created_at', { ascending: false })
-        break
-      case 'due_asc':
-        query = query
-          .order('due_at', { ascending: true, nullsFirst: false })
-          .order('priority_rank', { ascending: false })
-        break
-      case 'due_desc':
-        query = query
-          .order('due_at', { ascending: false, nullsFirst: false })
-          .order('priority_rank', { ascending: false })
-        break
-      case 'created_desc':
-        query = query.order('created_at', { ascending: false })
-        break
-      case 'updated_desc':
-        query = query.order('updated_at', { ascending: false })
-        break
-    }
-  } else {
-    // Default sort per view
-    switch (input.view) {
-      case 'completed':
-        query = query.order('completed_at', { ascending: false })
-        break
-      case 'today':
-      case 'upcoming':
-      case 'overdue':
-        query = query
-          .order('due_at', { ascending: true, nullsFirst: false })
-          .order('priority_rank', { ascending: false })
-        break
-      case 'inbox':
-      default:
-        query = query.order('created_at', { ascending: false })
-        break
-    }
-  }
+  query = applyTaskSorting(query, input.sort, input.view)
 
   // Bounded limit
   const limit = input.limit ?? (input.view === 'completed' ? 50 : 100)
@@ -175,6 +248,93 @@ export async function getTaskList(input: TaskListQueryInput): Promise<Task[]> {
 
   return tasks
 }
+
+export async function getTaskBoardLane(input: TaskBoardLaneQueryInput): Promise<TaskBoardLaneResult> {
+  const page = Math.max(1, input.page ?? 1)
+  const pageSize = input.pageSize ?? 30
+  const statusFilter = input.statusFilter ?? (input as any).status
+
+  // Status filter conflict: if user explicitly filtered by a different status, this lane is empty
+  if (statusFilter && statusFilter !== input.lane) {
+    return { lane: input.lane, items: [], total: 0, hasMore: false, page }
+  }
+
+  // Smart view predicate incompatibility
+  if (
+    (input.view === 'today' || input.view === 'upcoming' || input.view === 'overdue') &&
+    input.lane === 'done'
+  ) {
+    return { lane: input.lane, items: [], total: 0, hasMore: false, page }
+  }
+  if (input.view === 'completed' && input.lane !== 'done') {
+    return { lane: input.lane, items: [], total: 0, hasMore: false, page }
+  }
+
+  let query = supabase.from('tasks').select('*', { count: 'exact' })
+
+  // Apply common predicates
+  const matchingCategoryIds = await getMatchingCategoryIds(input.search)
+  query = applyCommonTaskPredicates(query, input, matchingCategoryIds)
+
+  // Fixed status for the lane
+  query = query.eq('status', input.lane)
+
+  // Smart view due_at predicates for active lanes
+  if (input.view === 'today') {
+    const { startOfDay, endOfDay } = getLocalDayBoundaries(input.now, input.timeZone)
+    const { data: blocks } = await supabase
+      .from('schedule_blocks')
+      .select('task_id')
+      .not('task_id', 'is', null)
+      .lt('start_at', endOfDay.toISOString())
+      .gt('end_at', startOfDay.toISOString())
+
+    const scheduledTaskIds = Array.from(
+      new Set(
+        ((blocks as Array<{ task_id: string | null }>) || [])
+          .map((b) => b.task_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    )
+
+    if (scheduledTaskIds.length > 0) {
+      query = query.or(`due_at.lte.${endOfDay.toISOString()},id.in.(${scheduledTaskIds.join(',')})`)
+    } else {
+      query = query.not('due_at', 'is', null).lte('due_at', endOfDay.toISOString())
+    }
+  } else if (input.view === 'upcoming') {
+    const { endOfDay } = getLocalDayBoundaries(input.now, input.timeZone)
+    query = query.not('due_at', 'is', null).gt('due_at', endOfDay.toISOString())
+  } else if (input.view === 'overdue') {
+    query = query.not('due_at', 'is', null).lt('due_at', input.now.toISOString())
+  }
+
+  // Sorting with id tie-breaker
+  query = applyTaskSorting(query, input.sort, input.view, input.lane)
+
+  // Range pagination
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  query = query.range(from, to)
+
+  const { data, count, error } = await query
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const items = ((data as TaskRow[]) || []).map(rowToTask)
+  const total = count ?? 0
+  const hasMore = total > to + 1
+
+  return {
+    lane: input.lane,
+    items,
+    total,
+    hasMore,
+    page,
+  }
+}
+
 
 export async function getTaskById(id: string): Promise<Task | null> {
   const { data, error } = await supabase
@@ -246,6 +406,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     recurrence_parent_id: input.recurrenceParentId || null,
     recurrence_timezone: input.recurrenceTimezone || null,
     recurrence_anchor_at: input.recurrenceAnchorAt || null,
+    ...(input.boardOrder !== undefined ? { board_order: input.boardOrder } : {}),
   }
 
   const { data, error } = await supabase
@@ -319,6 +480,7 @@ export async function updateTask(
   if (input.recurrenceParentId !== undefined) updates.recurrence_parent_id = input.recurrenceParentId || null
   if (input.recurrenceTimezone !== undefined) updates.recurrence_timezone = input.recurrenceTimezone || null
   if (input.recurrenceAnchorAt !== undefined) updates.recurrence_anchor_at = input.recurrenceAnchorAt || null
+  if (input.boardOrder !== undefined) updates.board_order = input.boardOrder
 
   const {
     data: { session },
@@ -345,11 +507,15 @@ export async function updateTask(
   }
 
   let query = supabase.from('tasks').update(updates).eq('id', id)
+  if (typeof (query as any).is === 'function') {
+    query = (query as any).is('deleted_at', null)
+  }
   if (input.previousUpdatedAt) {
     query = query.eq('updated_at', input.previousUpdatedAt)
   }
 
   const { data, error } = await query.select().single()
+
 
   if (error) {
     if (error.code === 'PGRST116') {
@@ -472,7 +638,22 @@ export async function getTrashTasks(search?: string): Promise<Task[]> {
     .order('deleted_at', { ascending: false })
 
   if (search && search.trim()) {
-    query = query.ilike('title', `%${search.trim()}%`)
+    const matchingCategoryIds = await getMatchingCategoryIds(search)
+    const rawTerm = search.trim()
+    const sanitizedTerm = rawTerm.replace(/[,()]/g, ' ').trim()
+    if (sanitizedTerm) {
+      if (typeof (query as any).or === 'function') {
+        if (matchingCategoryIds.length > 0) {
+          query = (query as any).or(
+            `title.ilike.%${sanitizedTerm}%,description.ilike.%${sanitizedTerm}%,category_id.in.(${matchingCategoryIds.join(',')})`
+          )
+        } else {
+          query = (query as any).or(`title.ilike.%${sanitizedTerm}%,description.ilike.%${sanitizedTerm}%`)
+        }
+      } else if (typeof (query as any).ilike === 'function') {
+        query = (query as any).ilike('title', `%${sanitizedTerm}%`)
+      }
+    }
   }
 
   const { data, error } = await query
@@ -515,6 +696,65 @@ export async function reopenTask(task: Task): Promise<Task> {
     task
   )
 }
+
+export async function changeTaskStatus(
+  task: Task,
+  targetStatus: TaskStatus,
+  boardOrder?: number
+): Promise<Task> {
+  if (task.status === targetStatus) {
+    if (boardOrder !== undefined && boardOrder !== task.boardOrder) {
+      return updateTask(
+        task.id,
+        {
+          boardOrder,
+          previousUpdatedAt: task.updatedAt,
+        },
+        task
+      )
+    }
+    return task
+  }
+
+  // Active -> Done: must call atomic completeTask RPC
+  if (targetStatus === 'done') {
+    const result = await completeTask(task)
+    if (boardOrder !== undefined) {
+      try {
+        await updateTask(task.id, { boardOrder })
+      } catch (orderErr) {
+        console.warn('Failed to update board_order after completing task:', orderErr)
+      }
+    }
+    return result.completedTask
+  }
+
+  // Done -> Todo / In Progress: single update clearing completedAt with optimistic lock
+  if (task.status === 'done') {
+    return updateTask(
+      task.id,
+      {
+        status: targetStatus,
+        completedAt: null,
+        boardOrder,
+        previousUpdatedAt: task.updatedAt,
+      },
+      task
+    )
+  }
+
+  // Todo <-> In Progress: single update with optimistic lock
+  return updateTask(
+    task.id,
+    {
+      status: targetStatus,
+      boardOrder,
+      previousUpdatedAt: task.updatedAt,
+    },
+    task
+  )
+}
+
 
 export async function getTasksByIds(ids: string[]): Promise<Task[]> {
   if (!ids || ids.length === 0) return []

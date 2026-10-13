@@ -221,4 +221,47 @@ describe('deriveDashboardSnapshot', () => {
     expect(snapshot.todaySchedule.length).toBe(1)
     expect(snapshot.todaySchedule[0]?.id).toBe('b-today')
   })
+
+  it('maps explicit inProgressTasks and inProgressTotal or falls back to filtering incompleteTasks', () => {
+    const inProgressTask1: Task = {
+      ...baseTask,
+      id: 't-prog-1',
+      status: 'in_progress',
+    }
+    const inProgressTask2: Task = {
+      ...baseTask,
+      id: 't-prog-2',
+      status: 'in_progress',
+    }
+
+    // 1. Explicit input provided
+    const snapshotExplicit = deriveDashboardSnapshot({
+      incompleteTasks: [],
+      completedTodayTasks: [],
+      todayBlocks: [],
+      inProgressTasks: [inProgressTask1],
+      inProgressTotal: 42,
+      referenceNow,
+      localStartIso,
+      nextLocalStartIso,
+      nextSevenDaysEndIso,
+    })
+
+    expect(snapshotExplicit.inProgressTasks).toEqual([inProgressTask1])
+    expect(snapshotExplicit.inProgressTotal).toBe(42)
+
+    // 2. Fallback to filtering incompleteTasks
+    const snapshotFallback = deriveDashboardSnapshot({
+      incompleteTasks: [inProgressTask1, inProgressTask2, baseTask],
+      completedTodayTasks: [],
+      todayBlocks: [],
+      referenceNow,
+      localStartIso,
+      nextLocalStartIso,
+      nextSevenDaysEndIso,
+    })
+
+    expect(snapshotFallback.inProgressTasks.map((t) => t.id)).toEqual(['t-prog-1', 't-prog-2'])
+    expect(snapshotFallback.inProgressTotal).toBe(2)
+  })
 })

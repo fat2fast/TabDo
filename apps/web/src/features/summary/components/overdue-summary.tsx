@@ -41,46 +41,48 @@ export function OverdueSummary({
         </h3>
       </div>
 
-      <ul className="summary-task-list" aria-label={t('summary.overdueSection')}>
-        {tasks.map((task) => {
-          const duration = task.dueAt
-            ? getOverdueDurationString(task.dueAt, referenceNow)
-            : ''
-          const formattedDue = formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
+      <div className="summary-scrollable-container">
+        <ul className="summary-task-list" aria-label={t('summary.overdueSection')}>
+          {tasks.map((task) => {
+            const duration = task.dueAt
+              ? getOverdueDurationString(task.dueAt, referenceNow)
+              : ''
+            const formattedDue = formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
 
-          return (
-            <li
-              key={task.id}
-              className={`summary-task-item is-overdue ${onSelectTask ? 'is-clickable' : ''}`}
-              onClick={() => onSelectTask?.(task.id)}
-              role={onSelectTask ? 'button' : undefined}
-              tabIndex={onSelectTask ? 0 : undefined}
-              onKeyDown={
-                onSelectTask
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onSelectTask(task.id)
+            return (
+              <li
+                key={task.id}
+                className={`summary-task-item is-overdue ${onSelectTask ? 'is-clickable' : ''}`}
+                onClick={() => onSelectTask?.(task.id)}
+                role={onSelectTask ? 'button' : undefined}
+                tabIndex={onSelectTask ? 0 : undefined}
+                onKeyDown={
+                  onSelectTask
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onSelectTask(task.id)
+                        }
                       }
-                    }
-                  : undefined
-              }
-              data-testid={`summary-task-item-${task.id}`}
-            >
-              <span className="summary-task-overdue-icon" aria-hidden="true">!</span>
-              <div className="summary-task-content">
-                <span className="summary-task-title">{task.title}</span>
-                <span className="summary-task-meta text-danger">
-                  {duration || formattedDue}
+                    : undefined
+                }
+                data-testid={`summary-task-item-${task.id}`}
+              >
+                <span className="summary-task-overdue-icon" aria-hidden="true">!</span>
+                <div className="summary-task-content">
+                  <span className="summary-task-title">{task.title}</span>
+                  <span className="summary-task-meta text-danger">
+                    {duration || formattedDue}
+                  </span>
+                </div>
+                <span className={`summary-priority-badge priority-${task.priority}`}>
+                  {task.priority}
                 </span>
-              </div>
-              <span className={`summary-priority-badge priority-${task.priority}`}>
-                {task.priority}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
     </section>
   )
 }

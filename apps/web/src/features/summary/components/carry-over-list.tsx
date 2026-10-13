@@ -25,42 +25,44 @@ export function CarryOverList({ tasks, timeZone, onSelectTask }: CarryOverListPr
           <p className="summary-empty-text">{t('summary.carryOverEmpty')}</p>
         </div>
       ) : (
-        <ul className="summary-task-list" aria-label={t('summary.carryOverSection')}>
-          {tasks.map((task) => {
-            const formattedDue = formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
-            return (
-              <li
-                key={task.id}
-                className={`summary-task-item is-pending ${onSelectTask ? 'is-clickable' : ''}`}
-                onClick={() => onSelectTask?.(task.id)}
-                role={onSelectTask ? 'button' : undefined}
-                tabIndex={onSelectTask ? 0 : undefined}
-                onKeyDown={
-                  onSelectTask
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          onSelectTask(task.id)
+        <div className="summary-scrollable-container">
+          <ul className="summary-task-list" aria-label={t('summary.carryOverSection')}>
+            {tasks.map((task) => {
+              const formattedDue = formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
+              return (
+                <li
+                  key={task.id}
+                  className={`summary-task-item is-pending ${onSelectTask ? 'is-clickable' : ''}`}
+                  onClick={() => onSelectTask?.(task.id)}
+                  role={onSelectTask ? 'button' : undefined}
+                  tabIndex={onSelectTask ? 0 : undefined}
+                  onKeyDown={
+                    onSelectTask
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onSelectTask(task.id)
+                          }
                         }
-                      }
-                    : undefined
-                }
-                data-testid={`summary-task-item-${task.id}`}
-              >
-                <span className="summary-task-pending-dot" aria-hidden="true" />
-                <div className="summary-task-content">
-                  <span className="summary-task-title">{task.title}</span>
-                  {formattedDue && (
-                    <span className="summary-task-meta">{formattedDue}</span>
-                  )}
-                </div>
-                <span className={`summary-priority-badge priority-${task.priority}`}>
-                  {task.priority}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
+                      : undefined
+                  }
+                  data-testid={`summary-task-item-${task.id}`}
+                >
+                  <span className="summary-task-pending-dot" aria-hidden="true" />
+                  <div className="summary-task-content">
+                    <span className="summary-task-title">{task.title}</span>
+                    {formattedDue && (
+                      <span className="summary-task-meta">{formattedDue}</span>
+                    )}
+                  </div>
+                  <span className={`summary-priority-badge priority-${task.priority}`}>
+                    {task.priority}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
     </section>
   )

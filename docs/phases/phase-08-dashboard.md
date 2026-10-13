@@ -31,13 +31,13 @@ All data is scoped to the current authenticated user.
 
 ## 3. Dashboard sections
 
-Recommended MVP order:
+Current responsive order:
 
-1. Today overview
-2. Priority tasks
-3. Today's schedule
-4. Upcoming deadlines
-5. Overdue attention
+- **Top banner:** Today Overview Progress Card & Overdue Alert Banner (if overdue tasks exist).
+- **Desktop 2-column layout:**
+  - **Left column:** In Progress Tasks (Công việc đang làm, top 5 active tasks with total badge) → Today's Schedule (timeline & timeblocks).
+  - **Right column:** Priority Tasks (high-impact items) → Upcoming Deadlines (next 7 days).
+- **Mobile layout (<1024px):** Single-column sequence reading In Progress → Priority → Today Schedule → Upcoming Deadlines.
 
 Avoid a wall of charts.
 

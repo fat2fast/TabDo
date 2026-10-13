@@ -47,22 +47,41 @@ export interface AdminUsersFilterParams {
   sortOrder?: 'asc' | 'desc'
 }
 
+async function extractEdgeFunctionError(error: any, defaultMsg: string): Promise<string> {
+  const context = error?.context
+  if (context) {
+    if (context.status === 503 || context.status === 502) {
+      return 'Dịch vụ Edge Function chưa sẵn sàng hoặc chưa được khởi chạy (503 Service Unavailable). Hãy chạy "pnpm dev:functions" trong môi trường cục bộ.'
+    }
+    if (typeof context.json === 'function') {
+      try {
+        const json = await context.json()
+        if (json?.error) return json.error
+        if (json?.message) return json.message
+      } catch {
+        // ignore
+      }
+    }
+    if (typeof context.text === 'function') {
+      try {
+        const text = await context.text()
+        if (text) return text
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return error?.message || defaultMsg
+}
+
 export async function fetchAdminStats(): Promise<AdminStatsResponse> {
   const { data, error } = await supabase.functions.invoke('admin-users', {
     body: { stats: true },
   })
 
   if (error) {
-    let msg = error.message
-    if (typeof (error as any).context?.json === 'function') {
-      try {
-        const json = await (error as any).context.json()
-        if (json?.error) msg = json.error
-      } catch {
-        // ignore
-      }
-    }
-    throw new Error(msg || 'Failed to fetch admin stats')
+    const msg = await extractEdgeFunctionError(error, 'Failed to fetch admin stats')
+    throw new Error(msg)
   }
 
   return data as AdminStatsResponse
@@ -82,16 +101,8 @@ export async function fetchAdminUsers(params: AdminUsersFilterParams = {}): Prom
   })
 
   if (error) {
-    let msg = error.message
-    if (typeof (error as any).context?.json === 'function') {
-      try {
-        const json = await (error as any).context.json()
-        if (json?.error) msg = json.error
-      } catch {
-        // ignore
-      }
-    }
-    throw new Error(msg || 'Failed to fetch admin users')
+    const msg = await extractEdgeFunctionError(error, 'Failed to fetch admin users')
+    throw new Error(msg)
   }
 
   return data as AdminUsersResponse
@@ -168,16 +179,8 @@ export function useAdminUserLifecycle() {
       })
 
       if (error) {
-        let msg = error.message
-        if (typeof (error as any).context?.json === 'function') {
-          try {
-            const json = await (error as any).context.json()
-            if (json?.error) msg = json.error
-          } catch {
-            // ignore
-          }
-        }
-        throw new Error(msg || `Failed to ${action} user`)
+        const msg = await extractEdgeFunctionError(error, `Failed to ${action} user`)
+        throw new Error(msg)
       }
 
       return data
@@ -213,16 +216,8 @@ export function useAdminCreateUser() {
       })
 
       if (error) {
-        let msg = error.message
-        if (typeof (error as any).context?.json === 'function') {
-          try {
-            const json = await (error as any).context.json()
-            if (json?.error) msg = json.error
-          } catch {
-            // ignore
-          }
-        }
-        throw new Error(msg || 'Failed to create user')
+        const msg = await extractEdgeFunctionError(error, 'Failed to create user')
+        throw new Error(msg)
       }
 
       return data

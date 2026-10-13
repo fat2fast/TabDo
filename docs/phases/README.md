@@ -24,7 +24,7 @@ This directory contains the original MVP Phase 0–10 specifications and propose
 |---|---|---|---|
 | 11 | Post-MVP Core Reliability | [Data Safety, Trash & Storage Modernization](./phase-11-data-safety-and-storage-modernization.md) | P0 |
 | 12 | UX Foundation | [Mobile-First Web Experience & Responsive Foundation](./phase-12-mobile-first-web-experience.md) | P0 |
-| 13 | UX Core | [Kanban Board & Status Interaction UX](./phase-13-kanban-board-and-task-interactions.md) | P1 |
+| 13 | UX Core | [Kanban Board & Status Interaction UX](./phase-13-kanban-board-and-task-interactions.md) | **Completed** | PR (`plans/261013-0934-...`) | Kanban board layout, 3 lanes, mobile tabs, HTML5 drag-and-drop, migration `0011`, dashboard in-progress widget, local demo seed fixture |
 | 14 | Mobile Delivery | [Installable PWA & Safe Offline Shell](./phase-14-installable-pwa-foundation.md) | P1 |
 | 15 | Everyday Workflow UX | [Quick Capture, Bulk Actions & Faster Task Interactions](./phase-15-quick-capture-and-productivity-actions.md) | P1 |
 | 16 | Find & Organize UX | [Global Search, Pagination, Saved Views & Templates](./phase-16-global-search-pagination-and-saved-views.md) | P1 |

@@ -23,8 +23,25 @@ describe('useTaskViewSearchParams', () => {
       categoryId: 'cat-1',
       dueFrom: undefined,
       dueTo: undefined,
+      completedRange: undefined,
+      completedFrom: undefined,
+      completedTo: undefined,
       sort: 'due_asc',
+      scope: undefined,
+      layout: 'list',
     })
+  })
+
+  it('parses board layout and falls back to list for invalid layout', () => {
+    const boardHook = renderHook(() => useTaskViewSearchParams(), {
+      wrapper: createWrapper('/tasks/inbox?layout=board'),
+    })
+    expect(boardHook.result.current.params.layout).toBe('board')
+
+    const invalidHook = renderHook(() => useTaskViewSearchParams(), {
+      wrapper: createWrapper('/tasks/inbox?layout=grid'),
+    })
+    expect(invalidHook.result.current.params.layout).toBe('list')
   })
 
   it('handles "none" category for uncategorized tasks', () => {
@@ -65,10 +82,20 @@ describe('useTaskViewSearchParams', () => {
     expect(result.current.params.priority).toBe('high')
     expect(result.current.params.categoryId).toBeNull()
     expect(result.current.params.sort).toBe('priority')
+
+    act(() => {
+      result.current.setLayout('board')
+    })
+    expect(result.current.params.layout).toBe('board')
+
+    act(() => {
+      result.current.setLayout('list')
+    })
+    expect(result.current.params.layout).toBe('list')
   })
 
-  it('clears filters while preserving search query and sort', () => {
-    const initialUrl = '/tasks/inbox?q=important&priority=high&category=work&sort=created_desc'
+  it('clears filters while preserving search query, sort, layout, and taskId', () => {
+    const initialUrl = '/tasks/inbox?q=important&priority=high&category=work&sort=created_desc&layout=board&taskId=task-123'
     const { result } = renderHook(() => useTaskViewSearchParams(), {
       wrapper: createWrapper(initialUrl),
     })
@@ -79,6 +106,7 @@ describe('useTaskViewSearchParams', () => {
 
     expect(result.current.params.search).toBe('important')
     expect(result.current.params.sort).toBe('created_desc')
+    expect(result.current.params.layout).toBe('board')
     expect(result.current.params.priority).toBeUndefined()
     expect(result.current.params.categoryId).toBeUndefined()
   })

@@ -8,18 +8,26 @@ import { OverdueTasks } from '../features/dashboard/components/overdue-tasks'
 import { PriorityTasks } from '../features/dashboard/components/priority-tasks'
 import { TodaySchedule } from '../features/dashboard/components/today-schedule'
 import { UpcomingDeadlines } from '../features/dashboard/components/upcoming-deadlines'
+import { InProgressTasks } from '../features/dashboard/components/in-progress-tasks'
 import { TaskCreateModal } from '../features/tasks/components/task-create-modal'
+import { TaskDrawer } from '../features/tasks/components/task-drawer'
 
 export function DashboardPage() {
   const { t, locale } = useI18n()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const {
     snapshot,
     metrics,
     priorityTasks,
+    priorityTotal,
     overdueTasks,
     todaySchedule,
+    todayScheduleTotal,
     upcomingTasks,
+    upcomingTotal,
+    inProgressTasks,
+    inProgressTotal,
     timeZone,
     isLoading,
     isError,
@@ -44,13 +52,10 @@ export function DashboardPage() {
         </header>
         <div className="skeleton-card" style={{ height: 160, marginBottom: 24 }} />
         <div className="dashboard-content-grid">
-          <div className="dashboard-column">
-            <div className="skeleton-card" style={{ height: 220, marginBottom: 20 }} />
-            <div className="skeleton-card" style={{ height: 180 }} />
-          </div>
-          <div className="dashboard-column">
-            <div className="skeleton-card" style={{ height: 420 }} />
-          </div>
+          <div className="dashboard-area-in-progress skeleton-card" style={{ height: 220 }} />
+          <div className="dashboard-area-priority skeleton-card" style={{ height: 220 }} />
+          <div className="dashboard-area-schedule skeleton-card" style={{ height: 320 }} />
+          <div className="dashboard-area-upcoming skeleton-card" style={{ height: 200 }} />
         </div>
       </div>
     )
@@ -101,22 +106,40 @@ export function DashboardPage() {
       <TodayOverviewCard metrics={defaultMetrics} isLoading={isLoading && !snapshot} />
 
       {/* Overdue Alert Banner if overdue tasks exist */}
-      <OverdueTasks tasks={overdueTasks} timeZone={timeZone} />
+      <OverdueTasks
+        tasks={overdueTasks}
+        timeZone={timeZone}
+        onSelectTask={(id: string) => setSelectedTaskId(id)}
+      />
 
-      {/* Main 2-column Dashboard Grid */}
+      {/* Main Responsive Dashboard Grid */}
       <div className="dashboard-content-grid">
-        <div className="dashboard-column">
-          <PriorityTasks
-            tasks={priorityTasks}
-            timeZone={timeZone}
-            onCreateTask={() => setIsCreateModalOpen(true)}
-          />
-          <UpcomingDeadlines tasks={upcomingTasks} timeZone={timeZone} />
-        </div>
-
-        <div className="dashboard-column">
-          <TodaySchedule schedule={todaySchedule} timeZone={timeZone} />
-        </div>
+        <InProgressTasks
+          tasks={inProgressTasks ?? []}
+          total={inProgressTotal ?? 0}
+          timeZone={timeZone}
+          onCreateTask={() => setIsCreateModalOpen(true)}
+          onSelectTask={(id: string) => setSelectedTaskId(id)}
+        />
+        <PriorityTasks
+          tasks={priorityTasks}
+          total={priorityTotal}
+          timeZone={timeZone}
+          onCreateTask={() => setIsCreateModalOpen(true)}
+          onSelectTask={(id: string) => setSelectedTaskId(id)}
+        />
+        <TodaySchedule
+          schedule={todaySchedule}
+          total={todayScheduleTotal}
+          timeZone={timeZone}
+          onSelectTask={(id: string) => setSelectedTaskId(id)}
+        />
+        <UpcomingDeadlines
+          tasks={upcomingTasks}
+          total={upcomingTotal}
+          timeZone={timeZone}
+          onSelectTask={(id: string) => setSelectedTaskId(id)}
+        />
       </div>
 
       <TaskCreateModal
@@ -124,6 +147,17 @@ export function DashboardPage() {
         onClose={() => setIsCreateModalOpen(false)}
         onTaskCreated={() => refetch()}
       />
+
+      {selectedTaskId && (
+        <TaskDrawer
+          taskId={selectedTaskId}
+          onClose={() => {
+            setSelectedTaskId(null)
+            refetch()
+          }}
+          onSelectTask={(id) => setSelectedTaskId(id)}
+        />
+      )}
     </div>
   )
 }

@@ -7,6 +7,11 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify('9e660dc'),
     __DEPLOY_DATE__: JSON.stringify('10/10/2026'),
   },
+  server: {
+    fs: {
+      allow: ['../..'],
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getCompletedRangeBoundaries } from '@tabdo/utils'
 import { useOptionalAuth } from '../../auth/auth-provider'
-import type { TaskPriority, TaskSortOption, TaskStatus } from '../types'
+import type { TaskLayout, TaskPriority, TaskSortOption, TaskStatus } from '../types'
 
 export interface TaskViewSearchParams {
   search: string
@@ -16,6 +16,7 @@ export interface TaskViewSearchParams {
   completedTo: string | undefined
   sort: TaskSortOption
   scope: string | undefined
+  layout: TaskLayout
 }
 
 const VALID_STATUSES: TaskStatus[] = ['todo', 'in_progress', 'done']
@@ -44,6 +45,7 @@ export function useTaskViewSearchParams() {
     const rawCompletedRange = searchParams.get('completedRange') || undefined
     const rawSort = searchParams.get('sort')
     const rawScope = searchParams.get('scope') || undefined
+    const rawLayout = searchParams.get('layout')
 
     const status = VALID_STATUSES.includes(rawStatus as TaskStatus)
       ? (rawStatus as TaskStatus)
@@ -64,6 +66,8 @@ export function useTaskViewSearchParams() {
       ? (rawSort as TaskSortOption)
       : 'default'
 
+    const layout: TaskLayout = rawLayout === 'board' ? 'board' : 'list'
+
     const { from: completedFrom, to: completedTo } = rawCompletedRange
       ? getCompletedRangeBoundaries(rawCompletedRange, timeZone)
       : {}
@@ -80,6 +84,7 @@ export function useTaskViewSearchParams() {
       completedTo,
       sort,
       scope: rawScope,
+      layout,
     }
   }, [searchParams, timeZone])
 
@@ -149,22 +154,39 @@ export function useTaskViewSearchParams() {
       else updated.delete('scope')
     }
 
+    if ('layout' in newParams) {
+      if (newParams.layout === 'board') {
+        updated.set('layout', 'board')
+      } else {
+        updated.delete('layout')
+      }
+    }
+
     setSearchParams(updated, { replace: true })
+  }
+
+  const setLayout = (layout: TaskLayout) => {
+    setParams({ layout })
   }
 
   const clearFilters = () => {
     const updated = new URLSearchParams()
-    // Retain sort and search if desired, or clear filters only
+    // Retain sort, search, layout, and taskId when resetting filter criteria
     const q = searchParams.get('q')
     const sort = searchParams.get('sort')
+    const layout = searchParams.get('layout')
+    const taskId = searchParams.get('taskId')
     if (q) updated.set('q', q)
     if (sort) updated.set('sort', sort)
+    if (layout) updated.set('layout', layout)
+    if (taskId) updated.set('taskId', taskId)
     setSearchParams(updated, { replace: true })
   }
 
   return {
     params,
     setParams,
+    setLayout,
     clearFilters,
   }
 }
