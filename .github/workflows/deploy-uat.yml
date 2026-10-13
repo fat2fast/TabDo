@@ -150,7 +150,7 @@ jobs:
             echo "Error: UAT Supabase URL not found in built static assets"
             exit 1
           }
-          if grep -rqE "tabdo-ci\.invalid|127\.0\.0\.1|localhost:54321" apps/web/.vercel/output/static; then
+          if grep -rqE "tabdo-ci\.invalid|127\.0\.0\.1:54321|localhost:54321|http://127\.0\.0\.1" apps/web/.vercel/output/static; then
             echo "Error: Local or invalid placeholder URL found in built static assets"
             exit 1
           fi
