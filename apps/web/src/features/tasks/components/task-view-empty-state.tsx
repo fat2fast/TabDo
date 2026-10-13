@@ -29,6 +29,10 @@ const VIEW_EMPTY_TEXT: Record<TaskView, { title: string; description: string }> 
     title: 'Chưa có công việc hoàn thành.',
     description: 'Các công việc sau khi hoàn thành sẽ được lưu trữ tại đây.',
   },
+  trash: {
+    title: 'Thùng rác trống.',
+    description: 'Các công việc đã xóa sẽ được lưu trữ tại đây trong 30 ngày.',
+  },
 }
 
 export function TaskViewEmptyState({

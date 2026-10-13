@@ -10,7 +10,9 @@ import type {
   UpdateTaskInput,
 } from '@tabdo/types'
 
-export type TaskView = 'inbox' | 'today' | 'upcoming' | 'overdue' | 'completed'
+export type TaskView = 'inbox' | 'today' | 'upcoming' | 'overdue' | 'completed' | 'trash'
+export type TaskLayout = 'list' | 'board'
+export type BoardLaneStatus = 'todo' | 'in_progress' | 'done'
 
 export type TaskSortOption =
   | 'default'
@@ -37,6 +39,23 @@ export interface TaskListQueryInput {
   now: Date
 }
 
+export interface TaskBoardLaneQueryInput extends Omit<TaskListQueryInput, 'limit' | 'status'> {
+  lane: BoardLaneStatus
+  status?: TaskStatus
+  statusFilter?: TaskStatus
+  page?: number
+  pageSize?: number
+}
+
+
+export interface TaskBoardLaneResult {
+  lane: BoardLaneStatus
+  items: Task[]
+  total: number
+  hasMore: boolean
+  page: number
+}
+
 export interface TaskRow {
   id: string
   user_id: string
@@ -57,6 +76,10 @@ export interface TaskRow {
   recurrence_parent_id?: string | null
   recurrence_timezone?: string | null
   recurrence_anchor_at?: string | null
+  board_order?: number | null
+  deleted_at?: string | null
+  deletion_batch_id?: string | null
+  purge_status?: string | null
   created_at: string
   updated_at: string
   subtasks_count?: number
@@ -92,6 +115,10 @@ export function rowToTask(row: TaskRow): Task {
     recurrenceParentId: row.recurrence_parent_id ?? null,
     recurrenceTimezone: row.recurrence_timezone ?? null,
     recurrenceAnchorAt: row.recurrence_anchor_at ?? null,
+    boardOrder: row.board_order ?? null,
+    deletedAt: row.deleted_at ?? null,
+    deletionBatchId: row.deletion_batch_id ?? null,
+    purgeStatus: row.purge_status ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

@@ -34,10 +34,21 @@ function getDeployDate(): string {
 const commitHash = getGitCommitHash()
 const deployDate = getDeployDate()
 
-export default defineConfig({
-  plugins: [react()],
-  define: {
-    __APP_VERSION__: JSON.stringify(commitHash),
-    __DEPLOY_DATE__: JSON.stringify(deployDate),
-  },
+export default defineConfig(({ mode }) => {
+  if (process.env.TABDO_EXPECT_PRODUCTION_BUILD === '1') {
+    if (mode !== 'production') {
+      throw new Error(`[build:safety] TABDO_EXPECT_PRODUCTION_BUILD=1 requires Vite mode 'production', got '${mode}'`)
+    }
+    if (process.env.NODE_ENV && process.env.NODE_ENV !== 'production') {
+      throw new Error(`[build:safety] TABDO_EXPECT_PRODUCTION_BUILD=1 requires NODE_ENV 'production', got '${process.env.NODE_ENV}'`)
+    }
+  }
+
+  return {
+    plugins: [react()],
+    define: {
+      __APP_VERSION__: JSON.stringify(commitHash),
+      __DEPLOY_DATE__: JSON.stringify(deployDate),
+    },
+  }
 })

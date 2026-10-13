@@ -4,6 +4,7 @@ import interactionPlugin, { type EventResizeDoneArg } from '@fullcalendar/intera
 import momentTimezonePlugin from '@fullcalendar/moment-timezone'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import type { DateSelectArg, EventClickArg, EventDropArg } from '@fullcalendar/core'
+import { isScheduleBlockAllDay } from '@tabdo/utils'
 import type { ScheduleBlock } from '../types'
 
 export interface DayWeekCalendarProps {
@@ -11,7 +12,7 @@ export interface DayWeekCalendarProps {
   view: 'day' | 'week'
   currentDate: string // YYYY-MM-DD
   timeZone: string
-  onSelectSlot?: (info: { startAt: string; endAt: string }) => void
+  onSelectSlot?: (info: { startAt: string; endAt: string; isAllDay?: boolean }) => void
   onEventClick?: (block: ScheduleBlock) => void
   onEventDrop?: (info: {
     block: ScheduleBlock
@@ -40,18 +41,23 @@ export function DayWeekCalendar({
   const calendarRef = useRef<FullCalendar>(null)
 
   const calendarEvents = useMemo(() => {
-    return events.map((block) => ({
-      id: block.id,
-      title: block.title,
-      start: block.startAt,
-      end: block.endAt,
-      extendedProps: { block },
-      classNames: [
-        'tabdo-calendar-event',
-        block.taskId ? 'tabdo-event-with-task' : 'tabdo-event-independent',
-      ],
-    }))
-  }, [events])
+    return events.map((block) => {
+      const isAllDay = isScheduleBlockAllDay(block.startAt, block.endAt, timeZone)
+      return {
+        id: block.id,
+        title: block.title,
+        start: block.startAt,
+        end: block.endAt,
+        allDay: isAllDay,
+        extendedProps: { block, isAllDay },
+        classNames: [
+          'tabdo-calendar-event',
+          isAllDay ? 'tabdo-event-all-day' : '',
+          block.taskId ? 'tabdo-event-with-task' : 'tabdo-event-independent',
+        ],
+      }
+    })
+  }, [events, timeZone])
 
   // Sync calendar view and date when route or props change
   useEffect(() => {
@@ -72,7 +78,7 @@ export function DayWeekCalendar({
     if (!onSelectSlot) return
     const startAt = selectInfo.start.toISOString()
     const endAt = selectInfo.end.toISOString()
-    onSelectSlot({ startAt, endAt })
+    onSelectSlot({ startAt, endAt, isAllDay: selectInfo.allDay })
   }
 
   const handleEventClick = (clickInfo: EventClickArg) => {
@@ -85,12 +91,14 @@ export function DayWeekCalendar({
   const handleEventDrop = (dropInfo: EventDropArg) => {
     const block = dropInfo.event.extendedProps.block as ScheduleBlock
     if (!block || !onEventDrop) return
-    if (!dropInfo.event.start || !dropInfo.event.end) {
+    if (!dropInfo.event.start) {
       dropInfo.revert()
       return
     }
     const newStartAt = dropInfo.event.start.toISOString()
-    const newEndAt = dropInfo.event.end.toISOString()
+    const newEndAt = dropInfo.event.end
+      ? dropInfo.event.end.toISOString()
+      : new Date(dropInfo.event.start.getTime() + 24 * 3600 * 1000 - 60000).toISOString()
     onEventDrop({
       block,
       newStartAt,
@@ -126,7 +134,8 @@ export function DayWeekCalendar({
         timeZone={timeZone}
         headerToolbar={false}
         firstDay={1} // Monday
-        allDaySlot={false}
+        allDaySlot={true}
+        allDayText="Cả ngày"
         editable={true}
         selectable={true}
         selectMirror={true}
@@ -141,16 +150,15 @@ export function DayWeekCalendar({
           const weekdayShort = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
           const dayOfWeek = arg.date.getDay()
           const d = arg.date.getDate()
-          const m = arg.date.getMonth() + 1
           const isToday = arg.isToday
 
           return (
-            <div className={`tabdo-fc-header-cell ${isToday ? 'is-today' : ''}`}>
+            <div className={`tabdo-fc-header-cell ${isToday ? 'is-today' : ''} ${view === 'day' ? 'is-day-view' : ''}`}>
               <span className="fc-header-weekday">
                 {view === 'day' ? weekdayNames[dayOfWeek] : weekdayShort[dayOfWeek]}
               </span>
               <span className={`fc-header-daynumber ${isToday ? 'today-badge' : ''}`}>
-                {view === 'day' ? `${d} tháng ${m}` : d}
+                {d}
               </span>
             </div>
           )

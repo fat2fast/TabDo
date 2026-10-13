@@ -11,15 +11,16 @@ import { useI18n } from '../features/i18n/i18n-provider'
 import { useScheduleBlocksInRange } from '../features/scheduling/hooks/use-schedule-blocks'
 import { CategoryManager } from '../features/tasks/components/category-manager'
 import { QuickAddTask } from '../features/tasks/components/quick-add-task'
+import { TaskBoard } from '../features/tasks/components/task-board'
 import { TaskCreateModal } from '../features/tasks/components/task-create-modal'
 import { TaskDrawer } from '../features/tasks/components/task-drawer'
-import { TaskFilters } from '../features/tasks/components/task-filters'
 import { TaskGroup } from '../features/tasks/components/task-group'
 import { TaskList } from '../features/tasks/components/task-list'
-import { TaskSearch } from '../features/tasks/components/task-search'
-import { TaskSort } from '../features/tasks/components/task-sort'
+import { TaskTopBarControls } from '../features/tasks/components/task-topbar-controls'
+import { TaskTrash } from '../features/tasks/components/task-trash'
 import { TaskViewEmptyState } from '../features/tasks/components/task-view-empty-state'
 import { TaskViewHeader } from '../features/tasks/components/task-view-header'
+import { useCategories } from '../features/tasks/hooks/use-categories'
 import { useLinkedTasks, useTaskList } from '../features/tasks/hooks/use-tasks'
 import { useTaskViewSearchParams } from '../features/tasks/hooks/use-task-view-search-params'
 import type { Task, TaskView } from '../features/tasks/types'
@@ -34,6 +35,9 @@ export function TasksPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [createModalInitialTitle, setCreateModalInitialTitle] = useState('')
 
+  const { data: categories = [] } = useCategories()
+  const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+
   // Resolve current view from path
   const currentView: TaskView = useMemo(() => {
     const path = location.pathname.toLowerCase()
@@ -41,11 +45,12 @@ export function TasksPage() {
     if (path.includes('/tasks/upcoming')) return 'upcoming'
     if (path.includes('/tasks/overdue')) return 'overdue'
     if (path.includes('/tasks/completed')) return 'completed'
+    if (path.includes('/tasks/trash')) return 'trash'
     return 'inbox'
   }, [location.pathname])
 
   // URL Search and Filter state
-  const { params, setParams, clearFilters } = useTaskViewSearchParams()
+  const { params, setLayout, clearFilters } = useTaskViewSearchParams()
 
   // Local UI state (drawer and category manager)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(taskIdParam)
@@ -147,7 +152,12 @@ export function TasksPage() {
 
       if (params.search && params.search.trim()) {
         const term = params.search.trim().toLowerCase()
-        if (!task.title.toLowerCase().includes(term)) continue
+        const matchTitle = task.title.toLowerCase().includes(term)
+        const matchDesc = task.description ? task.description.toLowerCase().includes(term) : false
+        const matchCategory = task.categoryId
+          ? categoryMap.get(task.categoryId)?.name.toLowerCase().includes(term)
+          : false
+        if (!matchTitle && !matchDesc && !matchCategory) continue
       }
       if (params.status && task.status !== params.status) {
         continue
@@ -168,7 +178,7 @@ export function TasksPage() {
     }
 
     return { overdueTasks, dueTodayTasks, scheduledTodayTasks }
-  }, [currentView, tasks, scheduledTasks, now, params])
+  }, [currentView, tasks, scheduledTasks, now, params, categoryMap])
 
   // Grouping for Upcoming view
   const upcomingGroups = useMemo(() => {
@@ -209,6 +219,8 @@ export function TasksPage() {
     <div className="tasks-page" data-testid="tasks-page">
       <TaskViewHeader
         currentView={currentView}
+        layout={params.layout}
+        onLayoutChange={setLayout}
         onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
         onOpenCreateModal={() => {
           setCreateModalInitialTitle('')
@@ -216,8 +228,8 @@ export function TasksPage() {
         }}
       />
 
-      {/* Show Quick Add on active work views */}
-      {currentView !== 'completed' && (
+      {/* Show Quick Add only on active work views and when NOT in board layout */}
+      {currentView !== 'completed' && currentView !== 'trash' && params.layout !== 'board' && (
         <QuickAddTask
           defaultCategoryId={
             params.categoryId && params.categoryId !== 'none'
@@ -231,120 +243,109 @@ export function TasksPage() {
         />
       )}
 
-      {/* Filter and Search controls */}
-      <div className="tasks-controls-card card">
-        <div className="controls-row-top">
-          <TaskSearch
-            value={params.search}
-            onChange={(search) => setParams({ search })}
-          />
+      {currentView === 'trash' ? (
+        <TaskTrash onSelectTask={setSelectedTaskId} />
+      ) : (
+        <>
+          {/* Standalone controls fallback when rendered outside AppLayout (e.g. unit tests) */}
+          {typeof document !== 'undefined' && !document.getElementById('topbar-task-search-slot') && (
+            <div className="tasks-standalone-controls-fallback" data-testid="tasks-standalone-fallback">
+              <TaskTopBarControls />
+            </div>
+          )}
 
-          <TaskSort
-            value={params.sort}
-            onChange={(sort) => setParams({ sort })}
-          />
-        </div>
+          {/* Main Task List Area */}
+          <div className="tasks-content-area">
+            {params.layout === 'board' ? (
+              <TaskBoard
+                currentView={currentView}
+                params={params}
+                onSelectTask={setSelectedTaskId}
+                now={now}
+              />
+            ) : isPageLoading ? (
+              <div className="task-list-loading" data-testid="tasks-loading">
+                <div className="loading-spinner" />
+                <span>Đang tải danh sách công việc...</span>
+              </div>
+            ) : currentView === 'today' && todayGroups ? (
 
-        <TaskFilters
-          status={params.status}
-          priority={params.priority}
-          categoryId={params.categoryId}
-          scope={params.scope}
-          completedRange={params.completedRange}
-          showStatusFilter={currentView !== 'completed'}
-          showScopeFilter={currentView === 'inbox'}
-          showCompletedFilter={currentView === 'completed' || params.status === 'done'}
-          onStatusChange={(status) => setParams({ status })}
-          onPriorityChange={(priority) => setParams({ priority })}
-          onCategoryChange={(categoryId) => setParams({ categoryId })}
-          onScopeChange={(scope) => setParams({ scope })}
-          onCompletedRangeChange={(completedRange) => setParams({ completedRange })}
-          onClear={clearFilters}
-        />
-      </div>
-
-      {/* Main Task List Area */}
-      <div className="tasks-content-area">
-        {isPageLoading ? (
-          <div className="task-list-loading" data-testid="tasks-loading">
-            <div className="loading-spinner" />
-            <span>Đang tải danh sách công việc...</span>
+              todayGroups.overdueTasks.length > 0 ||
+              todayGroups.dueTodayTasks.length > 0 ||
+              todayGroups.scheduledTodayTasks.length > 0 ? (
+                <div className="grouped-tasks-container">
+                  <TaskGroup
+                    title={t('tasks.groupOverdue')}
+                    tasks={todayGroups.overdueTasks}
+                    onSelectTask={setSelectedTaskId}
+                    badgeVariant="danger"
+                  />
+                  <TaskGroup
+                    title={t('tasks.groupDueToday')}
+                    tasks={todayGroups.dueTodayTasks}
+                    onSelectTask={setSelectedTaskId}
+                    badgeVariant="primary"
+                  />
+                  <TaskGroup
+                    title={t('tasks.groupScheduledToday')}
+                    tasks={todayGroups.scheduledTodayTasks}
+                    onSelectTask={setSelectedTaskId}
+                    badgeVariant="default"
+                  />
+                </div>
+              ) : (
+                <TaskViewEmptyState
+                  view={currentView}
+                  hasFilters={hasFilters}
+                  onClearFilters={clearFilters}
+                />
+              )
+            ) : currentView === 'upcoming' && upcomingGroups ? (
+              upcomingGroups.tomorrowTasks.length > 0 ||
+              upcomingGroups.thisWeekTasks.length > 0 ||
+              upcomingGroups.laterTasks.length > 0 ? (
+                <div className="grouped-tasks-container">
+                  <TaskGroup
+                    title={t('tasks.groupTomorrow')}
+                    tasks={upcomingGroups.tomorrowTasks}
+                    onSelectTask={setSelectedTaskId}
+                    badgeVariant="primary"
+                  />
+                  <TaskGroup
+                    title={t('tasks.groupThisWeek')}
+                    tasks={upcomingGroups.thisWeekTasks}
+                    onSelectTask={setSelectedTaskId}
+                    badgeVariant="warning"
+                  />
+                  <TaskGroup
+                    title={t('tasks.groupLater')}
+                    tasks={upcomingGroups.laterTasks}
+                    onSelectTask={setSelectedTaskId}
+                    badgeVariant="default"
+                  />
+                </div>
+              ) : (
+                <TaskViewEmptyState
+                  view={currentView}
+                  hasFilters={hasFilters}
+                  onClearFilters={clearFilters}
+                />
+              )
+            ) : tasks.length === 0 ? (
+              <TaskViewEmptyState
+                view={currentView}
+                hasFilters={hasFilters}
+                onClearFilters={clearFilters}
+              />
+            ) : (
+              <TaskList
+                tasks={tasks}
+                onSelectTask={setSelectedTaskId}
+              />
+            )}
           </div>
-        ) : currentView === 'today' && todayGroups ? (
-          todayGroups.overdueTasks.length > 0 ||
-          todayGroups.dueTodayTasks.length > 0 ||
-          todayGroups.scheduledTodayTasks.length > 0 ? (
-            <div className="grouped-tasks-container">
-              <TaskGroup
-                title={t('tasks.groupOverdue')}
-                tasks={todayGroups.overdueTasks}
-                onSelectTask={setSelectedTaskId}
-                badgeVariant="danger"
-              />
-              <TaskGroup
-                title={t('tasks.groupDueToday')}
-                tasks={todayGroups.dueTodayTasks}
-                onSelectTask={setSelectedTaskId}
-                badgeVariant="primary"
-              />
-              <TaskGroup
-                title={t('tasks.groupScheduledToday')}
-                tasks={todayGroups.scheduledTodayTasks}
-                onSelectTask={setSelectedTaskId}
-                badgeVariant="default"
-              />
-            </div>
-          ) : (
-            <TaskViewEmptyState
-              view={currentView}
-              hasFilters={hasFilters}
-              onClearFilters={clearFilters}
-            />
-          )
-        ) : currentView === 'upcoming' && upcomingGroups ? (
-          upcomingGroups.tomorrowTasks.length > 0 ||
-          upcomingGroups.thisWeekTasks.length > 0 ||
-          upcomingGroups.laterTasks.length > 0 ? (
-            <div className="grouped-tasks-container">
-              <TaskGroup
-                title={t('tasks.groupTomorrow')}
-                tasks={upcomingGroups.tomorrowTasks}
-                onSelectTask={setSelectedTaskId}
-                badgeVariant="primary"
-              />
-              <TaskGroup
-                title={t('tasks.groupThisWeek')}
-                tasks={upcomingGroups.thisWeekTasks}
-                onSelectTask={setSelectedTaskId}
-                badgeVariant="warning"
-              />
-              <TaskGroup
-                title={t('tasks.groupLater')}
-                tasks={upcomingGroups.laterTasks}
-                onSelectTask={setSelectedTaskId}
-                badgeVariant="default"
-              />
-            </div>
-          ) : (
-            <TaskViewEmptyState
-              view={currentView}
-              hasFilters={hasFilters}
-              onClearFilters={clearFilters}
-            />
-          )
-        ) : tasks.length === 0 ? (
-          <TaskViewEmptyState
-            view={currentView}
-            hasFilters={hasFilters}
-            onClearFilters={clearFilters}
-          />
-        ) : (
-          <TaskList
-            tasks={tasks}
-            onSelectTask={setSelectedTaskId}
-          />
-        )}
-      </div>
+        </>
+      )}
 
       {/* Task Detail Modal */}
       <TaskDrawer

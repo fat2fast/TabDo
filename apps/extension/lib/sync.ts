@@ -97,6 +97,27 @@ export async function syncExtensionState(
 
       await ensurePeriodicSyncAlarm()
 
+      // Clear stale displayed notifications if chrome.notifications exists
+      if (
+        typeof chrome !== 'undefined' &&
+        chrome.notifications &&
+        typeof chrome.notifications.getAll === 'function'
+      ) {
+        const activeNotifs = await new Promise<Record<string, boolean>>((resolve) => {
+          chrome.notifications.getAll((notifs) => resolve(notifs || {}))
+        })
+        const validReminderIds = new Set(upcomingReminders.map((r) => r.id))
+        for (const notifId of Object.keys(activeNotifs)) {
+          if (notifId.startsWith('notif:')) {
+            const parts = notifId.split(':')
+            const remId = parts[1]
+            if (remId && !validReminderIds.has(remId)) {
+              chrome.notifications.clear(notifId)
+            }
+          }
+        }
+      }
+
       console.log(
         `[TabDo Sync] State synchronized. Tasks: ${todayTasks.length}, Upcoming reminders: ${upcomingReminders.length}. Alarms created: ${alarmsToCreate.length}, Alarms removed: ${alarmsToRemove.length}`
       )

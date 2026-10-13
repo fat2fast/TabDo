@@ -177,7 +177,8 @@ describe('task-api functions', () => {
 
       expect(supabase.from).toHaveBeenCalledWith('tasks')
       expect(mockQueryBuilder.eq).toHaveBeenCalledWith('status', 'done')
-      expect(mockQueryBuilder.order).toHaveBeenCalledWith('completed_at', { ascending: false })
+      expect(mockQueryBuilder.order).toHaveBeenCalledWith('completed_at', { ascending: false, nullsFirst: false })
+      expect(mockQueryBuilder.order).toHaveBeenCalledWith('id', { ascending: true })
     })
 
     it('orders by database priority_rank rather than alphabetical priority when sorted by priority', async () => {
@@ -202,6 +203,68 @@ describe('task-api functions', () => {
 
       expect(mockQueryBuilder.order).toHaveBeenCalledWith('priority_rank', { ascending: false })
       expect(mockQueryBuilder.order).not.toHaveBeenCalledWith('priority', expect.anything())
+    })
+
+    it('searches title and description when no matching categories exist', async () => {
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }
+
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table === 'categories') {
+          return {
+            select: vi.fn().mockReturnValue({
+              ilike: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          } as any
+        }
+        return mockQueryBuilder
+      })
+
+      await getTaskList({
+        view: 'inbox',
+        search: 'urgent spec',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        now: new Date('2026-10-05T12:00:00Z'),
+      })
+
+      expect(mockQueryBuilder.or).toHaveBeenCalledWith('title.ilike.%urgent spec%,description.ilike.%urgent spec%')
+    })
+
+    it('searches title, description and category_id when matching categories exist', async () => {
+      const mockQueryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }
+
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table === 'categories') {
+          return {
+            select: vi.fn().mockReturnValue({
+              ilike: vi.fn().mockResolvedValue({ data: [{ id: 'cat-work-123' }], error: null }),
+            }),
+          } as any
+        }
+        return mockQueryBuilder
+      })
+
+      await getTaskList({
+        view: 'inbox',
+        search: 'Work',
+        timeZone: 'Asia/Ho_Chi_Minh',
+        now: new Date('2026-10-05T12:00:00Z'),
+      })
+
+      expect(mockQueryBuilder.or).toHaveBeenCalledWith(
+        'title.ilike.%Work%,description.ilike.%Work%,category_id.in.(cat-work-123)'
+      )
     })
   })
 
@@ -417,27 +480,11 @@ describe('task-api functions', () => {
     })
 
     it('deletes task without inserting post-delete activity', async () => {
-      const tasksBuilder: any = {
-        delete: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }
-
-      const activitiesBuilder: any = {
-        insert: vi.fn().mockResolvedValue({ error: null }),
-      }
-
-      vi.mocked(supabase.from).mockImplementation((table: string) => {
-        if (table === 'tasks') return tasksBuilder
-        if (table === 'task_activities') return activitiesBuilder
-        return {} as any
-      })
+      vi.mocked(supabase.rpc).mockResolvedValue({ data: { success: true }, error: null } as any)
 
       await deleteTask('task-to-delete-id')
 
-      expect(tasksBuilder.delete).toHaveBeenCalled()
-      expect(tasksBuilder.eq).toHaveBeenCalledWith('id', 'task-to-delete-id')
-      // Must NOT log activity because foreign key cascades on delete
-      expect(activitiesBuilder.insert).not.toHaveBeenCalled()
+      expect(supabase.rpc).toHaveBeenCalledWith('trash_task', { p_task_id: 'task-to-delete-id' })
     })
 
     it('rejects update with concurrent modification conflict when previousUpdatedAt does not match', async () => {

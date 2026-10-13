@@ -5,10 +5,13 @@ import {
   updateCategory,
 } from '../api/categories'
 import {
+  changeTaskStatus,
   completeTask,
   createTask,
   deleteTask,
+  purgeTask,
   reopenTask,
+  restoreTask,
   updateTask,
 } from '../api/tasks'
 import { categoryQueryKeys, taskQueryKeys } from '../query-keys'
@@ -19,6 +22,7 @@ import type {
   CreateCategoryInput,
   CreateTaskInput,
   Task,
+  TaskStatus,
   UpdateCategoryInput,
   UpdateTaskInput,
 } from '../types'
@@ -30,6 +34,7 @@ export function useTaskMutations() {
     mutationFn: (input: CreateTaskInput) => createTask(input),
     onSuccess: (newTask) => {
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
       if (newTask.parentId) {
@@ -52,6 +57,7 @@ export function useTaskMutations() {
     }) => updateTask(id, input, previousTask),
     onSuccess: (updatedTask) => {
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(updatedTask.id),
       })
@@ -72,6 +78,52 @@ export function useTaskMutations() {
       deleteTask(id),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.trash() })
+      queryClient.invalidateQueries({
+        queryKey: taskQueryKeys.detail(variables.id),
+      })
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
+      if (variables.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: taskQueryKeys.subtasks(variables.parentId),
+        })
+      }
+    },
+  })
+
+  const restoreTaskMutation = useMutation({
+    mutationFn: ({ id }: { id: string; parentId?: string | null }) =>
+      restoreTask(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.trash() })
+      queryClient.invalidateQueries({
+        queryKey: taskQueryKeys.detail(variables.id),
+      })
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
+      if (variables.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: taskQueryKeys.subtasks(variables.parentId),
+        })
+      }
+    },
+  })
+
+  const purgeTaskMutation = useMutation({
+    mutationFn: ({ id }: { id: string; parentId?: string | null }) =>
+      purgeTask(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.trash() })
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(variables.id),
       })
@@ -91,6 +143,7 @@ export function useTaskMutations() {
     mutationFn: (task: Task) => completeTask(task),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(result.completedTask.id),
       })
@@ -114,6 +167,35 @@ export function useTaskMutations() {
   const reopenTaskMutation = useMutation({
     mutationFn: (task: Task) => reopenTask(task),
     onSuccess: (updatedTask) => {
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
+      queryClient.invalidateQueries({
+        queryKey: taskQueryKeys.detail(updatedTask.id),
+      })
+      queryClient.invalidateQueries({ queryKey: scheduleQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: reminderQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
+      if (updatedTask.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: taskQueryKeys.subtasks(updatedTask.parentId),
+        })
+      }
+    },
+  })
+
+  const changeTaskStatusMutation = useMutation({
+    mutationFn: ({
+      task,
+      targetStatus,
+      boardOrder,
+    }: {
+      task: Task
+      targetStatus: TaskStatus
+      boardOrder?: number
+    }) => changeTaskStatus(task, targetStatus, boardOrder),
+    onSuccess: (updatedTask) => {
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
       queryClient.invalidateQueries({
         queryKey: taskQueryKeys.detail(updatedTask.id),
@@ -144,6 +226,7 @@ export function useTaskMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: categoryQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
       queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
     },
   })
@@ -153,6 +236,7 @@ export function useTaskMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: categoryQueryKeys.all })
       queryClient.invalidateQueries({ queryKey: taskQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: taskQueryKeys.boards() })
       queryClient.invalidateQueries({ queryKey: summaryQueryKeys.all })
     },
   })
@@ -161,8 +245,11 @@ export function useTaskMutations() {
     createTaskMutation,
     updateTaskMutation,
     deleteTaskMutation,
+    restoreTaskMutation,
+    purgeTaskMutation,
     completeTaskMutation,
     reopenTaskMutation,
+    changeTaskStatusMutation,
     createCategoryMutation,
     updateCategoryMutation,
     deleteCategoryMutation,

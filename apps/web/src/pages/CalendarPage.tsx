@@ -9,6 +9,7 @@ import { useAuth } from '../features/auth/auth-provider'
 import { CalendarToolbar } from '../features/scheduling/components/calendar-toolbar'
 import { DayWeekCalendar } from '../features/scheduling/components/day-week-calendar'
 import { ScheduleEditor } from '../features/scheduling/components/schedule-editor'
+import { ScheduleDetailModal } from '../features/scheduling/components/schedule-detail-modal'
 import { UnscheduledTasks } from '../features/scheduling/components/unscheduled-tasks'
 import { useScheduleBlockMutations } from '../features/scheduling/hooks/use-schedule-block-mutations'
 import { useScheduleBlocksInRange } from '../features/scheduling/hooks/use-schedule-blocks'
@@ -73,9 +74,10 @@ export function CalendarPage() {
 
   const { updateMutation } = useScheduleBlockMutations()
 
-  // Modal editor state
+  // Modal editor & detail state
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [editingBlock, setEditingBlock] = useState<ScheduleBlock | null>(null)
+  const [viewingBlock, setViewingBlock] = useState<ScheduleBlock | null>(null)
   const [editorStartAt, setEditorStartAt] = useState<string | undefined>()
   const [editorEndAt, setEditorEndAt] = useState<string | undefined>()
   const [editorTask, setEditorTask] = useState<Task | null>(null)
@@ -102,6 +104,7 @@ export function CalendarPage() {
 
   // Open editor for adding new schedule
   const handleOpenAddSchedule = () => {
+    setViewingBlock(null)
     setEditingBlock(null)
     setEditorStartAt(undefined)
     setEditorEndAt(undefined)
@@ -111,7 +114,15 @@ export function CalendarPage() {
   }
 
   // Open editor from slot selection
-  const handleSelectSlot = ({ startAt, endAt }: { startAt: string; endAt: string }) => {
+  const handleSelectSlot = ({
+    startAt,
+    endAt,
+  }: {
+    startAt: string
+    endAt: string
+    isAllDay?: boolean
+  }) => {
+    setViewingBlock(null)
     setEditingBlock(null)
     setEditorStartAt(startAt)
     setEditorEndAt(endAt)
@@ -120,13 +131,9 @@ export function CalendarPage() {
     setMutationError(null)
   }
 
-  // Open editor from event click
+  // Open detail view from event click (Info List modal)
   const handleEventClick = (block: ScheduleBlock) => {
-    setEditingBlock(block)
-    setEditorStartAt(block.startAt)
-    setEditorEndAt(block.endAt)
-    setEditorTask(null)
-    setIsEditorOpen(true)
+    setViewingBlock(block)
     setMutationError(null)
   }
 
@@ -262,6 +269,27 @@ export function CalendarPage() {
           </aside>
         )}
       </div>
+
+      <ScheduleDetailModal
+        isOpen={Boolean(viewingBlock)}
+        block={viewingBlock}
+        onClose={() => setViewingBlock(null)}
+        onEdit={(block) => {
+          setViewingBlock(null)
+          setEditingBlock(block)
+          setEditorStartAt(block.startAt)
+          setEditorEndAt(block.endAt)
+          setEditorTask(null)
+          setIsEditorOpen(true)
+        }}
+        onDeleted={() => {
+          setViewingBlock(null)
+        }}
+        onOpenTaskDetail={(taskId) => {
+          setViewingBlock(null)
+          setDrawerTaskId(taskId)
+        }}
+      />
 
       <ScheduleEditor
         isOpen={isEditorOpen}

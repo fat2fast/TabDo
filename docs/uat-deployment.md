@@ -33,12 +33,12 @@ Supabase is the UAT source of truth. GitHub Actions applies migrations, deploys 
 1. Develop and test changes locally. Schema changes must be represented by a new sequential file under `supabase/migrations/`; do not edit migrations already applied to a remote database.
 2. Merge the change into `main` after review and CI.
 3. Open and merge a reviewed update from `main` into `uat`. A push to `uat` starts `.github/workflows/deploy-uat.yml`; a manual dispatch must also select the `uat` branch.
-4. The workflow runs `pnpm install --frozen-lockfile`, lint, typecheck, tests, and builds before deployment credentials are made available.
-5. The deploy job links the Supabase project using `SUPABASE_UAT_PROJECT_REF`, prints migration history, applies pending migrations with `supabase db push`, and deploys Edge Functions (`admin-create-user`, `admin-users`, `complete-initial-password`). It does not seed the database or repair migration history.
-6. It then pulls the UAT Vercel project's production-environment settings, builds the project configured with Root Directory `apps/web`, and deploys the prebuilt artifact as a production deployment of the isolated UAT Vercel project. The values of public Supabase variables come from that Vercel project's settings.
+4. The workflow runs `pnpm install --frozen-lockfile`, lint, typecheck, tests, `pnpm seed:local:safety`, and builds before deployment credentials are made available.
+5. The deploy job links the Supabase project using `SUPABASE_UAT_PROJECT_REF`, prints migration history, applies pending migrations with `supabase db push --linked --yes`, and deploys Edge Functions (`admin-create-user`, `admin-users`, `complete-initial-password`, `purge-deleted-tasks`). It does not seed the database or run `db reset`.
+6. It then pulls the UAT Vercel project's production-environment settings, validates configuration safety via `pnpm check:uat:config` (ensuring project ID, non-local HTTPS Supabase URL, and valid keys without logging credentials), sets `TABDO_EXPECT_PRODUCTION_BUILD=1` to enforce production mode in Vite, builds the project, verifies static output contains only the approved UAT Supabase endpoint, and deploys the prebuilt artifact as a production deployment of the isolated UAT Vercel project.
 7. Review the workflow summary for the commit, deployment URL, and step outcomes. Visit `/login` and a protected deep link such as `/tasks`; sign in only with a UAT test account and confirm browser requests use the UAT Supabase hostname.
 
-The validation job uses inert `VITE_` placeholders so extension manifest generation and builds do not need UAT credentials. Those values are not deployment secrets and are not uploaded as an artifact.
+The validation job uses inert `VITE_` placeholders so extension manifest generation and builds do not need UAT credentials. Those values are not deployment secrets and are not uploaded as an artifact. Database seed fixtures (`local-demo.sql`) are strictly prohibited in UAT and verified by `pnpm seed:local:safety`.
 
 ## Recovery and rollback
 

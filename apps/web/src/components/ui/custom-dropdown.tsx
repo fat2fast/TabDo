@@ -21,6 +21,8 @@ export interface CustomDropdownProps<T = string> {
   disabled?: boolean
   className?: string
   buttonClassName?: string
+  searchable?: boolean
+  searchPlaceholder?: string
 }
 
 export function CustomDropdown<T extends string | null | undefined>({
@@ -36,11 +38,32 @@ export function CustomDropdown<T extends string | null | undefined>({
   disabled = false,
   className = '',
   buttonClassName = '',
+  searchable = false,
+  searchPlaceholder,
 }: CustomDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const selectedOption = options.find((o) => o.value === value)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery('')
+    } else if (searchable) {
+      setTimeout(() => searchInputRef.current?.focus(), 60)
+    }
+  }, [isOpen, searchable])
+
+  const filteredOptions = React.useMemo(() => {
+    if (!searchable || !searchQuery.trim()) return options
+    const query = searchQuery.trim().toLowerCase()
+    return options.filter((opt) => {
+      if (opt.value === '' && opt.label.toLowerCase().includes(query)) return true
+      return opt.label.toLowerCase().includes(query)
+    })
+  }, [options, searchable, searchQuery])
 
   // Close on outside click
   useEffect(() => {
@@ -150,44 +173,92 @@ export function CustomDropdown<T extends string | null | undefined>({
       {/* Dropdown Menu Popover */}
       {isOpen && (
         <div className="custom-dropdown-menu" role="listbox">
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <div
-                key={String(opt.value)}
-                role="option"
-                aria-selected={isSelected}
-                className={`dropdown-menu-item ${isSelected ? 'selected' : ''}`}
-                onClick={() => handleSelect(opt.value)}
+          {searchable && (
+            <div
+              className="custom-dropdown-search-wrapper"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <svg
+                className="dropdown-search-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
               >
-                <div className="item-label-group">
-                  {opt.color && (
-                    <span
-                      className="option-color-dot"
-                      style={{ backgroundColor: opt.color }}
-                    />
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="custom-dropdown-search-input"
+                placeholder={searchPlaceholder || 'Tìm kiếm...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                data-testid={testId ? `${testId}-search-input` : 'custom-dropdown-search-input'}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="dropdown-search-clear-btn"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Xóa tìm kiếm"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
+          {filteredOptions.length === 0 ? (
+            <div className="dropdown-no-results">
+              Không tìm thấy kết quả phù hợp
+            </div>
+          ) : (
+            filteredOptions.map((opt) => {
+              const isSelected = opt.value === value
+              return (
+                <div
+                  key={String(opt.value)}
+                  role="option"
+                  aria-selected={isSelected}
+                  className={`dropdown-menu-item ${isSelected ? 'selected' : ''}`}
+                  onClick={() => handleSelect(opt.value)}
+                >
+                  <div className="item-label-group">
+                    {opt.color && (
+                      <span
+                        className="option-color-dot"
+                        style={{ backgroundColor: opt.color }}
+                      />
+                    )}
+                    {opt.icon && <span className="item-icon">{opt.icon}</span>}
+                    <span className="item-label">{opt.label}</span>
+                  </div>
+                  {isSelected && (
+                    <svg
+                      className="check-icon"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
                   )}
-                  {opt.icon && <span className="item-icon">{opt.icon}</span>}
-                  <span className="item-label">{opt.label}</span>
                 </div>
-                {isSelected && (
-                  <svg
-                    className="check-icon"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </div>
-            )
-          })}
+              )
+            })
+          )}
         </div>
       )}
     </div>

@@ -23,9 +23,14 @@ export interface TodayScheduleItem {
 export interface DashboardSnapshot {
   metrics: DashboardMetrics
   priorityTasks: Task[]
+  priorityTotal?: number
   overdueTasks: Task[]
   todaySchedule: TodayScheduleItem[]
+  todayScheduleTotal?: number
   upcomingTasks: Task[]
+  upcomingTotal?: number
+  inProgressTasks: Task[]
+  inProgressTotal: number
 }
 
 export interface DashboardRawData {
@@ -33,4 +38,7 @@ export interface DashboardRawData {
   completedTodayTasks: Task[]
   todayBlocks: (ScheduleBlock & { task?: Task | null })[]
   upcomingTasks: Task[]
+  upcomingTotal?: number
+  inProgressTasks: Task[]
+  inProgressTotal: number
 }

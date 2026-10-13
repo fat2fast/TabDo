@@ -1,16 +1,19 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
   getCategoryRelatedTasks,
   getSiblingTasks,
   getSubtasks,
   getTaskById,
   getTaskList,
+  getTaskBoardLane,
   getTasksByIds,
   getSchedulableTasks,
+  getTrashTasks,
+  getTaskAttachments,
   searchTasksCandidate,
 } from '../api/tasks'
 import { taskQueryKeys } from '../query-keys'
-import type { TaskListQueryInput } from '../types'
+import type { TaskBoardLaneQueryInput, TaskListQueryInput } from '../types'
 
 export function useTaskList(input: TaskListQueryInput) {
   return useQuery({
@@ -18,6 +21,16 @@ export function useTaskList(input: TaskListQueryInput) {
     queryFn: () => getTaskList(input),
   })
 }
+
+export function useTaskBoardLane(input: TaskBoardLaneQueryInput) {
+  return useInfiniteQuery({
+    queryKey: taskQueryKeys.boardLane(input),
+    queryFn: ({ pageParam = 1 }) => getTaskBoardLane({ ...input, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+  })
+}
+
 
 export function useTaskDetail(id: string | null | undefined) {
   return useQuery({
@@ -71,6 +84,21 @@ export function useSchedulableTasks(limit = 100) {
   return useQuery({
     queryKey: taskQueryKeys.schedulable(limit),
     queryFn: () => getSchedulableTasks(limit),
+  })
+}
+
+export function useTrashTasks(search?: string) {
+  return useQuery({
+    queryKey: taskQueryKeys.trash(search),
+    queryFn: () => getTrashTasks(search),
+  })
+}
+
+export function useTaskAttachments(taskId: string | null | undefined, legacyDescription?: string | null) {
+  return useQuery({
+    queryKey: taskQueryKeys.attachments(taskId || ''),
+    queryFn: () => getTaskAttachments(taskId!, legacyDescription),
+    enabled: Boolean(taskId),
   })
 }
 

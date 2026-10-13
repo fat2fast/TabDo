@@ -1,9 +1,9 @@
 # Phase 13 — Kanban Board & Status Interaction UX
 
-**Status:** Planned  
-**Track:** UX Core  
-**Depends on:** Phases 2, 7, 10, 12  
-**Delivery:** Post-MVP enhancement — not required for Phase 10 MVP release  
+**Status:** Completed
+**Track:** UX Core
+**Depends on:** Phases 2, 7, 10, 12
+**Delivered in:** `plans/261013-0934-kanban-board-dashboard-seed`
 **Scope rule:** Keep one shared Web auth session; preserve per-user RLS; admin may view only numerical task counts, not user task details or perform cross-user task edits.
 
 ---
@@ -75,16 +75,16 @@ Current baseline: List/Smart Views exist, `todo|in_progress|done` is the canonic
 
 ## Implementation checklist (issue-ready)
 
-- [ ] Separate presentation layout state from task view/status semantics; ensure URL serializes both.
-- [ ] Implement bounded all-status Board data query instead of recycling inbox-only filter.
-- [ ] Create three accessible lanes and cards with existing task metadata visual rules.
-- [ ] Define server counts and pagination behavior when filtered total exceeds page size.
-- [ ] Implement status-change command using one shared pathway, not independent Board mutation logic.
-- [ ] Route Done through atomic recurrence RPC with optimistic concurrency.
-- [ ] Handle blocked reopen/failed drag with rollback and explicit alert.
-- [ ] Add accessible non-drag status menu and a touch-first lane selector.
-- [ ] Unit test Board filters, card counts, key/ARIA labels, status commands, and error rollback.
-- [ ] Review performance under realistic number of cards and reduced motion.
+- [x] Separate presentation layout state from task view/status semantics; ensure URL serializes both.
+- [x] Implement bounded all-status Board data query instead of recycling inbox-only filter.
+- [x] Create three accessible lanes and cards with existing task metadata visual rules.
+- [x] Define server counts and pagination behavior when filtered total exceeds page size.
+- [x] Implement status-change command using one shared pathway, not independent Board mutation logic.
+- [x] Route Done through atomic recurrence RPC with optimistic concurrency.
+- [x] Handle blocked reopen/failed drag with rollback and explicit alert.
+- [x] Add accessible non-drag status menu and a touch-first lane selector.
+- [x] Unit test Board filters, card counts, key/ARIA labels, status commands, and error rollback.
+- [x] Review performance under realistic number of cards and reduced motion.
 
 ## End-to-end acceptance walkthroughs
 

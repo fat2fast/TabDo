@@ -85,6 +85,27 @@ This applies:
 - `0006_admin_account_policies.sql`: Admin account lifecycle policies, account activation/deactivation, initial password enforcement, and service-role aggregate statistics function `get_user_task_counts`.
 - `0007_recurring_tasks.sql`: Recurring tasks schema (`recurrence_rule`, `recurrence_timezone`, `recurrence_anchor_at`, `recurrence_parent_id`), successor creation logic, and cycle constraints.
 - `0008_recurring_tasks_fixes.sql`: Recurring tasks idempotent completion, ancestor chain query fixes, and timezone reconciliation.
+- `0009_task_trash_lifecycle.sql`: Soft deletion lifecycle, trash views, and 30-day purge mechanics.
+- `0010_private_task_attachments.sql`: Private storage bucket RLS policies and attachment management.
+- `0011_board_status_guards.sql`: Task status transition BEFORE UPDATE trigger blocking status updates on soft-deleted tasks and preventing reopening completed recurring tasks with active successors.
+
+#### Local Demo Seed Fixture
+
+To populate local development with realistic multi-user demonstration data (admin + user accounts with tasks, schedules, categories, subtasks, and reminders):
+
+```bash
+# 1. Reset local database and seed demo fixture safely (strictly targets local stack)
+pnpm db:reset:local
+
+# 2. Configure local passwords for seed accounts (TABDO_ADMIN_PASSWORD & TABDO_USER_PASSWORD)
+pnpm seed:local:accounts
+
+# 3. Verify cross-user isolation and login for seed accounts
+pnpm seed:local:verify
+
+# 4. Verify seed safety invariants (ensures fixtures never leak into UAT or production migrations)
+pnpm seed:local:safety
+```
 
 ### 5. Provision Initial Admin
 
@@ -107,8 +128,8 @@ This ensures the user exists in Supabase Auth and their profile role is set to `
   Opens at `http://localhost:5173`.
   - `/login`: User portal sign-in (public self-registration is disabled; accounts are admin-provisioned).
   - `/admin/login`: Administrative portal sign-in.
-  - `/dashboard`: Personal productivity overview, overdue alerts, and today's schedule agenda.
-  - `/tasks`: Core task workspace with smart views (`Inbox`, `Today`, `Upcoming`, `Overdue`, `Completed`), subtasks, and recurring tasks.
+  - `/dashboard`: Personal productivity overview, In Progress tasks widget (top 5 active tasks + total badge), overdue alerts, and today's schedule agenda in a responsive 2-column layout.
+  - `/tasks`: Core task workspace with smart views (`Inbox`, `Today`, `Upcoming`, `Overdue`, `Completed`), subtasks, recurring tasks, and Kanban Board (`?layout=board`) with desktop HTML5 drag-and-drop, accessible `CustomDropdown` status selector, and mobile single-lane tabs.
   - `/calendar`: Day and week calendar with task scheduling and block drag/resize.
   - `/admin/users`: Admin user creation and management (counts only; no personal task content access).
   - `/settings`: User account preferences and password management.
@@ -135,9 +156,10 @@ TabDo is following an incremental roadmap defined in [`docs/phases/README.md`](d
 - ✅ **Phase 5:** Reminder Engine (Migration `0005`, absolute & relative-to-due triggers, presets, snooze/dismiss)
 - ✅ **Phase 6:** Browser Extension (WXT MV3 popup, Today view, title-only Quick Add, user-triggered on-demand activation, `chrome.storage.local` sync, `chrome.alarms` & `chrome.notifications`)
 - ✅ **Phase 7:** Recurring Tasks (Migrations `0007`-`0008`, recurrence rules, auto-regeneration on completion, cycle indicators, timezone/DST handling)
-- ✅ **Phase 8:** Personal Dashboard (`DashboardPage.tsx`, daily agenda, overdue tracking, productivity metrics)
-- 📋 **Phase 9:** Daily & Weekly Summary (Rule-based review of completed and rolled-over work)
+- ✅ **Phase 8:** Personal Dashboard (`DashboardPage.tsx`, daily agenda, overdue tracking, In Progress widget, productivity metrics)
+- ✅ **Phase 9:** Daily & Weekly Summary (Rule-based review of completed and rolled-over work)
 - 📋 **Phase 10:** MVP Hardening & Verification (In Progress — security audits, CI coverage, cross-client verification)
+- ✅ **Phase 13:** Kanban Board & Status Interaction UX (`/tasks?layout=board`, 3 status lanes, pagination, mobile tabs, desktop HTML5 drag-and-drop, accessible `CustomDropdown`, migration `0011` transition guards)
 
 ## Quality Gates & Verification
 

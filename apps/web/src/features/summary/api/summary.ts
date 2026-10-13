@@ -97,23 +97,27 @@ export async function fetchSummaryData(
   const cutoffAt = isCurrentPeriod ? now.toISOString() : endAt
 
   // 2. Concurrently fetch bounded pages for primary datasets
-  const tasksDuePromise = fetchAllPages<TaskRow>((from, to) =>
-    client
-      .from('tasks')
-      .select('*')
+  const tasksDuePromise = fetchAllPages<TaskRow>((from, to) => {
+    let q = client.from('tasks').select('*')
+    if (typeof (q as any).is === 'function') {
+      q = q.is('deleted_at', null)
+    }
+    return q
       .gte('due_at', startAt)
       .lt('due_at', endAt)
       .range(from, to)
-  )
+  })
 
-  const tasksCompletedPromise = fetchAllPages<TaskRow>((from, to) =>
-    client
-      .from('tasks')
-      .select('*')
+  const tasksCompletedPromise = fetchAllPages<TaskRow>((from, to) => {
+    let q = client.from('tasks').select('*')
+    if (typeof (q as any).is === 'function') {
+      q = q.is('deleted_at', null)
+    }
+    return q
       .gte('completed_at', startAt)
       .lt('completed_at', endAt)
       .range(from, to)
-  )
+  })
 
   const scheduleBlocksPromise = fetchAllPages<RawBlockWithTask>((from, to) =>
     client
@@ -134,15 +138,17 @@ export async function fetchSummaryData(
       .range(from, to)
   )
 
-  const incompleteCutoffTasksPromise = fetchAllPages<TaskRow>((from, to) =>
-    client
-      .from('tasks')
-      .select('*')
+  const incompleteCutoffTasksPromise = fetchAllPages<TaskRow>((from, to) => {
+    let q = client.from('tasks').select('*')
+    if (typeof (q as any).is === 'function') {
+      q = q.is('deleted_at', null)
+    }
+    return q
       .neq('status', 'done')
       .lt('due_at', cutoffAt)
       .lt('created_at', cutoffAt)
       .range(from, to)
-  )
+  })
 
   const categoriesPromise = fetchAllPages<CategoryRow>((from, to) =>
     client
@@ -172,7 +178,7 @@ export async function fetchSummaryData(
   const scheduleBlocksInPeriod: (ScheduleBlock & { task?: Task | null })[] =
     blockRows.map((r) => ({
       ...toScheduleBlock(r),
-      task: r.tasks ? rowToTask(r.tasks) : null,
+      task: r.tasks && !r.tasks.deleted_at ? rowToTask(r.tasks) : null,
     }))
   const completedActivitiesInPeriod: TaskActivitySummaryItem[] = activityRows.map(
     (a) => ({
@@ -233,14 +239,16 @@ export async function fetchSummaryData(
       timeZone
     )
 
-    const prevTasksDuePromise = fetchAllPages<TaskRow>((from, to) =>
-      client
-        .from('tasks')
-        .select('*')
+    const prevTasksDuePromise = fetchAllPages<TaskRow>((from, to) => {
+      let q = client.from('tasks').select('*')
+      if (typeof (q as any).is === 'function') {
+        q = q.is('deleted_at', null)
+      }
+      return q
         .gte('due_at', prevStartAt)
         .lt('due_at', prevEndAt)
         .range(from, to)
-    )
+    })
 
     const prevTasksCompletedPromise = fetchAllPages<TaskRow>((from, to) =>
       client

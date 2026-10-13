@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { runMigration } from './migrate-task-attachments.ts'
 
 function loadEnvBootstrap() {
   const envPath = path.resolve(process.cwd(), '.env.bootstrap')
@@ -326,7 +327,334 @@ async function runIntegration() {
     if (rpcErr || rpcRes?.display_name !== 'User A Updated' || rpcRes?.role !== 'user') {
       throw new Error(`update_my_profile RPC failed or mutated role: ${rpcErr?.message}`)
     }
-    console.log('✓ Personal-data owner isolation, admin boundary, and role immutability verified.')
+
+    // Attachment RLS & Private Storage Security Checks
+    const { data: attA, error: attAErr } = await userAClient
+      .from('task_attachments')
+      .insert({
+        task_id: createdTaskId,
+        user_id: testUsers.userA.id,
+        bucket: 'task-attachments',
+        object_path: `${testUsers.userA.id}/${createdTaskId}/spec.pdf`,
+        file_name: 'spec.pdf',
+        mime_type: 'application/pdf',
+        byte_size: 1024,
+        kind: 'file'
+      })
+      .select()
+      .single()
+    if (attAErr || !attA) {
+      throw new Error(`User A failed to insert task attachment: ${attAErr?.message}`)
+    }
+
+    // User B cannot read User A attachment
+    const { data: readAttB } = await userBClient
+      .from('task_attachments')
+      .select('*')
+      .eq('id', attA.id)
+    if (readAttB && readAttB.length > 0) {
+      throw new Error(`RLS Violation: User B was able to read User A task attachment!`)
+    }
+
+    // Admin cannot read User A attachment
+    const { data: readAttAdmin } = await adminUserClient
+      .from('task_attachments')
+      .select('*')
+      .eq('id', attA.id)
+    if (readAttAdmin && readAttAdmin.length > 0) {
+      throw new Error(`RLS Violation: Admin user role bypassed owner isolation on task attachments!`)
+    }
+
+    // User B cannot insert attachment on User A task
+    const { error: attBErr } = await userBClient
+      .from('task_attachments')
+      .insert({
+        task_id: createdTaskId,
+        user_id: testUsers.userB.id,
+        bucket: 'task-attachments',
+        object_path: `${testUsers.userB.id}/${createdTaskId}/hack.pdf`,
+        file_name: 'hack.pdf',
+        mime_type: 'application/pdf',
+        byte_size: 1024,
+        kind: 'file'
+      })
+    if (!attBErr) {
+      throw new Error(`RLS Violation: User B was able to insert an attachment on User A task!`)
+    }
+
+    // Over 10MB file rejected by constraint
+    const { error: hugeErr } = await userAClient
+      .from('task_attachments')
+      .insert({
+        task_id: createdTaskId,
+        user_id: testUsers.userA.id,
+        bucket: 'task-attachments',
+        object_path: `${testUsers.userA.id}/${createdTaskId}/huge.pdf`,
+        file_name: 'huge.pdf',
+        byte_size: 10485761,
+        kind: 'file'
+      })
+    if (!hugeErr) {
+      throw new Error(`Constraint Violation: Attachment over 10MB was accepted!`)
+    }
+
+    // Invalid non-http link rejected by constraint
+    const { error: badLinkErr } = await userAClient
+      .from('task_attachments')
+      .insert({
+        task_id: createdTaskId,
+        user_id: testUsers.userA.id,
+        file_name: 'bad-link',
+        kind: 'link',
+        external_url: 'ftp://bad'
+      })
+    if (!badLinkErr) {
+      throw new Error(`Constraint Violation: Invalid non-http link was accepted!`)
+    }
+
+    // Valid link creates record with null object_path
+    const { data: validLink, error: validLinkErr } = await userAClient
+      .from('task_attachments')
+      .insert({
+        task_id: createdTaskId,
+        user_id: testUsers.userA.id,
+        file_name: 'Project Specs',
+        kind: 'link',
+        external_url: 'https://specs.tabdo.local'
+      })
+      .select()
+      .single()
+    if (validLinkErr || !validLink || validLink.object_path !== null) {
+      throw new Error(`Failed to insert valid link attachment: ${validLinkErr?.message}`)
+    }
+
+    console.log('✓ Personal-data owner isolation, admin boundary, attachments, and role immutability verified.')
+
+    // Test Edge Function purge-deleted-tasks with attachment storage cleanup
+    console.log('[3.5/5] Testing Edge Function purge-deleted-tasks & storage object cleanup...')
+    const purgeTaskTitle = `Purge Candidate ${itRunId}`
+    const { data: purgeTask, error: purgeTaskErr } = await userAClient
+      .from('tasks')
+      .insert({
+        user_id: testUsers.userA.id,
+        title: purgeTaskTitle,
+        status: 'todo',
+        priority: 'low'
+      })
+      .select()
+      .single()
+    if (purgeTaskErr || !purgeTask) {
+      throw new Error(`Failed to create task for purge test: ${purgeTaskErr?.message}`)
+    }
+
+    const testPurgeFilePath = `${testUsers.userA.id}/${purgeTask.id}/test_purge.txt`
+    const { error: purgeUploadErr } = await userAClient.storage
+      .from('task-attachments')
+      .upload(testPurgeFilePath, new TextEncoder().encode('Purge test content'), {
+        contentType: 'text/plain',
+        upsert: false
+      })
+    if (purgeUploadErr) {
+      throw new Error(`Failed to upload test attachment for purge: ${purgeUploadErr.message}`)
+    }
+
+    const { error: purgeAttMetaErr } = await userAClient
+      .from('task_attachments')
+      .insert({
+        task_id: purgeTask.id,
+        user_id: testUsers.userA.id,
+        bucket: 'task-attachments',
+        object_path: testPurgeFilePath,
+        file_name: 'test_purge.txt',
+        mime_type: 'text/plain',
+        byte_size: 18,
+        kind: 'file'
+      })
+    if (purgeAttMetaErr) {
+      throw new Error(`Failed to insert metadata for purge test: ${purgeAttMetaErr.message}`)
+    }
+
+    // Soft-delete task and mark for purge worker
+    const { error: trashErr } = await userAClient.rpc('trash_task', { p_task_id: purgeTask.id })
+    if (trashErr) {
+      throw new Error(`Failed to trash task for purge test: ${trashErr.message}`)
+    }
+
+    const { error: markErr } = await adminClient
+      .from('tasks')
+      .update({ purge_status: 'pending_purge' })
+      .eq('id', purgeTask.id)
+    if (markErr) {
+      throw new Error(`Failed to mark task for purge worker: ${markErr.message}`)
+    }
+
+    // Invoke purge-deleted-tasks Edge Function
+    const purgeFuncUrl = `${supabaseUrl}/functions/v1/purge-deleted-tasks`
+    await ensureFunctionServing('purge-deleted-tasks', purgeFuncUrl)
+
+    // Test 401: missing secret
+    const resNoSecret = await fetch(purgeFuncUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (resNoSecret.status !== 401) {
+      throw new Error(`Expected 401 Unauthorized for unauthenticated purge call, got ${resNoSecret.status}`)
+    }
+
+    // Test 401: invalid secret
+    const resWrongSecret = await fetch(purgeFuncUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer invalid-secret-token',
+      },
+    })
+    if (resWrongSecret.status !== 401) {
+      throw new Error(`Expected 401 Unauthorized for invalid secret, got ${resWrongSecret.status}`)
+    }
+
+    // Test 200: valid secret
+    const purgeRes = await fetch(purgeFuncUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${secretKey}`,
+      },
+    })
+    if (purgeRes.status !== 200) {
+      const errTxt = await purgeRes.text()
+      throw new Error(`Expected 200 OK from purge-deleted-tasks, got ${purgeRes.status}: ${errTxt}`)
+    }
+    const purgeJson = await purgeRes.json()
+    if (!purgeJson.success || purgeJson.purgedCount < 1) {
+      throw new Error(`purge-deleted-tasks did not purge candidate: ${JSON.stringify(purgeJson)}`)
+    }
+
+    // Verify task record is gone
+    const { data: checkPurgedTask } = await adminClient
+      .from('tasks')
+      .select('id')
+      .eq('id', purgeTask.id)
+      .maybeSingle()
+    if (checkPurgedTask) {
+      throw new Error(`Task ${purgeTask.id} was not purged by purge worker!`)
+    }
+
+    // Verify task attachment metadata is gone
+    const { data: checkPurgedAtt } = await adminClient
+      .from('task_attachments')
+      .select('id')
+      .eq('task_id', purgeTask.id)
+    if (checkPurgedAtt && checkPurgedAtt.length > 0) {
+      throw new Error(`Task attachment metadata was not cleaned up by purge worker!`)
+    }
+
+    // Verify storage object is gone
+    const { data: listStorage } = await adminClient.storage
+      .from('task-attachments')
+      .list(`${testUsers.userA.id}/${purgeTask.id}`)
+    if (listStorage && listStorage.length > 0) {
+      throw new Error(`Storage objects were not cleaned up from bucket by purge worker! Found: ${JSON.stringify(listStorage)}`)
+    }
+
+    console.log('✓ Edge Function purge-deleted-tasks and storage cleanup verified.')
+
+    // Test task attachment migration script (dry-run, apply, idempotency, malformed preservation)
+    console.log('[3.6/5] Testing migrate-task-attachments dry-run, apply, idempotency, and malformed safety...')
+    const legacyTaskDesc = `Task notes here\n\n<!-- tabdo_attachments: [{"id":"leg-file-1","name":"legacy_doc.txt","size":16,"type":"text/plain","url":"data:text/plain;base64,VGVzdCBsZWdhY3kgZGF0YQ=="},{"id":"leg-link-1","name":"Doc Link","type":"link","url":"https://example.com/docs"}] -->`
+    const { data: legacyTask, error: legErr } = await userAClient
+      .from('tasks')
+      .insert({
+        user_id: testUsers.userA.id,
+        title: `Legacy Att Task ${itRunId}`,
+        description: legacyTaskDesc,
+        status: 'todo',
+      })
+      .select()
+      .single()
+    if (legErr || !legacyTask) {
+      throw new Error(`Failed to create legacy test task: ${legErr?.message}`)
+    }
+
+    const malformedTaskDesc = `Malformed task notes<!-- tabdo_attachments: [not_valid_json -->`
+    const { data: malformedTask, error: malErr } = await userAClient
+      .from('tasks')
+      .insert({
+        user_id: testUsers.userA.id,
+        title: `Malformed Att Task ${itRunId}`,
+        description: malformedTaskDesc,
+        status: 'todo',
+      })
+      .select()
+      .single()
+    if (malErr || !malformedTask) {
+      throw new Error(`Failed to create malformed test task: ${malErr?.message}`)
+    }
+
+    // Dry-run check
+    const dryRunResult = await runMigration({ apply: false })
+    if (dryRunResult.migrated < 2) {
+      throw new Error(`Expected dry-run to plan at least 2 migrations, got: ${JSON.stringify(dryRunResult)}`)
+    }
+
+    const { data: checkAttDry } = await adminClient
+      .from('task_attachments')
+      .select('id')
+      .eq('task_id', legacyTask.id)
+    if (checkAttDry && checkAttDry.length > 0) {
+      throw new Error('Dry-run unexpectedly inserted task_attachments rows!')
+    }
+
+    // Apply check
+    const applyResult = await runMigration({ apply: true })
+    if (applyResult.migrated < 2) {
+      throw new Error(`Expected apply to migrate at least 2 attachments, got: ${JSON.stringify(applyResult)}`)
+    }
+
+    const { data: checkAttApply } = await adminClient
+      .from('task_attachments')
+      .select('id, file_name, kind, external_url, byte_size, object_path')
+      .eq('task_id', legacyTask.id)
+    if (!checkAttApply || checkAttApply.length !== 2) {
+      throw new Error(`Expected 2 attachment rows after apply, got: ${JSON.stringify(checkAttApply)}`)
+    }
+
+    const fileRow = checkAttApply.find((a) => a.kind === 'file')
+    if (!fileRow || !fileRow.object_path) {
+      throw new Error('Missing file row or object_path in migrated attachments')
+    }
+    const { data: checkStorage } = await adminClient.storage
+      .from('task-attachments')
+      .list(`${testUsers.userA.id}/${legacyTask.id}`)
+    if (!checkStorage || checkStorage.length === 0) {
+      throw new Error('Migrated file object was not found in storage bucket!')
+    }
+
+    const { data: checkCleanedTask } = await adminClient
+      .from('tasks')
+      .select('description')
+      .eq('id', legacyTask.id)
+      .single()
+    if (checkCleanedTask?.description !== 'Task notes here') {
+      throw new Error(`Expected cleaned description "Task notes here", got "${checkCleanedTask?.description}"`)
+    }
+
+    const { data: checkMalformedTask } = await adminClient
+      .from('tasks')
+      .select('description')
+      .eq('id', malformedTask.id)
+      .single()
+    if (checkMalformedTask?.description !== malformedTaskDesc) {
+      throw new Error('Malformed task description was unexpectedly modified!')
+    }
+
+    // Second apply run (idempotency check)
+    const secondApplyResult = await runMigration({ apply: true })
+    if (secondApplyResult.migrated !== 0) {
+      throw new Error(`Expected second apply run to migrate 0 items, got: ${secondApplyResult.migrated}`)
+    }
+
+    console.log('✓ Attachment migration dry-run, apply, idempotency, and malformed safety verified.')
 
     // 4. Test Edge Function admin-create-user
     console.log('[4/5] Testing Edge Function admin-create-user authorization & status codes...')

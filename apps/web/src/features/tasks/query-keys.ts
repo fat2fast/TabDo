@@ -14,9 +14,34 @@ export const taskQueryKeys = {
         categoryId: input.categoryId,
         dueFrom: input.dueFrom,
         dueTo: input.dueTo,
+        completedFrom: input.completedFrom,
+        completedTo: input.completedTo,
         sort: input.sort || 'default',
         limit: input.limit || 50,
+        scope: input.scope,
         timeZone: input.timeZone,
+      },
+    ] as const,
+  boards: () => [...taskQueryKeys.all, 'board'] as const,
+  boardLane: (input: Omit<import('./types').TaskBoardLaneQueryInput, 'now'>) =>
+    [
+      ...taskQueryKeys.boards(),
+      'lane',
+      {
+        view: input.view,
+        search: input.search?.trim() || '',
+        priority: input.priority,
+        categoryId: input.categoryId,
+        dueFrom: input.dueFrom,
+        dueTo: input.dueTo,
+        completedFrom: input.completedFrom,
+        completedTo: input.completedTo,
+        sort: input.sort || 'default',
+        scope: input.scope,
+        timeZone: input.timeZone,
+        statusFilter: input.statusFilter,
+        lane: input.lane,
+        pageSize: input.pageSize || 30,
       },
     ] as const,
   details: () => [...taskQueryKeys.all, 'detail'] as const,
@@ -31,6 +56,10 @@ export const taskQueryKeys = {
     [...taskQueryKeys.all, 'candidates', currentTaskId, query] as const,
   schedulable: (limit = 100) =>
     [...taskQueryKeys.all, 'schedulable', limit] as const,
+  trash: (search?: string) =>
+    [...taskQueryKeys.all, 'trash', search || ''] as const,
+  attachments: (taskId: string) =>
+    [...taskQueryKeys.all, 'attachments', taskId] as const,
 }
 
 export const categoryQueryKeys = {

@@ -36,6 +36,10 @@ export interface Task {
   recurrenceParentId?: string | null
   recurrenceTimezone?: string | null
   recurrenceAnchorAt?: string | null
+  boardOrder?: number | null
+  deletedAt?: string | null
+  deletionBatchId?: string | null
+  purgeStatus?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -71,6 +75,7 @@ export interface CreateTaskInput {
   recurrenceParentId?: string | null
   recurrenceTimezone?: string | null
   recurrenceAnchorAt?: string | null
+  boardOrder?: number | null
 }
 
 export interface UpdateTaskInput {
@@ -90,6 +95,7 @@ export interface UpdateTaskInput {
   recurrenceParentId?: string | null
   recurrenceTimezone?: string | null
   recurrenceAnchorAt?: string | null
+  boardOrder?: number | null
   previousUpdatedAt?: string
 }
 
@@ -271,4 +277,25 @@ export interface AdminUserLifecycleInput {
 
 export interface CompleteInitialPasswordInput {
   newPassword: string
+}
+
+export type AttachmentKind = 'file' | 'link'
+export type AttachmentUploadStatus = 'pending' | 'ready' | 'failed'
+
+export interface TaskAttachment {
+  id: string
+  userId?: string
+  taskId?: string
+  name: string
+  size: number
+  type: string
+  url?: string
+  kind?: AttachmentKind
+  bucket?: string
+  objectPath?: string | null
+  externalUrl?: string | null
+  checksum?: string | null
+  uploadStatus?: AttachmentUploadStatus
+  createdAt: string
+  updatedAt?: string
 }

@@ -46,6 +46,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Seed safety check
+        run: pnpm seed:local:safety
+
       - name: Build
         run: pnpm build
 
@@ -104,6 +107,8 @@ jobs:
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
           supabase functions deploy complete-initial-password \
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
+          supabase functions deploy purge-deleted-tasks \
+            --project-ref "$SUPABASE_UAT_PROJECT_REF"
 
       - name: Install Vercel CLI
         run: npm install --global vercel@63.0.2
@@ -118,20 +123,44 @@ jobs:
           vercel pull --yes --environment=production --cwd apps/web \
             --token "$VERCEL_TOKEN"
 
+      - name: Check UAT build configuration
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          pnpm check:uat:config
+
       - name: Build UAT web deployment
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TABDO_EXPECT_PRODUCTION_BUILD: '1'
         run: |
           set -euo pipefail
           vercel build --prod --cwd apps/web --token "$VERCEL_TOKEN"
+
+      - name: Verify build artifacts target UAT
+        env:
+          SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          grep -rq "https://${SUPABASE_UAT_PROJECT_REF}.supabase.co" apps/web/.vercel/output/static || {
+            echo "Error: UAT Supabase URL not found in built static assets"
+            exit 1
+          }
+          if grep -rqE "tabdo-ci\.invalid|127\.0\.0\.1|localhost:54321" apps/web/.vercel/output/static; then
+            echo "Error: Local or invalid placeholder URL found in built static assets"
+            exit 1
+          fi
 
       - name: Deploy UAT web and check SPA route
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
         run: |
           set -euo pipefail
           deployment_url="$(vercel deploy --prebuilt --prod --cwd apps/web \
@@ -140,11 +169,15 @@ jobs:
           response="$(curl --fail --location --silent --show-error \
             "$deployment_url/login")"
           printf '%s' "$response" | grep --fixed-strings --quiet '<div id="root"></div>'
+          response_tasks="$(curl --fail --location --silent --show-error \
+            "$deployment_url/tasks")"
+          printf '%s' "$response_tasks" | grep --fixed-strings --quiet '<div id="root"></div>'
           {
             printf '### UAT deployment\n\n'
             printf '%s\n' "- Commit: \`$GITHUB_SHA\`"
             printf '%s\n' "- Deployment: $deployment_url"
+            printf '%s\n' "- Target Project Ref: \`${SUPABASE_UAT_PROJECT_REF:0:6}...\`"
             printf '%s\n' '- Supabase migration history inspected; pending migrations applied successfully.'
-            printf '%s\n' '- Supabase Edge Functions (\`admin-create-user\`, \`admin-users\`, \`complete-initial-password\`) deployed successfully.'
-            printf '%s\n' '- `/login` returned the SPA entry document.'
+            printf '%s\n' '- Supabase Edge Functions (\`admin-create-user\`, \`admin-users\`, \`complete-initial-password\`, \`purge-deleted-tasks\`) deployed successfully.'
+            printf '%s\n' '- \`/login\` and \`/tasks\` returned the SPA entry document.'
           } >> "$GITHUB_STEP_SUMMARY"

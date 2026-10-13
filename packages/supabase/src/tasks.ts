@@ -22,9 +22,15 @@ export async function getExtensionTodayTasks(
 ): Promise<ExtensionTodayTask[]> {
   const { endOfDay } = getLocalDayBoundaries(now, timeZone)
 
-  const { data, error } = await client
+  let query = client
     .from('tasks')
     .select('id, title, status, priority, due_date_kind, due_at, updated_at')
+
+  if (typeof (query as any).is === 'function') {
+    query = query.is('deleted_at', null)
+  }
+
+  const { data, error } = await query
     .neq('status', 'done')
     .not('due_at', 'is', null)
     .lte('due_at', endOfDay.toISOString())
