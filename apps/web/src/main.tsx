@@ -6,6 +6,7 @@ import { AuthProvider } from './features/auth/auth-provider'
 import { I18nProvider } from './features/i18n/i18n-provider'
 import { ConfirmProvider } from './components/ui/confirm-dialog'
 import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { App } from './app/App'
 import './styles.css'
 
@@ -30,6 +31,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </BrowserRouter>
       <Analytics />
+      <SpeedInsights />
     </QueryClientProvider>
   </React.StrictMode>,
 )
