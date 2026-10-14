@@ -44,11 +44,23 @@ export default defineConfig(({ mode }) => {
     }
   }
 
+  const observabilityClientConfig =
+    process.env.VERCEL_OBSERVABILITY_CLIENT_CONFIG ||
+    process.env.REACT_APP_VERCEL_OBSERVABILITY_CLIENT_CONFIG ||
+    ''
+
+  const observabilityBasePath =
+    process.env.VERCEL_OBSERVABILITY_BASEPATH ||
+    process.env.REACT_APP_VERCEL_OBSERVABILITY_BASEPATH ||
+    ''
+
   return {
     plugins: [react()],
     define: {
       __APP_VERSION__: JSON.stringify(commitHash),
       __DEPLOY_DATE__: JSON.stringify(deployDate),
+      'process.env.REACT_APP_VERCEL_OBSERVABILITY_CLIENT_CONFIG': JSON.stringify(observabilityClientConfig),
+      'process.env.REACT_APP_VERCEL_OBSERVABILITY_BASEPATH': JSON.stringify(observabilityBasePath),
     },
   }
 })
