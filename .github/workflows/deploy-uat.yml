@@ -52,7 +52,8 @@ jobs:
       - name: Build
         run: pnpm build
 
-  deploy-uat:
+  deploy-supabase:
+    name: Deploy Supabase (UAT)
     if: github.ref == 'refs/heads/uat'
     needs: validate
     runs-on: ubuntu-latest
@@ -61,23 +62,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 12.9.1
-
-      - name: Install dependencies
-        env:
-          VITE_SUPABASE_URL: https://tabdo-ci.invalid
-          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-public-publishable-key
-          VITE_SUPABASE_ANON_KEY: ci-placeholder-public-anon-key
-        run: pnpm install --frozen-lockfile
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -109,6 +93,46 @@ jobs:
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
           supabase functions deploy purge-deleted-tasks \
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
+
+      - name: Report Supabase UAT deployment
+        env:
+          SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
+        run: |
+          {
+            printf '### UAT Supabase deployment\n\n'
+            printf '%s\n' "- Commit: \`$GITHUB_SHA\`"
+            printf '%s\n' "- Target Project Ref: \`${SUPABASE_UAT_PROJECT_REF:0:6}...\`"
+            printf '%s\n' '- Supabase migration history inspected; pending migrations applied successfully.'
+            printf '%s\n' '- Supabase Edge Functions (\`admin-create-user\`, \`admin-users\`, \`complete-initial-password\`, \`purge-deleted-tasks\`) deployed successfully.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-vercel:
+    name: Deploy Vercel (UAT)
+    if: github.ref == 'refs/heads/uat'
+    needs: [validate, deploy-supabase]
+    runs-on: ubuntu-latest
+    environment:
+      name: uat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+
+      - name: Install dependencies
+        env:
+          VITE_SUPABASE_URL: https://tabdo-ci.invalid
+          VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-public-publishable-key
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-public-anon-key
+        run: pnpm install --frozen-lockfile
 
       - name: Install Vercel CLI
         run: npm install --global vercel@63.0.2
@@ -163,21 +187,49 @@ jobs:
           SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
         run: |
           set -euo pipefail
-          deployment_url="$(vercel deploy --prebuilt --prod --cwd apps/web \
+          deployment_output="$(vercel deploy --prebuilt --prod --cwd apps/web \
             --token "$VERCEL_TOKEN")"
+          # Extract the primary URL from the deployment output
+          deployment_url="$(printf '%s\n' "$deployment_output" | grep -Eo 'https://[^ ]+' | tail -n 1)"
+          if [ -z "$deployment_url" ]; then
+            deployment_url="${deployment_output##*$'\n'}"
+          fi
           deployment_url="${deployment_url%/}"
-          response="$(curl --fail --location --silent --show-error \
-            "$deployment_url/login")"
-          printf '%s' "$response" | grep --fixed-strings --quiet '<div id="root"></div>'
-          response_tasks="$(curl --fail --location --silent --show-error \
-            "$deployment_url/tasks")"
-          printf '%s' "$response_tasks" | grep --fixed-strings --quiet '<div id="root"></div>'
+          echo "Deployment target: $deployment_url"
+
+          # Verify SPA route with retry loop to allow Vercel Edge CDN propagation
+          verify_spa_route() {
+            local target_url="$1"
+            local max_attempts=10
+            local wait_seconds=3
+            local attempt=1
+
+            echo "Verifying SPA route: $target_url"
+            while [ "$attempt" -le "$max_attempts" ]; do
+              local body
+              if body="$(curl --fail --location --silent --show-error "$target_url" 2>/dev/null)" && \
+                 printf '%s' "$body" | grep --fixed-strings --quiet '<div id="root"></div>'; then
+                echo "Route check passed: $target_url (attempt $attempt)"
+                return 0
+              fi
+
+              echo "Attempt $attempt/$max_attempts: $target_url not ready yet (status 404 or propagating). Waiting ${wait_seconds}s..."
+              sleep "$wait_seconds"
+              attempt=$((attempt + 1))
+            done
+
+            echo "Error: SPA route verification failed after $max_attempts attempts: $target_url"
+            curl --fail --location --show-error "$target_url"
+            return 1
+          }
+
+          verify_spa_route "$deployment_url/login"
+          verify_spa_route "$deployment_url/tasks"
+
           {
-            printf '### UAT deployment\n\n'
+            printf '### UAT Vercel deployment\n\n'
             printf '%s\n' "- Commit: \`$GITHUB_SHA\`"
             printf '%s\n' "- Deployment: $deployment_url"
             printf '%s\n' "- Target Project Ref: \`${SUPABASE_UAT_PROJECT_REF:0:6}...\`"
-            printf '%s\n' '- Supabase migration history inspected; pending migrations applied successfully.'
-            printf '%s\n' '- Supabase Edge Functions (\`admin-create-user\`, \`admin-users\`, \`complete-initial-password\`, \`purge-deleted-tasks\`) deployed successfully.'
             printf '%s\n' '- \`/login\` and \`/tasks\` returned the SPA entry document.'
           } >> "$GITHUB_STEP_SUMMARY"
