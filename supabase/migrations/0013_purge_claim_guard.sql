@@ -198,3 +198,31 @@ $current$;
 revoke all on function public.is_purge_claim_current(uuid, uuid, uuid)
   from public, anon, authenticated;
 grant execute on function public.is_purge_claim_current(uuid, uuid, uuid) to service_role;
+
+-- Failed tasks remain in Trash, retrying after bounded exponential backoff.
+create or replace function public.defer_task_purge(
+  p_task_id uuid, p_user_id uuid, p_claim_token uuid
+) returns boolean language plpgsql security definer set search_path = '' as $defer$
+declare
+  v_attempts integer;
+begin
+  select purge_attempt_count into v_attempts
+  from public.tasks
+  where id = p_task_id and user_id = p_user_id
+    and deleted_at is not null and purge_status = 'purging'
+    and purge_claim_token = p_claim_token
+  for update;
+  if not found then return false; end if;
+  update public.tasks
+  set purge_attempt_count = least(v_attempts + 1, 1000),
+      purge_retry_after = statement_timestamp()
+        + least(24, power(2, least(v_attempts, 5))::integer) * interval '1 hour',
+      purge_claimed_at = null, purge_claim_token = null,
+      updated_at = statement_timestamp()
+  where id = p_task_id and user_id = p_user_id;
+  return true;
+end;
+$defer$;
+revoke all on function public.defer_task_purge(uuid, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.defer_task_purge(uuid, uuid, uuid) to service_role;
