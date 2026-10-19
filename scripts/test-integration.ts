@@ -474,6 +474,20 @@ async function runIntegration() {
       throw new Error(`Failed to insert metadata for purge test: ${purgeAttMetaErr.message}`)
     }
 
+    // More than the standard 1,000-row PostgREST cap; worker must walk all pages.
+    for (let offset = 0; offset < 1100; offset += 200) {
+      const batch = Array.from({ length: Math.min(200, 1100 - offset) }, (_, index) => ({
+        task_id: purgeTask.id,
+        user_id: testUsers.userA.id,
+        file_name: `Purge pagination link ${offset + index}`,
+        bucket: 'task-attachments',
+        kind: 'link',
+        external_url: 'https://example.com/purge-pagination',
+      }))
+      const { error: bulkError } = await adminClient.from('task_attachments').insert(batch)
+      if (bulkError) throw new Error(`Failed to seed purge pagination fixture: ${bulkError.message}`)
+    }
+
     // Soft-delete task and mark for purge worker
     const { error: trashErr } = await userAClient.rpc('trash_task', { p_task_id: purgeTask.id })
     if (trashErr) {
