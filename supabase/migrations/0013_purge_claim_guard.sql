@@ -115,3 +115,10 @@ add constraint task_attachment_scoped_object_path check (
     and split_part(object_path, '/', 3) <> ''
   )
 ) not valid;
+
+-- Retry scheduling and exclusive claim bookkeeping for purge workers.
+alter table public.tasks
+  add column if not exists purge_claim_token uuid,
+  add column if not exists purge_claimed_at timestamptz,
+  add column if not exists purge_retry_after timestamptz,
+  add column if not exists purge_attempt_count integer not null default 0;
