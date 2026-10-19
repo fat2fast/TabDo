@@ -140,7 +140,8 @@ language sql stable security definer set search_path = '' as $candidates$
       or t.purge_claimed_at is null
       or t.purge_claimed_at <= statement_timestamp() - interval '30 minutes'
     )
-  order by t.deleted_at, t.id
+  -- Put retried failures behind previously unattempted eligible tasks.
+  order by coalesce(t.purge_retry_after, t.deleted_at), t.id
   limit least(greatest(coalesce(p_limit, 50), 1), 50);
 $candidates$;
 revoke all on function public.purge_due_candidates(integer) from public, anon, authenticated;
