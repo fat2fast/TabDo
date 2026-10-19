@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { makePurgeResult, validateWorkerSecret } from '../../supabase/functions/purge-deleted-tasks/contract.ts'
+import { makePurgeResult, validateWorkerSecret, isOwnedObjectPath } from '../../supabase/functions/purge-deleted-tasks/contract.ts'
 import { verifyPurgeResponse } from '../verify-purge-worker-response.ts'
 
 const dedicated = '0123456789abcdef0123456789abcdef'
@@ -36,4 +36,13 @@ test('invalid HTML/JSON or inconsistent response must fail closed', () => {
   assert.equal(verifyPurgeResponse('200', '<html>oops</html>').ok, false)
   assert.equal(verifyPurgeResponse('200', JSON.stringify({ success: true })).ok, false)
   assert.equal(verifyPurgeResponse('401', JSON.stringify(makePurgeResult(0, 0, []))).ok, false)
+})
+
+test('privileged removal rejects other-task or malformed paths', () => {
+  const user = 'a0000000-0000-0000-0000-000000000001'
+  const task = '11111111-1111-1111-1111-111111111111'
+  assert.equal(isOwnedObjectPath(`${user}/${task}/file.txt`, user, task), true)
+  assert.equal(isOwnedObjectPath(`${user}/22222222-2222-2222-2222-222222222222/file.txt`, user, task), false)
+  assert.equal(isOwnedObjectPath(`${user}/${task}/../file.txt`, user, task), false)
+  assert.equal(isOwnedObjectPath(null, user, task), false)
 })
