@@ -226,3 +226,34 @@ $defer$;
 revoke all on function public.defer_task_purge(uuid, uuid, uuid)
   from public, anon, authenticated;
 grant execute on function public.defer_task_purge(uuid, uuid, uuid) to service_role;
+
+-- Legacy two-argument delete RPC does not check claim ownership.
+revoke all on function public.purge_task_internal(uuid, uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function tabdo_internal.purge_task_record(uuid, uuid)
+  from public, anon, authenticated, service_role;
+
+-- Fence final deletion under a task row lock; only a live token may purge.
+create or replace function public.purge_task_internal(
+  p_task_id uuid, p_user_id uuid, p_claim_token uuid
+) returns boolean language plpgsql security definer set search_path = '' as $purge$
+begin
+  if coalesce(auth.role(), '') <> 'service_role'
+     and coalesce(session_user, '') <> 'service_role'
+     and coalesce(current_setting('role', true), '') <> 'service_role'
+     and coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), '') <> 'service_role' then
+    raise exception 'Unauthorized: service_role privilege required' using errcode = '42501';
+  end if;
+  perform 1 from public.tasks
+  where id = p_task_id and user_id = p_user_id
+    and deleted_at is not null and purge_status = 'purging'
+    and purge_claim_token = p_claim_token
+    and purge_claimed_at > statement_timestamp() - interval '30 minutes'
+  for update;
+  if not found then return false; end if;
+  return tabdo_internal.purge_task_record(p_task_id, p_user_id);
+end;
+$purge$;
+revoke all on function public.purge_task_internal(uuid, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.purge_task_internal(uuid, uuid, uuid) to service_role;
