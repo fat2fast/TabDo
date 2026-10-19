@@ -1,5 +1,5 @@
 begin;
-select plan(136);
+select plan(141);
 
 -- 1. Table existence and RLS active tests (12 tests)
 select has_table('public', 'profiles', 'Profiles table exists');
@@ -763,15 +763,17 @@ insert into public.tasks (
   'todo',
   'high',
   'date_time',
-  '2026-10-15 02:00:00+00',
+  now() + interval '3 days',
   'FREQ=DAILY',
   '11111111-2222-3333-4444-555555555555',
   'Asia/Ho_Chi_Minh',
-  '2026-10-15 02:00:00+00',
+  now() + interval '3 days',
   'Task with <!-- tabdo_checklist: [{"id":"c1","text":"Step 1","completed":true}] --> and - [x] Done item',
   '2026-10-10 00:00:00+00'
 ) on conflict do nothing;
 
+-- The date_time recurrence must remain in the future on every CI run.
+-- Earlier fixed 2026-10-15 fixtures expired and broke pending reminder validation.
 -- Add relative reminder for date_time task
 insert into public.reminders (
   id, user_id, task_id, reminder_kind, offset_minutes, remind_at, status
@@ -781,7 +783,7 @@ insert into public.reminders (
   'a1111111-1111-1111-1111-111111111111',
   'relative_due',
   60,
-  '2026-10-15 01:00:00+00',
+  now() + interval '3 days' - interval '1 hour',
   'pending'
 ) on conflict do nothing;
 
@@ -932,11 +934,11 @@ insert into public.tasks (
   'todo',
   'low',
   'date_only',
-  '2026-10-15 16:59:59.999+00',
+  ((now() at time zone 'Asia/Ho_Chi_Minh')::date + 3 + time '23:59:59.999') at time zone 'Asia/Ho_Chi_Minh',
   'FREQ=DAILY',
   '33333333-2222-3333-4444-555555555555',
   'Asia/Ho_Chi_Minh',
-  '2026-10-15 16:59:59.999+00',
+  ((now() at time zone 'Asia/Ho_Chi_Minh')::date + 3 + time '23:59:59.999') at time zone 'Asia/Ho_Chi_Minh',
   '2026-10-10 00:00:00+00'
 ) on conflict do nothing;
 
@@ -1064,7 +1066,43 @@ select is(
   'Task is marked pending_purge after request'
 );
 
--- Service role executes purge_task_internal
+-- Service role cannot bypass the explicit claim phase.
+set local role service_role;
+set local "request.jwt.claim.role" to 'service_role';
+select is(
+  public.purge_task_internal('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  false,
+  'Purge rejects an unclaimed task even if pending_purge'
+);
+
+-- Claim cannot touch an active, non-trashed task.
+select is(
+  public.claim_task_for_purge('a2222222-2222-2222-2222-222222222222'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  false,
+  'Service role cannot claim a non-trashed task'
+);
+
+select ok(
+  public.claim_task_for_purge('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  'Service role claims pending purge before deleting objects'
+);
+
+select is(
+  (select purge_status from public.tasks where id = '77777777-7777-7777-7777-777777777771'),
+  'purging',
+  'Claim marks task purging before Storage cleanup'
+);
+
+-- Restore is blocked while Storage cleanup may be in progress.
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select throws_matching(
+  $select public.restore_task('77777777-7777-7777-7777-777777777771'::uuid)$,
+  'Cannot restore a task that is being purged',
+  'Restoring a claimed purge is denied'
+);
+
+-- Service role executes purge_task_internal ONLY after successful claim.
 set local role service_role;
 set local "request.jwt.claim.role" to 'service_role';
 select ok(
