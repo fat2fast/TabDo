@@ -182,3 +182,19 @@ grant execute on function public.claim_task_for_purge(uuid, uuid, uuid) to servi
 -- Old two-argument claim is unfenced: retire it.
 revoke all on function public.claim_task_for_purge(uuid, uuid)
   from public, anon, authenticated, service_role;
+
+-- Fence each Storage batch and metadata change to the current claim holder.
+create or replace function public.is_purge_claim_current(
+  p_task_id uuid, p_user_id uuid, p_claim_token uuid
+) returns boolean language sql stable security definer set search_path = '' as $current$
+  select exists (
+    select 1 from public.tasks t
+    where t.id = p_task_id and t.user_id = p_user_id
+      and t.deleted_at is not null and t.purge_status = 'purging'
+      and t.purge_claim_token = p_claim_token
+      and t.purge_claimed_at > statement_timestamp() - interval '30 minutes'
+  );
+$current$;
+revoke all on function public.is_purge_claim_current(uuid, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.is_purge_claim_current(uuid, uuid, uuid) to service_role;
