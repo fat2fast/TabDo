@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -54,16 +54,18 @@ Deno.serve(async (req) => {
   })
 
   try {
-    // 3. Find candidates for purge: expired tasks (>= 30 days) or tasks with explicit purge_status = 'pending_purge'
-    const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    const { data: candidates, error: candidateErr } = await adminClient
-      .from('tasks')
-      .select('id, user_id')
-      .not('deleted_at', 'is', null)
-      .or(`deleted_at.lte.${retentionCutoff},purge_status.in.(pending_purge,purging)`)
-      .order('deleted_at', { ascending: true })
-      .limit(50)
+    // Read-only, authenticated deployment handshake. Missing migration => 503.
+    if (req.method === 'GET') {
+      const { error } = await adminClient.rpc('purge_due_candidates', { p_limit: 1 })
+      return new Response(
+        JSON.stringify(error ? { error: 'Worker DB not ready' } : { ready: true, contractVersion: 2 }),
+        { status: error ? 503 : 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
+    const { data: candidates, error: candidateErr } = await adminClient.rpc(
+      'purge_due_candidates', { p_limit: 50 }
+    )
     if (candidateErr) {
       console.error('[PurgeWorker] Failed to query candidates:', candidateErr)
       return new Response(
@@ -74,7 +76,7 @@ Deno.serve(async (req) => {
 
     if (!candidates || candidates.length === 0) {
       return new Response(
-        JSON.stringify(makePurgeResult(0, 0, [], 0)),
+        JSON.stringify({ ...makePurgeResult(0, 0, [], 0), contractVersion: 2 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -84,12 +86,19 @@ Deno.serve(async (req) => {
     let skippedCount = 0
 
     for (const task of candidates) {
+      const args = { p_task_id: task.id, p_user_id: task.user_id, p_claim_token: crypto.randomUUID() }
+      const defer = async (reason: string) => {
+        errorCategories.push(reason)
+        const { data, error } = await adminClient.rpc('defer_task_purge', args)
+        if (error || !data) errorCategories.push('defer_failed')
+      }
+      const claimValid = async () => {
+        const { data, error } = await adminClient.rpc('is_purge_claim_current', args)
+        return !error && data === true
+      }
       // Atomically lock + mark as purging before touching Storage.
       // The DB refuses active/restored tasks and prevents a concurrent restore.
-      const { data: claimed, error: claimError } = await adminClient.rpc('claim_task_for_purge', {
-        p_task_id: task.id,
-        p_user_id: task.user_id,
-      })
+      const { data: claimed, error: claimError } = await adminClient.rpc('claim_task_for_purge', args)
       if (claimError) {
         console.error('[PurgeWorker] Task claim failed.')
         errorCategories.push('claim')
@@ -156,10 +165,7 @@ Deno.serve(async (req) => {
       }
 
       // Step B: Call database purge function via service_role wrapper ONLY if Step A succeeded completely
-      const { data: success, error: purgeErr } = await adminClient.rpc('purge_task_internal', {
-        p_task_id: task.id,
-        p_user_id: task.user_id,
-      })
+      const { data: success, error: purgeErr } = await adminClient.rpc('purge_task_internal', args)
 
       if (purgeErr) {
         console.error('[PurgeWorker] Database purge failed.')
