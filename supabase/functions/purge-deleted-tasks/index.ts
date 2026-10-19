@@ -111,15 +111,25 @@ Deno.serve(async (req) => {
 
       // Step A: Clean up Storage objects before deleting database rows
       try {
-        const { data: attachments, error: attSelectErr } = await adminClient
-          .from('task_attachments')
-          .select('id, object_path, kind')
-          .eq('task_id', task.id)
-
-        if (attSelectErr) {
-          console.error('[PurgeWorker] Attachment query failed.')
-          errorCategories.push('attachments_query')
-          continue // Halt purge for this task to retain manifest for retry
+        // Fetch every metadata row; PostgREST responses are capped by default.
+        const attachments: { id: string; bucket: string; kind: string; object_path: string | null }[] = []
+        let cursor: string | null = null
+        let failedRead = false
+        while (true) {
+          let query = adminClient.from('task_attachments')
+            .select('id, bucket, kind, object_path')
+            .eq('task_id', task.id).order('id', { ascending: true }).limit(250)
+          if (cursor) query = query.gt('id', cursor)
+          const { data: page, error } = await query
+          if (error) { failedRead = true; break }
+          if (!page?.length) break
+          attachments.push(...page)
+          cursor = page[page.length - 1].id
+          if (page.length < 250) break
+        }
+        if (failedRead) {
+          await defer('attachments_query')
+          continue
         }
 
         if (attachments && attachments.length > 0) {
@@ -127,24 +137,29 @@ Deno.serve(async (req) => {
             .filter((a: any) => a.kind === 'file' && a.object_path)
             .map((a: any) => a.object_path)
 
-          if (filePaths.some((path: string) => !isOwnedObjectPath(path, task.user_id, task.id))) {
+          if (attachments.some(a => a.kind === 'file' &&
+            (a.bucket !== 'task-attachments' || !isOwnedObjectPath(a.object_path, task.user_id, task.id)))) {
             console.error('[PurgeWorker] Attachment path does not belong to task.')
-            errorCategories.push('invalid_attachment_path')
+            await defer('invalid_attachment_path')
             continue
           }
 
-          let storageFailed = false
+          let storageError: string | null = null
           for (let i = 0; i < filePaths.length; i += 100) {
+            if (!(await claimValid())) { storageError = 'claim_lost'; break }
             const { error: removeErr } = await adminClient.storage
               .from('task-attachments').remove(filePaths.slice(i, i + 100))
-            if (removeErr) {
-              console.error('[PurgeWorker] Storage cleanup failed.')
-              errorCategories.push('storage_remove')
-              storageFailed = true
-              break
-            }
+            if (removeErr) { storageError = 'storage_remove'; break }
           }
-          if (storageFailed) continue
+          if (storageError) {
+            await defer(storageError)
+            continue
+          }
+
+          if (!(await claimValid())) {
+            await defer('claim_lost')
+            continue
+          }
 
           // Delete attachment metadata rows
           const { error: attDeleteErr } = await adminClient
@@ -154,13 +169,13 @@ Deno.serve(async (req) => {
 
           if (attDeleteErr) {
             console.error('[PurgeWorker] Attachment metadata cleanup failed.')
-            errorCategories.push('attachments_delete')
+            await defer('attachments_delete')
             continue // Halt purge for this task to retain manifest for retry
           }
         }
       } catch (e: any) {
         console.error('[PurgeWorker] Attachment cleanup exception.')
-        errorCategories.push('attachments_exception')
+        await defer('attachments_exception')
         continue // Halt purge for this task to retain manifest for retry
       }
 
@@ -169,15 +184,21 @@ Deno.serve(async (req) => {
 
       if (purgeErr) {
         console.error('[PurgeWorker] Database purge failed.')
-        errorCategories.push('db_purge')
+        await defer('db_purge')
       } else if (success) {
         purgedCount++
       } else {
-        errorCategories.push('db_purge')
+        await defer('db_purge')
       }
     }
 
-    const result = makePurgeResult(candidates.length, purgedCount, errorCategories, skippedCount)
+    const { count: remainingCount, error: backlogError } = await adminClient.from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .not('deleted_at', 'is', null)
+      .or(`deleted_at.lte.${new Date(Date.now() - 30 * 86400000).toISOString()},purge_status.in.(pending_purge,purging)`)
+    if (backlogError) errorCategories.push('backlog_count')
+    const result = { ...makePurgeResult(candidates.length, purgedCount, errorCategories, skippedCount),
+      contractVersion: 2, remainingCount: remainingCount ?? null }
     return new Response(
       JSON.stringify(result),
       { status: result.success ? 200 : 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
