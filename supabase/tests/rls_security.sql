@@ -1097,7 +1097,7 @@ select is(
 set local role authenticated;
 set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
 select throws_matching(
-  $select public.restore_task('77777777-7777-7777-7777-777777777771'::uuid)$,
+  $restore$select public.restore_task('77777777-7777-7777-7777-777777777771'::uuid)$restore$,
   'Cannot restore a task that is being purged',
   'Restoring a claimed purge is denied'
 );
