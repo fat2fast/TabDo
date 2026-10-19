@@ -1,4 +1,4 @@
-name: Scheduled Purge Worker
+name: Scheduled Purge Worker (UAT)
 
 on:
   schedule:
@@ -6,22 +6,65 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tabdo-uat-purge
+  cancel-in-progress: false
+
 jobs:
   purge:
     runs-on: ubuntu-latest
+    environment:
+      name: uat
     steps:
-      - name: Trigger purge-deleted-tasks edge function
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate target and required secrets
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.SUPABASE_UAT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_UAT_URL }}
+          SUPABASE_UAT_PROJECT_REF: ${{ secrets.SUPABASE_UAT_PROJECT_REF }}
           PURGE_WORKER_SECRET: ${{ secrets.PURGE_WORKER_SECRET }}
         run: |
           set -euo pipefail
-          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${PURGE_WORKER_SECRET:-}" ]; then
-            echo "Skipping purge run: SUPABASE_URL or PURGE_WORKER_SECRET not configured in secrets."
-            exit 0
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_UAT_PROJECT_REF:-}" ] || [ -z "${PURGE_WORKER_SECRET:-}" ]; then
+            echo "::error::UAT purge is not configured: require SUPABASE_UAT_URL, SUPABASE_UAT_PROJECT_REF and PURGE_WORKER_SECRET in the uat environment."
+            exit 1
           fi
-          response=$(curl --fail --silent --show-error \
-            -X POST "${SUPABASE_URL}/functions/v1/purge-deleted-tasks" \
+          if [[ ! "$SUPABASE_UAT_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "::error::Invalid UAT project reference."
+            exit 1
+          fi
+          if [ "${SUPABASE_URL%/}" != "https://${SUPABASE_UAT_PROJECT_REF}.supabase.co" ]; then
+            echo "::error::Purge target does not match the explicitly approved UAT Supabase project."
+            exit 1
+          fi
+          if [ "${#PURGE_WORKER_SECRET}" -lt 32 ]; then
+            echo "::error::PURGE_WORKER_SECRET must be a dedicated random credential of at least 32 characters."
+            exit 1
+          fi
+          echo "UAT purge destination verified; credentials are not logged."
+
+      - name: Trigger purge worker and verify response contract
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_UAT_URL }}
+          PURGE_WORKER_SECRET: ${{ secrets.PURGE_WORKER_SECRET }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          http_status="$(curl --silent --show-error --location --max-time 90 \
+            --output "$response_file" --write-out '%{http_code}' \
+            -X POST "${SUPABASE_URL%/}/functions/v1/purge-deleted-tasks" \
             -H "Content-Type: application/json" \
-            -H "x-purge-secret: ${PURGE_WORKER_SECRET}")
-          echo "Purge result: $response"
+            -H "x-purge-secret: ${PURGE_WORKER_SECRET}")"
+          PURGE_RESPONSE_FILE="$response_file" PURGE_HTTP_STATUS="$http_status" \
+            node --experimental-strip-types scripts/verify-purge-worker-response.ts
+          {
+            echo "### Scheduled purge (UAT)"
+            echo "- GitHub run: $GITHUB_RUN_ID"
+            echo "- Environment: uat"
+            echo "- Worker response contract verified (see safe step output)."
+          } >> "$GITHUB_STEP_SUMMARY"

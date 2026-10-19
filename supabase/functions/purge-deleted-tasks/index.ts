@@ -1,5 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { resolveSupabaseKeys } from '../_shared/supabase-keys.ts'
+import { makePurgeResult, validateWorkerSecret } from './contract.ts'
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,27 +19,22 @@ Deno.serve(async (req) => {
     )
   }
 
-  // 1. Verify trusted invocation secret
-  const configuredSecret =
-    Deno.env.get('PURGE_WORKER_SECRET') ||
-    Deno.env.get('CRON_SECRET') ||
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ||
-    Deno.env.get('SUPABASE_SECRET_KEY')
-  if (!configuredSecret) {
-    console.error('[PurgeWorker] Configuration error: PURGE_WORKER_SECRET or CRON_SECRET is not configured.')
+  // 1. Only a dedicated, high-entropy worker credential may authorize deletion.
+  const configuredSecret = Deno.env.get('PURGE_WORKER_SECRET')
+  if (!configuredSecret || configuredSecret.length < 32 ||
+    configuredSecret === Deno.env.get('SUPABASE_SECRET_KEY') ||
+    configuredSecret === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+    console.error('[PurgeWorker] Dedicated worker credential is missing or invalid.')
     return new Response(
-      JSON.stringify({ error: 'Server configuration error: missing worker secret' }),
+      JSON.stringify({ error: 'Worker configuration error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  const authHeader = req.headers.get('Authorization')
-  const customHeader = req.headers.get('x-purge-secret')
-  const providedSecret = customHeader || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null)
-
-  if (!providedSecret || providedSecret !== configuredSecret) {
+  // Do not accept bearer JWTs or privileged Supabase keys as worker credentials.
+  if (!validateWorkerSecret(req.headers.get('x-purge-secret'), configuredSecret)) {
     return new Response(
-      JSON.stringify({ error: 'Unauthorized: missing or invalid worker secret' }),
+      JSON.stringify({ error: 'Unauthorized' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -62,8 +58,10 @@ Deno.serve(async (req) => {
     const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const { data: candidates, error: candidateErr } = await adminClient
       .from('tasks')
-      .select('id, user_id, deletion_batch_id')
-      .or(`deleted_at.lte.${retentionCutoff},purge_status.eq.pending_purge`)
+      .select('id, user_id')
+      .not('deleted_at', 'is', null)
+      .or(`deleted_at.lte.${retentionCutoff},purge_status.in.(pending_purge,purging)`)
+      .order('deleted_at', { ascending: true })
       .limit(50)
 
     if (candidateErr) {
@@ -76,16 +74,33 @@ Deno.serve(async (req) => {
 
     if (!candidates || candidates.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, purgedCount: 0, message: 'No tasks eligible for purge' }),
+        JSON.stringify(makePurgeResult(0, 0, [], 0)),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     let purgedCount = 0
-    const taskErrors: any[] = []
+    const errorCategories: string[] = []
+    let skippedCount = 0
 
     for (const task of candidates) {
-      // Step A: If task_attachments table exists, clean up storage objects first
+      // Atomically lock + mark as purging before touching Storage.
+      // The DB refuses active/restored tasks and prevents a concurrent restore.
+      const { data: claimed, error: claimError } = await adminClient.rpc('claim_task_for_purge', {
+        p_task_id: task.id,
+        p_user_id: task.user_id,
+      })
+      if (claimError) {
+        console.error('[PurgeWorker] Task claim failed.')
+        errorCategories.push('claim')
+        continue
+      }
+      if (!claimed) {
+        skippedCount++
+        continue
+      }
+
+      // Step A: Clean up Storage objects before deleting database rows
       try {
         const { data: attachments, error: attSelectErr } = await adminClient
           .from('task_attachments')
@@ -93,8 +108,8 @@ Deno.serve(async (req) => {
           .eq('task_id', task.id)
 
         if (attSelectErr) {
-          console.error(`[PurgeWorker] Querying attachments failed for task ${task.id}:`, attSelectErr)
-          taskErrors.push({ taskId: task.id, step: 'attachments_query', error: attSelectErr.message })
+          console.error('[PurgeWorker] Attachment query failed.')
+          errorCategories.push('attachments_query')
           continue // Halt purge for this task to retain manifest for retry
         }
 
@@ -109,8 +124,8 @@ Deno.serve(async (req) => {
               .remove(filePaths)
 
             if (removeErr) {
-              console.error(`[PurgeWorker] Storage cleanup failed for task ${task.id}:`, removeErr)
-              taskErrors.push({ taskId: task.id, step: 'storage_remove', error: removeErr.message })
+              console.error('[PurgeWorker] Storage cleanup failed.')
+              errorCategories.push('storage_remove')
               continue // Halt purge for this task to retain manifest for retry
             }
           }
@@ -122,14 +137,14 @@ Deno.serve(async (req) => {
             .eq('task_id', task.id)
 
           if (attDeleteErr) {
-            console.error(`[PurgeWorker] Deleting attachment metadata failed for task ${task.id}:`, attDeleteErr)
-            taskErrors.push({ taskId: task.id, step: 'attachments_delete', error: attDeleteErr.message })
+            console.error('[PurgeWorker] Attachment metadata cleanup failed.')
+            errorCategories.push('attachments_delete')
             continue // Halt purge for this task to retain manifest for retry
           }
         }
       } catch (e: any) {
-        console.error(`[PurgeWorker] Attachment cleanup exception for task ${task.id}:`, e)
-        taskErrors.push({ taskId: task.id, step: 'attachments_exception', error: e?.message })
+        console.error('[PurgeWorker] Attachment cleanup exception.')
+        errorCategories.push('attachments_exception')
         continue // Halt purge for this task to retain manifest for retry
       }
 
@@ -140,28 +155,24 @@ Deno.serve(async (req) => {
       })
 
       if (purgeErr) {
-        console.error(`[PurgeWorker] Database purge failed for task ${task.id}:`, purgeErr)
-        taskErrors.push({ taskId: task.id, step: 'db_purge', error: purgeErr.message })
+        console.error('[PurgeWorker] Database purge failed.')
+        errorCategories.push('db_purge')
       } else if (success) {
         purgedCount++
       } else {
-        taskErrors.push({ taskId: task.id, step: 'db_purge', error: 'purge returned false' })
+        errorCategories.push('db_purge')
       }
     }
 
+    const result = makePurgeResult(candidates.length, purgedCount, errorCategories, skippedCount)
     return new Response(
-      JSON.stringify({
-        success: true,
-        purgedCount,
-        processedCount: candidates.length,
-        errors: taskErrors,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify(result),
+      { status: result.success ? 200 : 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err: any) {
-    console.error('[PurgeWorker] Unexpected error:', err)
+    console.error('[PurgeWorker] Unexpected internal error.')
     return new Response(
-      JSON.stringify({ error: err?.message || 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
