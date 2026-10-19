@@ -1,5 +1,5 @@
 begin;
-select plan(150);
+select plan(154);
 
 -- 1. Table existence and RLS active tests (12 tests)
 select has_table('public', 'profiles', 'Profiles table exists');
@@ -1152,6 +1152,51 @@ select is(public.claim_task_for_purge('99999999-9999-4999-8999-999999999991'::uu
 
 set local role postgres;
 delete from public.tasks where id = '99999999-9999-4999-8999-999999999991'::uuid;
+
+-- Regression: restoring a parent must not reactivate a descendant being purged.
+insert into public.tasks (id, user_id, title, status)
+values ('99999999-9999-4999-8999-999999999992', 'a0000000-0000-0000-0000-000000000001', 'Restore safety parent', 'todo');
+insert into public.tasks (id, user_id, parent_id, title, status)
+values ('99999999-9999-4999-8999-999999999993', 'a0000000-0000-0000-0000-000000000001', '99999999-9999-4999-8999-999999999992', 'Restore safety child', 'todo');
+
+-- The scoped Storage metadata CHECK also applies to service-role writes.
+select throws_matching(
+  $badpath$insert into public.task_attachments
+    (task_id, user_id, bucket, kind, object_path, file_name, byte_size)
+    values ('99999999-9999-4999-8999-999999999993', 'a0000000-0000-0000-0000-000000000001',
+      'task-attachments', 'file',
+      'a0000000-0000-0000-0000-000000000001/other-task/file.txt', 'invalid.txt', 10)$badpath$,
+  'violates check constraint',
+  'An attachment cannot reference a file path belonging to another task'
+);
+
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select public.trash_task('99999999-9999-4999-8999-999999999992'::uuid);
+set local role service_role;
+set local "request.jwt.claim.role" to 'service_role';
+select ok(public.claim_task_for_purge('99999999-9999-4999-8999-999999999993'::uuid,
+  'a0000000-0000-0000-0000-000000000001'::uuid, 'cccccccc-cccc-4ccc-8ccc-ccccccccccc3'::uuid),
+  'Worker claims trashed child for deletion');
+
+set local role authenticated;
+set local "request.jwt.claim.sub" to 'a0000000-0000-0000-0000-000000000001';
+select throws_matching(
+  $restore_parent$select public.restore_task('99999999-9999-4999-8999-999999999992'::uuid)$restore_parent$,
+  'Cannot restore a task that is being purged',
+  'Parent restore fails rather than reactivating claimed descendant'
+);
+
+set local role postgres;
+select ok(
+  (select deleted_at is not null from public.tasks where id = '99999999-9999-4999-8999-999999999992')
+  and (select deleted_at is not null and purge_status = 'purging'
+       from public.tasks where id = '99999999-9999-4999-8999-999999999993'),
+  'Failed parent restore leaves parent and claimed child safely in Trash'
+);
+delete from public.tasks where id in ('99999999-9999-4999-8999-999999999992', '99999999-9999-4999-8999-999999999993');
+
+
 
 -- ============================================================================
 -- 22. Phase 6: Private Task Attachments & Storage Security (11 tests)
