@@ -86,3 +86,32 @@ $$;
 
 -- The legacy DB-only batch helper bypasses Storage cleanup; disallow its use.
 revoke execute on function tabdo_internal.purge_expired_tasks(int) from service_role;
+
+-- Prevent recursive restore from reactivating a descendant whose files are being purged.
+create or replace function tabdo_internal.reject_purging_restore()
+returns trigger language plpgsql set search_path = '' as $guard$
+begin
+  if old.deleted_at is not null and new.deleted_at is null and old.purge_status is not null then
+    raise exception 'Cannot restore a task that is being purged' using errcode = '22023';
+  end if;
+  if old.purge_status = 'purging' and new.purge_status is distinct from 'purging' then
+    raise exception 'Cannot clear a claimed purge' using errcode = '22023';
+  end if;
+  return new;
+end;
+$guard$;
+drop trigger if exists reject_purging_restore on public.tasks;
+create trigger reject_purging_restore before update of deleted_at, purge_status
+on public.tasks for each row execute function tabdo_internal.reject_purging_restore();
+
+-- New file metadata must point to its owning task. Keep historical rows for
+-- controlled cleanup; the worker also validates paths before deletion.
+alter table public.task_attachments
+add constraint task_attachment_scoped_object_path check (
+  kind <> 'file' or (
+    bucket = 'task-attachments'
+    and split_part(object_path, '/', 1) = user_id::text
+    and split_part(object_path, '/', 2) = task_id::text
+    and split_part(object_path, '/', 3) <> ''
+  )
+) not valid;
