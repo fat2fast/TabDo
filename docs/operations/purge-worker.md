@@ -15,7 +15,7 @@ No live destructive testing or secret creation is automated by this PR.
 3. Redeploy `purge-deleted-tasks` to UAT with `--no-verify-jwt`. This is
    intentional for a server-to-server job: authorization is performed by
    `x-purge-secret` in the handler. Other Edge Functions keep their normal auth.
-4. Apply migration `0012_purge_claim_guard.sql` before deploying the new worker.
+4. Apply migration `0013_purge_claim_guard.sql` before deploying the new worker.
 5. Run `Scheduled Purge Worker (UAT)` manually once in GitHub Actions and inspect
    the safe `processed/purged/skipped` summary. Never test against production.
 
