@@ -13,7 +13,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "oxlint apps packages",
-    "test": "pnpm --filter @tabdo/web test && pnpm --filter @tabdo/extension test",
+    "test": "pnpm --filter @tabdo/web test && pnpm --filter @tabdo/extension test && node --experimental-strip-types --test scripts/__tests__/purge-worker-contract.test.ts",
     "test:integration": "node --experimental-strip-types scripts/test-integration.ts",
     "db:reset:local": "node --experimental-strip-types scripts/reset-local-db.ts",
     "seed:local:safety": "node --experimental-strip-types scripts/check-seed-safety.ts",

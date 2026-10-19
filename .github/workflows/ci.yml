@@ -78,6 +78,9 @@ jobs:
         with:
           version: 2.109.1
 
+      - name: Prepare ephemeral CI worker credential
+        run: node --experimental-strip-types scripts/prepare-ci-purge-credential.ts
+
       - name: Start Supabase
         run: supabase start
 
