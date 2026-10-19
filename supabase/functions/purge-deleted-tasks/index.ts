@@ -1,6 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { resolveSupabaseKeys } from '../_shared/supabase-keys.ts'
-import { makePurgeResult, validateWorkerSecret } from './contract.ts'
+import { makePurgeResult, validateWorkerSecret, isOwnedObjectPath } from './contract.ts'
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -118,17 +118,24 @@ Deno.serve(async (req) => {
             .filter((a: any) => a.kind === 'file' && a.object_path)
             .map((a: any) => a.object_path)
 
-          if (filePaths.length > 0) {
-            const { error: removeErr } = await adminClient.storage
-              .from('task-attachments')
-              .remove(filePaths)
+          if (filePaths.some((path: string) => !isOwnedObjectPath(path, task.user_id, task.id))) {
+            console.error('[PurgeWorker] Attachment path does not belong to task.')
+            errorCategories.push('invalid_attachment_path')
+            continue
+          }
 
+          let storageFailed = false
+          for (let i = 0; i < filePaths.length; i += 100) {
+            const { error: removeErr } = await adminClient.storage
+              .from('task-attachments').remove(filePaths.slice(i, i + 100))
             if (removeErr) {
               console.error('[PurgeWorker] Storage cleanup failed.')
               errorCategories.push('storage_remove')
-              continue // Halt purge for this task to retain manifest for retry
+              storageFailed = true
+              break
             }
           }
+          if (storageFailed) continue
 
           // Delete attachment metadata rows
           const { error: attDeleteErr } = await adminClient
