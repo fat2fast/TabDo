@@ -75,8 +75,15 @@ Deno.serve(async (req) => {
     }
 
     if (!candidates || candidates.length === 0) {
+      const { count, error } = await adminClient.from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .not('deleted_at', 'is', null)
+        .or(`deleted_at.lte.${new Date(Date.now() - 30 * 86400000).toISOString()},purge_status.in.(pending_purge,purging)`)
+      if (error) return new Response(JSON.stringify({ error: 'Failed to count purge backlog' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
       return new Response(
-        JSON.stringify({ ...makePurgeResult(0, 0, [], 0), contractVersion: 2 }),
+        JSON.stringify({ ...makePurgeResult(0, 0, [], 0), contractVersion: 2, remainingCount: count ?? 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
