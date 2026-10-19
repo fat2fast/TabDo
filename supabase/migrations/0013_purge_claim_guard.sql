@@ -122,3 +122,26 @@ alter table public.tasks
   add column if not exists purge_claimed_at timestamptz,
   add column if not exists purge_retry_after timestamptz,
   add column if not exists purge_attempt_count integer not null default 0;
+
+-- Find candidates that are due. Retry-deferred tasks cannot starve newer work.
+create or replace function public.purge_due_candidates(p_limit integer default 50)
+returns table(id uuid, user_id uuid)
+language sql stable security definer set search_path = '' as $candidates$
+  select t.id, t.user_id
+  from public.tasks t
+  where t.deleted_at is not null
+    and (
+      t.deleted_at <= statement_timestamp() - interval '30 days'
+      or t.purge_status in ('pending_purge', 'purging')
+    )
+    and (t.purge_retry_after is null or t.purge_retry_after <= statement_timestamp())
+    and (
+      t.purge_status is distinct from 'purging'
+      or t.purge_claimed_at is null
+      or t.purge_claimed_at <= statement_timestamp() - interval '30 minutes'
+    )
+  order by t.deleted_at, t.id
+  limit least(greatest(coalesce(p_limit, 50), 1), 50);
+$candidates$;
+revoke all on function public.purge_due_candidates(integer) from public, anon, authenticated;
+grant execute on function public.purge_due_candidates(integer) to service_role;
