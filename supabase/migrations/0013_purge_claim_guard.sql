@@ -145,3 +145,40 @@ language sql stable security definer set search_path = '' as $candidates$
 $candidates$;
 revoke all on function public.purge_due_candidates(integer) from public, anon, authenticated;
 grant execute on function public.purge_due_candidates(integer) to service_role;
+
+-- Every invocation uses a fresh UUID. Row locking makes claims exclusive.
+create or replace function public.claim_task_for_purge(
+  p_task_id uuid, p_user_id uuid, p_claim_token uuid
+) returns boolean
+language plpgsql security definer set search_path = '' as $claim$
+declare
+  v_task public.tasks%rowtype;
+  v_now timestamptz := statement_timestamp();
+begin
+  if p_claim_token is null then return false; end if;
+  select * into v_task from public.tasks
+  where id = p_task_id and user_id = p_user_id for update;
+  if not found or v_task.deleted_at is null then return false; end if;
+  if v_task.purge_retry_after is not null and v_task.purge_retry_after > v_now then
+    return false;
+  end if;
+  if v_task.purge_status = 'purging' and v_task.purge_claimed_at is not null
+     and v_task.purge_claimed_at > v_now - interval '30 minutes' then
+    return false;
+  end if;
+  if not (v_task.deleted_at <= v_now - interval '30 days'
+      or v_task.purge_status in ('pending_purge', 'purging')) then
+    return false;
+  end if;
+  update public.tasks set purge_status = 'purging',
+    purge_claim_token = p_claim_token, purge_claimed_at = v_now,
+    purge_retry_after = null, updated_at = v_now
+  where id = p_task_id and user_id = p_user_id;
+  return true;
+end;
+$claim$;
+revoke all on function public.claim_task_for_purge(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.claim_task_for_purge(uuid, uuid, uuid) to service_role;
+-- Old two-argument claim is unfenced: retire it.
+revoke all on function public.claim_task_for_purge(uuid, uuid)
+  from public, anon, authenticated, service_role;
