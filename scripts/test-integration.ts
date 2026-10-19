@@ -488,6 +488,11 @@ async function runIntegration() {
       throw new Error(`Failed to mark task for purge worker: ${markErr.message}`)
     }
 
+    const purgeWorkerSecret = process.env.PURGE_WORKER_SECRET
+    if (!purgeWorkerSecret || purgeWorkerSecret.length < 32) {
+      throw new Error('Local integration test requires a dedicated PURGE_WORKER_SECRET (32+ characters)')
+    }
+
     // Invoke purge-deleted-tasks Edge Function
     const purgeFuncUrl = `${supabaseUrl}/functions/v1/purge-deleted-tasks`
     await ensureFunctionServing('purge-deleted-tasks', purgeFuncUrl)
@@ -506,7 +511,7 @@ async function runIntegration() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer invalid-secret-token',
+        'x-purge-secret': 'invalid-secret-token',
       },
     })
     if (resWrongSecret.status !== 401) {
@@ -518,7 +523,7 @@ async function runIntegration() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${secretKey}`,
+        'x-purge-secret': purgeWorkerSecret,
       },
     })
     if (purgeRes.status !== 200) {
