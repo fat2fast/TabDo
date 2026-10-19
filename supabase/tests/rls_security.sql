@@ -1,5 +1,5 @@
 begin;
-select plan(141);
+select plan(150);
 
 -- 1. Table existence and RLS active tests (12 tests)
 select has_table('public', 'profiles', 'Profiles table exists');
@@ -1070,20 +1070,20 @@ select is(
 set local role service_role;
 set local "request.jwt.claim.role" to 'service_role';
 select is(
-  public.purge_task_internal('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  public.purge_task_internal('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid),
   false,
   'Purge rejects an unclaimed task even if pending_purge'
 );
 
 -- Claim cannot touch an active, non-trashed task.
 select is(
-  public.claim_task_for_purge('a2222222-2222-2222-2222-222222222222'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  public.claim_task_for_purge('a2222222-2222-2222-2222-222222222222'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid),
   false,
   'Service role cannot claim a non-trashed task'
 );
 
 select ok(
-  public.claim_task_for_purge('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  public.claim_task_for_purge('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid),
   'Service role claims pending purge before deleting objects'
 );
 
@@ -1106,7 +1106,7 @@ select throws_matching(
 set local role service_role;
 set local "request.jwt.claim.role" to 'service_role';
 select ok(
-  public.purge_task_internal('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid),
+  public.purge_task_internal('77777777-7777-7777-7777-777777777771'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid),
   'Service role executes purge_task_internal'
 );
 
@@ -1122,6 +1122,36 @@ select is(
   0::bigint,
   'Task record permanently deleted after worker purge'
 );
+
+-- Regression: two claimants cannot process the same task; failures are deferred.
+set local role postgres;
+insert into public.tasks(id, user_id, title, status, deleted_at, purge_status)
+values ('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'Lease test task', 'todo', now(), 'pending_purge');
+
+set local role service_role;
+set local "request.jwt.claim.role" to 'service_role';
+select ok(public.claim_task_for_purge('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid),
+  'First purge worker owns the task');
+select is(public.claim_task_for_purge('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'::uuid), false,
+  'Second purge worker cannot claim an active lease');
+select is(public.purge_task_internal('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'::uuid), false,
+  'Worker without current claim cannot hard-delete');
+select is(public.defer_task_purge('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'::uuid), false,
+  'Worker without claim cannot reschedule task');
+select ok(public.is_purge_claim_current('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid),
+  'Valid lease remains current');
+select ok(public.defer_task_purge('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid),
+  'Claim owner can defer a failed purge');
+select ok((select purge_retry_after > now() from public.tasks where id = '99999999-9999-4999-8999-999999999991'::uuid),
+  'Failed purge is scheduled to retry in the future');
+select is((select count(*) from public.purge_due_candidates(50)
+  where id = '99999999-9999-4999-8999-999999999991'::uuid), 0::bigint,
+  'Deferred task does not occupy the next candidate batch');
+select is(public.claim_task_for_purge('99999999-9999-4999-8999-999999999991'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'::uuid), false,
+  'No worker can reclaim before backoff expires');
+
+set local role postgres;
+delete from public.tasks where id = '99999999-9999-4999-8999-999999999991'::uuid;
 
 -- ============================================================================
 -- 22. Phase 6: Private Task Attachments & Storage Security (11 tests)
