@@ -47,6 +47,32 @@ jobs:
           fi
           echo "UAT purge destination verified; credentials are not logged."
 
+      - name: Confirm deployed UAT worker and database contract
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_UAT_URL }}
+          PURGE_WORKER_SECRET: ${{ secrets.PURGE_WORKER_SECRET }}
+        run: |
+          set -euo pipefail
+          readiness_file="$(mktemp)"
+          trap 'rm -f "$readiness_file"' EXIT
+          http_status="$(curl --silent --show-error --max-time 30 \
+            --output "$readiness_file" --write-out '%{http_code}' \
+            -X GET "${SUPABASE_URL%/}/functions/v1/purge-deleted-tasks" \
+            -H "x-purge-secret: ${PURGE_WORKER_SECRET}")"
+          if [ "$http_status" != "200" ]; then
+            echo "::error::UAT purge worker or database is not ready; aborting before POST."
+            exit 1
+          fi
+          node --input-type=module - "$readiness_file" <<'NODE'
+          import { readFileSync } from 'node:fs'
+          const response = JSON.parse(readFileSync(process.argv[2], 'utf8'))
+          if (response.ready !== true || response.contractVersion !== 2) {
+            console.error('::error::UAT purge contract version mismatch; aborting before POST.')
+            process.exit(1)
+          }
+          console.log('UAT worker and DB readiness contract verified.')
+          NODE
+
       - name: Trigger purge worker and verify response contract
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_UAT_URL }}
