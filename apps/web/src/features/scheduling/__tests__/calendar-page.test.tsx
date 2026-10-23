@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -301,5 +301,91 @@ describe('CalendarPage', () => {
     expect(params.get('display')).toBe('agenda')
     expect(params.get('view')).toBe('week')
     expect(params.get('date')).toBe('2026-10-06')
+  })
+
+  it('manages responsive sidebar lifecycle: no unintended modal on mobile resize, scroll lock cleanup on desktop resize', async () => {
+    const user = userEvent.setup()
+
+    // Setup controllable matchMedia mock
+    let currentMatches = false
+    const listeners = new Set<(e: MediaQueryListEvent) => void>()
+    const mockMql = {
+      get matches() {
+        return currentMatches
+      },
+      media: '(max-width: 768px)',
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn((event: string, handler: (e: MediaQueryListEvent) => void) => {
+        if (event === 'change') listeners.add(handler)
+      }),
+      removeEventListener: vi.fn((event: string, handler: (e: MediaQueryListEvent) => void) => {
+        if (event === 'change') listeners.delete(handler)
+      }),
+      dispatchEvent: vi.fn(),
+    }
+
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation(() => mockMql)
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1024 })
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/calendar?view=week&date=2026-10-06']}>
+        <Routes>
+          <Route path="/calendar" element={<CalendarPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    // 1. Initial desktop view: desktop sidebar visible, mobile overlay NOT present
+    expect(screen.getByTestId('calendar-desktop-sidebar')).toBeInTheDocument()
+    expect(screen.queryByTestId('unscheduled-mobile-overlay')).not.toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('')
+
+    // 2. Toggle sidebar on desktop: collapses and expands
+    const toggleBtn = screen.getByTestId('toggle-unscheduled-sidebar-btn')
+    await user.click(toggleBtn)
+    expect(screen.queryByTestId('calendar-desktop-sidebar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('unscheduled-mobile-overlay')).not.toBeInTheDocument()
+
+    await user.click(toggleBtn)
+    expect(screen.getByTestId('calendar-desktop-sidebar')).toBeInTheDocument()
+
+    // 3. Resize Desktop -> Mobile: update matchMedia and trigger listener
+    act(() => {
+      currentMatches = true
+      window.innerWidth = 390
+      listeners.forEach((fn) => fn({ matches: true, media: '(max-width: 768px)' } as MediaQueryListEvent))
+    })
+
+    // Critical assertion: NO unintended mobile modal opened after resize!
+    expect(screen.queryByTestId('unscheduled-mobile-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('calendar-desktop-sidebar')).not.toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('')
+
+    // 4. On mobile: explicitly open unscheduled tasks modal
+    await user.click(toggleBtn)
+    const mobileOverlay = await screen.findByTestId('unscheduled-mobile-overlay')
+    expect(mobileOverlay).toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    // 5. Resize Mobile -> Desktop while mobile modal is open:
+    act(() => {
+      currentMatches = false
+      window.innerWidth = 1024
+      listeners.forEach((fn) => fn({ matches: false, media: '(max-width: 768px)' } as MediaQueryListEvent))
+    })
+
+    // Critical assertion: Mobile overlay is closed, body scroll lock is restored, desktop sidebar is back
+    await waitFor(() => {
+      expect(screen.queryByTestId('unscheduled-mobile-overlay')).not.toBeInTheDocument()
+    })
+    expect(document.body.style.overflow).toBe('')
+    expect(screen.getByTestId('calendar-desktop-sidebar')).toBeInTheDocument()
+
+    // Cleanup
+    unmount()
+    window.matchMedia = originalMatchMedia
   })
 })

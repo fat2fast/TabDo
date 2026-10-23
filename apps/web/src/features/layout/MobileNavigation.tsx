@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import type { UserProfile } from '@tabdo/types'
 import { useI18n } from '../i18n/i18n-provider'
@@ -14,6 +14,21 @@ export function MobileNavigation({ profile, onSignOut }: MobileNavigationProps) 
   const location = useLocation()
   const [isMoreOpen, setIsMoreOpen] = useState(false)
   const moreTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // Auto-close More menu when viewport transitions from mobile to desktop
+  useEffect(() => {
+    if (!isMoreOpen) return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+
+    const mql = window.matchMedia('(max-width: 768px)')
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      if (!e.matches) {
+        setIsMoreOpen(false)
+      }
+    }
+    mql.addEventListener('change', handleMediaChange)
+    return () => mql.removeEventListener('change', handleMediaChange)
+  }, [isMoreOpen])
 
   const isTasksActive = location.pathname.startsWith('/tasks')
   const isCalendarActive = location.pathname.startsWith('/calendar')

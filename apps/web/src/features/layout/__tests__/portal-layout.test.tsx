@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render as rtlRender, screen, within } from '@testing-library/react'
+import { act, render as rtlRender, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../../../app/App'
@@ -300,5 +300,94 @@ describe('portal-layout', () => {
 
     expect(screen.queryByTestId('mobile-more-sheet')).not.toBeInTheDocument()
     expect(document.activeElement).toBe(moreBtn)
+  })
+
+  it('cleans up body scroll lock and closes More menu when switching to desktop viewport', async () => {
+    const user = userEvent.setup()
+
+    let currentMatches = true
+    const listeners = new Set<(e: MediaQueryListEvent) => void>()
+    const mockMql = {
+      get matches() {
+        return currentMatches
+      },
+      media: '(max-width: 768px)',
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn((event: string, handler: (e: MediaQueryListEvent) => void) => {
+        if (event === 'change') listeners.add(handler)
+      }),
+      removeEventListener: vi.fn((event: string, handler: (e: MediaQueryListEvent) => void) => {
+        if (event === 'change') listeners.delete(handler)
+      }),
+      dispatchEvent: vi.fn(),
+    }
+
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation(() => mockMql)
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 390 })
+
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { user: { id: 'user-1', email: 'user@tabdo.local' } } },
+      error: null,
+    } as any)
+
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          id: 'user-1',
+          role: 'user',
+          display_name: 'Regular User',
+          timezone: 'Asia/Ho_Chi_Minh',
+        },
+        error: null,
+      }),
+    } as any)
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    // 1. Open More menu on mobile
+    const moreBtn = await screen.findByTestId('mobile-nav-more-btn')
+    await user.click(moreBtn)
+
+    const sheet = await screen.findByTestId('mobile-more-sheet')
+    expect(sheet).toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    // 2. Resize Mobile -> Desktop (> 768px)
+    act(() => {
+      currentMatches = false
+      window.innerWidth = 1024
+      listeners.forEach((fn) => fn({ matches: false, media: '(max-width: 768px)' } as MediaQueryListEvent))
+    })
+
+    // 3. More menu must close and body scroll lock must be restored
+    await waitFor(() => {
+      expect(screen.queryByTestId('mobile-more-sheet')).not.toBeInTheDocument()
+    })
+    expect(document.body.style.overflow).toBe('')
+
+    // 4. Resize back to Mobile and confirm More menu can reopen
+    act(() => {
+      currentMatches = true
+      window.innerWidth = 390
+      listeners.forEach((fn) => fn({ matches: true, media: '(max-width: 768px)' } as MediaQueryListEvent))
+    })
+
+    await user.click(moreBtn)
+    expect(await screen.findByTestId('mobile-more-sheet')).toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    unmount()
+    window.matchMedia = originalMatchMedia
   })
 })

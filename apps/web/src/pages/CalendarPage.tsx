@@ -242,14 +242,23 @@ export function CalendarPage() {
     }
   }
 
-  // Sidebar state (default open on desktop, collapsed on mobile)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile)
+  // Separate desktop sidebar visibility from mobile panel visibility to prevent
+  // unintended modal opening on resize, lost focus, or persistent scroll locks.
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true)
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false)
   const unscheduledPanelRef = useRef<HTMLDivElement>(null)
   const unscheduledTriggerRef = useRef<HTMLElement | null>(null)
 
+  // Reconcile breakpoint transitions: when switching to desktop, close mobile panel
+  useEffect(() => {
+    if (!isMobile && isMobilePanelOpen) {
+      setIsMobilePanelOpen(false)
+    }
+  }, [isMobile, isMobilePanelOpen])
+
   // Manage mobile unscheduled tasks dialog lifecycle
   useEffect(() => {
-    if (isSidebarOpen && isMobile) {
+    if (isMobile && isMobilePanelOpen) {
       unscheduledTriggerRef.current = document.activeElement as HTMLElement | null
       const prevOverflow = document.body.style.overflow
       document.body.style.overflow = 'hidden'
@@ -266,11 +275,11 @@ export function CalendarPage() {
         unscheduledTriggerRef.current?.focus?.()
       }
     }
-  }, [isSidebarOpen, isMobile])
+  }, [isMobile, isMobilePanelOpen])
 
   // Support Escape hotkey and Tab focus trap for mobile unscheduled tasks dialog
   useEffect(() => {
-    if (!isSidebarOpen || !isMobile) return
+    if (!isMobile || !isMobilePanelOpen) return
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -278,7 +287,7 @@ export function CalendarPage() {
           '.confirm-dialog-backdrop, .custom-dropdown-menu.open, .date-picker-popover-content, .modal-backdrop'
         )
         if (hasTopOverlay) return
-        setIsSidebarOpen(false)
+        setIsMobilePanelOpen(false)
         return
       }
 
@@ -313,7 +322,16 @@ export function CalendarPage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isSidebarOpen, isMobile])
+  }, [isMobile, isMobilePanelOpen])
+
+  const isSidebarOpen = isMobile ? isMobilePanelOpen : isDesktopSidebarOpen
+  const handleToggleSidebar = () => {
+    if (isMobile) {
+      setIsMobilePanelOpen((prev) => !prev)
+    } else {
+      setIsDesktopSidebarOpen((prev) => !prev)
+    }
+  }
 
   return (
     <div className="tabdo-calendar-page-layout" data-testid="calendar-page">
@@ -327,7 +345,7 @@ export function CalendarPage() {
         onDateChange={handleDateChange}
         onAddSchedule={handleOpenAddSchedule}
         isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+        onToggleSidebar={handleToggleSidebar}
       />
 
       {mutationError && (
@@ -349,7 +367,7 @@ export function CalendarPage() {
         </div>
       )}
 
-      <div className={`calendar-page-body ${isSidebarOpen ? '' : 'sidebar-collapsed'}`}>
+      <div className={`calendar-page-body ${(!isMobile && isDesktopSidebarOpen) ? '' : 'sidebar-collapsed'}`}>
         <div className="calendar-main-content">
           {isLoading ? (
             <div className="calendar-loading-overlay">Đang tải lịch trình...</div>
@@ -375,20 +393,21 @@ export function CalendarPage() {
           )}
         </div>
 
-        {isSidebarOpen && !isMobile && (
-          <aside className="calendar-sidebar">
+        {!isMobile && isDesktopSidebarOpen && (
+          <aside className="calendar-sidebar" data-testid="calendar-desktop-sidebar">
             <UnscheduledTasks
               onScheduleTask={handleScheduleTask}
-              onClose={() => setIsSidebarOpen(false)}
+              onClose={() => setIsDesktopSidebarOpen(false)}
             />
           </aside>
         )}
       </div>
 
-      {isSidebarOpen && isMobile && (
+      {isMobile && isMobilePanelOpen && (
         <div
           className="unscheduled-sidebar-mobile-overlay"
-          onClick={() => setIsSidebarOpen(false)}
+          data-testid="unscheduled-mobile-overlay"
+          onClick={() => setIsMobilePanelOpen(false)}
         >
           <div
             ref={unscheduledPanelRef}
@@ -403,15 +422,16 @@ export function CalendarPage() {
               <button
                 type="button"
                 className="btn btn-icon unscheduled-mobile-close-btn"
-                onClick={() => setIsSidebarOpen(false)}
+                onClick={() => setIsMobilePanelOpen(false)}
                 aria-label="Đóng danh sách việc cần lên lịch"
+                data-testid="unscheduled-mobile-close-btn"
               >
                 ✕
               </button>
             </div>
             <UnscheduledTasks
               onScheduleTask={handleScheduleTask}
-              onClose={() => setIsSidebarOpen(false)}
+              onClose={() => setIsMobilePanelOpen(false)}
             />
           </div>
         </div>

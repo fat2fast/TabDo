@@ -64,11 +64,34 @@ export function MobileMoreMenu({
 
     document.addEventListener('keydown', handleKeyDown)
 
+    // Automatically close and clean up if viewport transitions from mobile to desktop
+    let mql: MediaQueryList | null = null
+    let handleMediaChange: ((e: MediaQueryListEvent) => void) | null = null
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      mql = window.matchMedia('(max-width: 768px)')
+      if (!mql.matches) {
+        onClose()
+      } else {
+        handleMediaChange = (e: MediaQueryListEvent) => {
+          if (!e.matches) {
+            onClose()
+          }
+        }
+        mql.addEventListener('change', handleMediaChange)
+      }
+    }
+
     return () => {
       clearTimeout(timer)
       document.body.style.overflow = originalOverflow
       document.removeEventListener('keydown', handleKeyDown)
-      triggerRef.current?.focus()
+      if (mql && handleMediaChange) {
+        mql.removeEventListener('change', handleMediaChange)
+      }
+      // Only restore focus to mobile trigger button if still in mobile viewport
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        triggerRef.current?.focus()
+      }
     }
   }, [isOpen, onClose, triggerRef])
 
