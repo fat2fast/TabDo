@@ -129,8 +129,9 @@ Prefer a single route and data model per feature. Do not maintain duplicated des
 
 ## Verification Evidence (2026-10-23)
 
-- **Test Suite:** 53 test files, 336 unit/integration tests passed (`pnpm --filter @tabdo/web test`).
+- **Test Suite:** 53 test files, 340 unit/integration tests passed (`pnpm --filter @tabdo/web test`), including responsive lifecycle regression tests for Calendar sidebar and More menu.
 - **Typecheck & Build:** `tsc --noEmit` and `vite build` exit 0 with 0 errors.
 - **Rendered Automation:** Headless CDP agent-browser verified 0 horizontal scroll across 320px, 360px, 375px, 390px, 430px, 768px, 1024px, 1440px on all routes.
+- **Code Review Remediation:** Reconciled TD-01 (Calendar sidebar breakpoint transition) and TD-02 (More menu scroll lock cleanup); exported portable pilot evidence packages `tabdo-nav-001` and `tabdo-calendar-001`.
 - **Physical Device QA (iOS Safari & Android Chrome):** NOT RUN in current CI/agent environment. Blocked until physical device lab testing is conducted on staging.
-- **Detailed Reports:** See `plans/261023-1429-mobile-web-ui-ux/reports/final-validation.md`.
+- **Detailed Reports:** See `plans/261023-1429-mobile-web-ui-ux/reports/final-validation.md` and `plans/reports/code-review-report.md`.
