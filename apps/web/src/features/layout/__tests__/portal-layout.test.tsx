@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render as rtlRender, screen } from '@testing-library/react'
+import { render as rtlRender, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../../../app/App'
@@ -143,5 +143,162 @@ describe('portal-layout', () => {
     await user.click(logoutButton)
 
     expect(supabase.auth.signOut).toHaveBeenCalled()
+  })
+
+  it('renders mobile navigation with active route indication', async () => {
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { user: { id: 'user-1', email: 'user@tabdo.local' } } },
+      error: null,
+    } as any)
+
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          id: 'user-1',
+          role: 'user',
+          display_name: 'Regular User',
+          timezone: 'Asia/Ho_Chi_Minh',
+        },
+        error: null,
+      }),
+    } as any)
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    const mobileNav = await screen.findByTestId('mobile-bottom-nav')
+    expect(mobileNav).toBeInTheDocument()
+
+    const mobileDashboardLink = mobileNav.querySelector('a[href="/dashboard"]')
+    expect(mobileDashboardLink).toBeInTheDocument()
+    expect(mobileDashboardLink).toHaveClass('active')
+  })
+
+  it('opens More menu with user entries and no admin link for normal users', async () => {
+    const user = userEvent.setup()
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { user: { id: 'user-1', email: 'user@tabdo.local' } } },
+      error: null,
+    } as any)
+
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          id: 'user-1',
+          role: 'user',
+          display_name: 'Regular User',
+          timezone: 'Asia/Ho_Chi_Minh',
+        },
+        error: null,
+      }),
+    } as any)
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    const moreBtn = await screen.findByTestId('mobile-nav-more-btn')
+    await user.click(moreBtn)
+
+    const sheet = await screen.findByTestId('mobile-more-sheet')
+    expect(sheet).toBeInTheDocument()
+
+    expect(within(sheet).getByRole('link', { name: /tổng kết|summary/i })).toBeInTheDocument()
+    expect(within(sheet).getByRole('link', { name: /báo cáo tháng|monthly report/i })).toBeInTheDocument()
+    expect(within(sheet).getByRole('link', { name: /cài đặt|settings/i })).toBeInTheDocument()
+    expect(within(sheet).queryByRole('link', { name: /quản trị|admin/i })).not.toBeInTheDocument()
+  })
+
+  it('renders admin link in More menu for admin users', async () => {
+    const user = userEvent.setup()
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { user: { id: 'admin-1', email: 'admin@tabdo.local' } } },
+      error: null,
+    } as any)
+
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          id: 'admin-1',
+          role: 'admin',
+          display_name: 'Admin Boss',
+          timezone: 'Asia/Ho_Chi_Minh',
+        },
+        error: null,
+      }),
+    } as any)
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    const moreBtn = await screen.findByTestId('mobile-nav-more-btn')
+    await user.click(moreBtn)
+
+    const sheet = await screen.findByTestId('mobile-more-sheet')
+    expect(sheet).toBeInTheDocument()
+
+    expect(within(sheet).getByRole('link', { name: /quản trị|admin/i })).toBeInTheDocument()
+  })
+
+  it('closes More menu on Escape and restores focus to More trigger button', async () => {
+    const user = userEvent.setup()
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { user: { id: 'user-1', email: 'user@tabdo.local' } } },
+      error: null,
+    } as any)
+
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          id: 'user-1',
+          role: 'user',
+          display_name: 'Regular User',
+          timezone: 'Asia/Ho_Chi_Minh',
+        },
+        error: null,
+      }),
+    } as any)
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    const moreBtn = await screen.findByTestId('mobile-nav-more-btn')
+    moreBtn.focus()
+    await user.click(moreBtn)
+
+    const sheet = await screen.findByTestId('mobile-more-sheet')
+    expect(sheet).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByTestId('mobile-more-sheet')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(moreBtn)
   })
 })

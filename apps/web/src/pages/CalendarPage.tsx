@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   formatDisplayDate,
@@ -16,6 +16,25 @@ import { useScheduleBlocksInRange } from '../features/scheduling/hooks/use-sched
 import type { ScheduleBlock } from '../features/scheduling/types'
 import type { Task } from '../features/tasks/types'
 import { TaskDrawer } from '../features/tasks/components/task-drawer'
+import { MobileAgenda } from '../features/scheduling/components/mobile-agenda'
+
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth <= breakpoint
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mql = window.matchMedia(`(max-width: ${breakpoint}px)`)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    setIsMobile(mql.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [breakpoint])
+
+  return isMobile
+}
 
 export function CalendarPage() {
   const { profile } = useAuth()
@@ -27,13 +46,29 @@ export function CalendarPage() {
     return formatDisplayDate(new Date(), timeZone, 'yyyy-MM-dd')
   }, [timeZone])
 
-  // Parse and normalize view & date from search params
+  const isMobile = useIsMobile(768)
+
+  // Parse and normalize view, date & display from search params
   const rawView = searchParams.get('view')
   const rawDate = searchParams.get('date')
+  const rawDisplay = searchParams.get('display')
 
   const view: 'day' | 'week' = rawView === 'day' ? 'day' : 'week'
   const isValidDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
   const currentDate = isValidDate ? rawDate : todayStr
+
+  // Parse optional display; explicit valid value always wins across resizes
+  const explicitDisplay = rawDisplay === 'agenda' || rawDisplay === 'grid' ? rawDisplay : null
+  const display: 'agenda' | 'grid' = explicitDisplay ?? (isMobile ? 'agenda' : 'grid')
+
+  const handleDisplayChange = useCallback(
+    (newDisplay: 'agenda' | 'grid') => {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.set('display', newDisplay)
+      setSearchParams(nextParams)
+    },
+    [searchParams, setSearchParams]
+  )
 
   // Normalize URL parameters if invalid or missing
   useEffect(() => {
@@ -207,16 +242,88 @@ export function CalendarPage() {
     }
   }
 
-  // Sidebar state
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  // Sidebar state (default open on desktop, collapsed on mobile)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile)
+  const unscheduledPanelRef = useRef<HTMLDivElement>(null)
+  const unscheduledTriggerRef = useRef<HTMLElement | null>(null)
+
+  // Manage mobile unscheduled tasks dialog lifecycle
+  useEffect(() => {
+    if (isSidebarOpen && isMobile) {
+      unscheduledTriggerRef.current = document.activeElement as HTMLElement | null
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+
+      requestAnimationFrame(() => {
+        const first = unscheduledPanelRef.current?.querySelector<HTMLElement>(
+          'button, [href], input, [tabindex]:not([tabindex="-1"])'
+        )
+        first?.focus()
+      })
+
+      return () => {
+        document.body.style.overflow = prevOverflow
+        unscheduledTriggerRef.current?.focus?.()
+      }
+    }
+  }, [isSidebarOpen, isMobile])
+
+  // Support Escape hotkey and Tab focus trap for mobile unscheduled tasks dialog
+  useEffect(() => {
+    if (!isSidebarOpen || !isMobile) return
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        const hasTopOverlay = document.querySelector(
+          '.confirm-dialog-backdrop, .custom-dropdown-menu.open, .date-picker-popover-content, .modal-backdrop'
+        )
+        if (hasTopOverlay) return
+        setIsSidebarOpen(false)
+        return
+      }
+
+      if (e.key === 'Tab' && unscheduledPanelRef.current) {
+        const focusables = unscheduledPanelRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusables.length === 0) return
+
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+
+        if (!unscheduledPanelRef.current.contains(document.activeElement)) {
+          e.preventDefault()
+          first.focus()
+          return
+        }
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isSidebarOpen, isMobile])
 
   return (
     <div className="tabdo-calendar-page-layout" data-testid="calendar-page">
       <CalendarToolbar
         view={view}
+        display={display}
         currentDate={currentDate}
         timeZone={timeZone}
         onViewChange={handleViewChange}
+        onDisplayChange={handleDisplayChange}
         onDateChange={handleDateChange}
         onAddSchedule={handleOpenAddSchedule}
         isSidebarOpen={isSidebarOpen}
@@ -246,6 +353,14 @@ export function CalendarPage() {
         <div className="calendar-main-content">
           {isLoading ? (
             <div className="calendar-loading-overlay">Đang tải lịch trình...</div>
+          ) : display === 'agenda' ? (
+            <MobileAgenda
+              blocks={scheduleBlocks}
+              visibleRange={visibleRange}
+              timeZone={timeZone}
+              onEventClick={handleEventClick}
+              onAddSchedule={handleOpenAddSchedule}
+            />
           ) : (
             <DayWeekCalendar
               events={scheduleBlocks}
@@ -260,7 +375,7 @@ export function CalendarPage() {
           )}
         </div>
 
-        {isSidebarOpen && (
+        {isSidebarOpen && !isMobile && (
           <aside className="calendar-sidebar">
             <UnscheduledTasks
               onScheduleTask={handleScheduleTask}
@@ -269,6 +384,38 @@ export function CalendarPage() {
           </aside>
         )}
       </div>
+
+      {isSidebarOpen && isMobile && (
+        <div
+          className="unscheduled-sidebar-mobile-overlay"
+          onClick={() => setIsSidebarOpen(false)}
+        >
+          <div
+            ref={unscheduledPanelRef}
+            className="unscheduled-sidebar-mobile-panel"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Việc cần lên lịch"
+          >
+            <div className="unscheduled-mobile-header">
+              <span className="unscheduled-mobile-title">Việc cần lên lịch</span>
+              <button
+                type="button"
+                className="btn btn-icon unscheduled-mobile-close-btn"
+                onClick={() => setIsSidebarOpen(false)}
+                aria-label="Đóng danh sách việc cần lên lịch"
+              >
+                ✕
+              </button>
+            </div>
+            <UnscheduledTasks
+              onScheduleTask={handleScheduleTask}
+              onClose={() => setIsSidebarOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       <ScheduleDetailModal
         isOpen={Boolean(viewingBlock)}

@@ -1,0 +1,33 @@
+/* Auth Mobile Responsive Styles */
+@media (max-width: 480px) {
+  .login-container,
+  .change-password-container {
+    padding: 16px;
+    min-height: 100dvh;
+    align-items: flex-start;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  }
+
+  .login-card,
+  .change-password-card {
+    padding: 24px 18px;
+    border-radius: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .login-card h1 {
+    font-size: 1.35rem;
+  }
+
+  .form-group input {
+    min-height: 44px;
+    font-size: 1rem; /* Prevents auto-zoom on iOS Safari */
+  }
+
+  .login-submit-btn,
+  .login-submit-button {
+    min-height: 44px;
+    font-size: 1rem;
+    padding: 10px 16px;
+  }
+}

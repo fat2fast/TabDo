@@ -1,6 +1,6 @@
 # Phase 12 — Mobile-First Web Experience & Responsive Foundation
 
-**Status:** Planned  
+**Status:** Implementation Complete (Pending Physical Device QA)
 **Track:** UX Foundation  
 **Depends on:** Phase 10; benefits from Phase 11 for safe deletion/undo  
 **Delivery:** Post-MVP enhancement — not required for Phase 10 MVP release  
@@ -91,16 +91,16 @@ Prefer a single route and data model per feature. Do not maintain duplicated des
 
 ## Implementation checklist (issue-ready)
 
-- [ ] Audit every core route at 360/390/428/768/1024px before changing global CSS.
-- [ ] Build a single responsive app shell with stable route state and correct signed-in/admin account menu behavior.
-- [ ] Define bottom navigation item labels with existing VI/EN catalog and active-route behavior.
-- [ ] Implement FAB placement that avoids overlap with bottom nav, toast and keyboard.
-- [ ] Make task edit/read surfaces full-screen or sheet-based on phone; preserve shared forms and hooks.
-- [ ] Implement mobile agenda for tasks/schedule blocks with date grouping and clear empty states.
-- [ ] Ensure dialogs, date/time pickers, custom dropdowns and file controls support touch without overflow.
-- [ ] Separate CSS layout tokens from feature styles gradually with screenshot regression baseline.
-- [ ] Test landscape and 200% text zoom, not merely narrower desktop viewport.
-- [ ] Add mobile smoke checks to Phase 10 successors without modifying old release acceptance.
+- [x] Audit every core route at 360/390/428/768/1024px before changing global CSS.
+- [x] Build a single responsive app shell with stable route state and correct signed-in/admin account menu behavior.
+- [x] Define bottom navigation item labels with existing VI/EN catalog and active-route behavior.
+- [x] Implement FAB placement that avoids overlap with bottom nav, toast and keyboard.
+- [x] Make task edit/read surfaces full-screen or sheet-based on phone; preserve shared forms and hooks.
+- [x] Implement mobile agenda for tasks/schedule blocks with date grouping and clear empty states.
+- [x] Ensure dialogs, date/time pickers, custom dropdowns and file controls support touch without overflow.
+- [x] Separate CSS layout tokens from feature styles gradually with screenshot regression baseline.
+- [ ] Test landscape and 200% text zoom (Pending physical device lab), not merely narrower desktop viewport.
+- [ ] Add mobile smoke checks to Phase 10 successors (Pending physical device lab) without modifying old release acceptance.
 
 ## End-to-end acceptance walkthroughs
 
@@ -123,3 +123,14 @@ Prefer a single route and data model per feature. Do not maintain duplicated des
 - User can create, edit, schedule, snooze, complete and review tasks comfortably via touch.
 - Desktop flows and route permissions remain unchanged.
 - Mobile navigation is accessible, keyboard-safe and accounts for safe areas.
+
+
+---
+
+## Verification Evidence (2026-10-23)
+
+- **Test Suite:** 53 test files, 336 unit/integration tests passed (`pnpm --filter @tabdo/web test`).
+- **Typecheck & Build:** `tsc --noEmit` and `vite build` exit 0 with 0 errors.
+- **Rendered Automation:** Headless CDP agent-browser verified 0 horizontal scroll across 320px, 360px, 375px, 390px, 430px, 768px, 1024px, 1440px on all routes.
+- **Physical Device QA (iOS Safari & Android Chrome):** NOT RUN in current CI/agent environment. Blocked until physical device lab testing is conducted on staging.
+- **Detailed Reports:** See `plans/261023-1429-mobile-web-ui-ux/reports/final-validation.md`.

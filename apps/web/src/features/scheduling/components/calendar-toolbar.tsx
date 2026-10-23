@@ -4,9 +4,11 @@ import { formatInTimeZone } from 'date-fns-tz'
 
 export interface CalendarToolbarProps {
   view: 'day' | 'week'
+  display?: 'agenda' | 'grid'
   currentDate: string // YYYY-MM-DD
   timeZone: string
   onViewChange: (view: 'day' | 'week') => void
+  onDisplayChange?: (display: 'agenda' | 'grid') => void
   onDateChange: (dateStr: string) => void
   onAddSchedule: () => void
   isSidebarOpen?: boolean
@@ -15,9 +17,11 @@ export interface CalendarToolbarProps {
 
 export function CalendarToolbar({
   view,
+  display = 'grid',
   currentDate,
   timeZone,
   onViewChange,
+  onDisplayChange,
   onDateChange,
   onAddSchedule,
   isSidebarOpen,
@@ -106,6 +110,29 @@ export function CalendarToolbar({
             Tuần
           </button>
         </div>
+
+        {onDisplayChange && (
+          <div className="display-toggle-group" role="group" aria-label="Chế độ hiển thị" data-testid="display-toggle-group">
+            <button
+              type="button"
+              className={`btn toggle-btn ${display === 'agenda' ? 'active' : ''}`}
+              onClick={() => onDisplayChange('agenda')}
+              data-testid="display-agenda-btn"
+              title="Chế độ Danh sách lịch (Agenda)"
+            >
+              Agenda
+            </button>
+            <button
+              type="button"
+              className={`btn toggle-btn ${display !== 'agenda' ? 'active' : ''}`}
+              onClick={() => onDisplayChange('grid')}
+              data-testid="display-grid-btn"
+              title="Chế độ Lưới (Grid)"
+            >
+              Lưới
+            </button>
+          </div>
+        )}
 
         {onToggleSidebar && (
           <button

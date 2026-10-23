@@ -1,3 +1,4 @@
+import './settings-mobile.css'
 import React, { useState } from 'react'
 import type { SupportedLocale } from '@tabdo/types'
 import { useAuth } from '../auth/auth-provider'

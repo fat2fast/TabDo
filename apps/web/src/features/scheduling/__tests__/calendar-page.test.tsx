@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CalendarPage } from '../../../pages/CalendarPage'
 import { useAuth } from '../../auth/auth-provider'
@@ -86,6 +86,13 @@ vi.mock('../../tasks/hooks/use-task-mutations', () => ({
     completeTaskMutation: { mutateAsync: vi.fn(), isPending: false },
   }),
 }))
+
+let latestCalendarLoc: any = null
+function CalendarLocationObserver() {
+  const loc = useLocation()
+  latestCalendarLoc = loc
+  return null
+}
 
 describe('CalendarPage', () => {
   const mockMutateUpdate = vi.fn()
@@ -240,5 +247,59 @@ describe('CalendarPage', () => {
     expect(screen.queryByTestId('unscheduled-tasks-sidebar')).not.toBeInTheDocument()
     await user.click(screen.getByTestId('toggle-unscheduled-sidebar-btn'))
     expect(screen.getByTestId('unscheduled-tasks-sidebar')).toBeInTheDocument()
+  })
+  it('renders agenda presentation when display=agenda is set in search params', async () => {
+    render(
+      <MemoryRouter initialEntries={['/calendar?view=week&date=2026-10-06&display=agenda']}>
+        <Routes>
+          <Route path="/calendar" element={<CalendarPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId('mobile-agenda')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-day-week-calendar')).not.toBeInTheDocument()
+    expect(screen.getByText('Planning Session')).toBeInTheDocument()
+  })
+
+  it('renders grid presentation when display=grid is set in search params', async () => {
+    render(
+      <MemoryRouter initialEntries={['/calendar?view=week&date=2026-10-06&display=grid']}>
+        <Routes>
+          <Route path="/calendar" element={<CalendarPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId('mock-day-week-calendar')).toBeInTheDocument()
+    expect(screen.queryByTestId('mobile-agenda')).not.toBeInTheDocument()
+  })
+
+  it('toggles display between grid and agenda and preserves unknown query parameters', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={['/calendar?view=week&date=2026-10-06&customParam=preserved123&display=grid']}>
+        <CalendarLocationObserver />
+        <Routes>
+          <Route path="/calendar" element={<CalendarPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId('mock-day-week-calendar')).toBeInTheDocument()
+
+    // Click Agenda toggle button
+    const agendaBtn = screen.getByTestId('display-agenda-btn')
+    await user.click(agendaBtn)
+
+    expect(await screen.findByTestId('mobile-agenda')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-day-week-calendar')).not.toBeInTheDocument()
+
+    const params = new URLSearchParams(latestCalendarLoc.search)
+    expect(params.get('customParam')).toBe('preserved123')
+    expect(params.get('display')).toBe('agenda')
+    expect(params.get('view')).toBe('week')
+    expect(params.get('date')).toBe('2026-10-06')
   })
 })
