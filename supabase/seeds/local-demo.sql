@@ -536,11 +536,13 @@ VALUES
     now(),
     now()
   ),
-  -- Admin Relative Reminder pending (offset 15 mins before due)
+  -- Admin Relative Reminder pending (offset 15 mins before due).
+  -- Use task #21 (tomorrow at 15:00 ICT), not task #52 (today at 17:30 ICT):
+  -- the reminder trigger derives remind_at from task due_at and rejects past times.
   (
     '77777777-0000-4000-8000-000000000002',
     '11111111-1111-4111-8111-111111111111',
-    '44444444-0000-4000-8000-000000000052',
+    '44444444-0000-4000-8000-000000000021',
     now() + interval '4 hours',
     'pending',
     'relative_due',

@@ -1,0 +1,306 @@
+/* ==========================================================================
+   TabDo Mobile Calendar Styles (Phase 03)
+   Scoped to @media (max-width: 768px)
+   Does not override desktop calendar grid styles (> 768px)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  /* Calendar Layout */
+  .tabdo-calendar-page-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    gap: 12px !important;
+  }
+
+  /* Toolbar on Mobile */
+  .tabdo-calendar-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    border-radius: var(--mobile-radius-card, 12px) !important;
+  }
+
+  .tabdo-calendar-toolbar .toolbar-left {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .tabdo-calendar-toolbar .today-btn,
+  .tabdo-calendar-toolbar .nav-btn {
+    min-height: 38px !important;
+  }
+
+  .tabdo-calendar-toolbar .calendar-title {
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    margin-left: 4px !important;
+    flex: 1 1 100% !important;
+    order: 3 !important;
+  }
+
+  .tabdo-calendar-toolbar .toolbar-right {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .tabdo-calendar-toolbar .view-toggle-group,
+  .tabdo-calendar-toolbar .display-toggle-group {
+    display: inline-flex !important;
+    min-height: 38px !important;
+  }
+
+  .tabdo-calendar-toolbar .toggle-btn {
+    min-height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .tabdo-calendar-toolbar .toolbar-sidebar-toggle-btn {
+    min-height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 0.8125rem !important;
+    gap: 5px !important;
+  }
+
+  .tabdo-calendar-toolbar .add-schedule-btn {
+    min-height: 38px !important;
+    padding: 0 14px !important;
+    font-size: 0.875rem !important;
+    margin-left: auto !important;
+  }
+
+  /* Agenda Container & Cards */
+  .mobile-agenda-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .mobile-agenda-empty {
+    padding: 32px 16px !important;
+    text-align: center !important;
+    border-radius: var(--mobile-radius-card, 12px) !important;
+  }
+
+  .mobile-agenda-empty .empty-icon-circle {
+    font-size: 2rem !important;
+    margin-bottom: 8px !important;
+  }
+
+  .mobile-agenda-empty .empty-title {
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    color: var(--mobile-text-primary, #0f172a) !important;
+  }
+
+  .mobile-agenda-empty .empty-desc {
+    font-size: 0.875rem !important;
+    color: var(--mobile-text-secondary, #64748b) !important;
+    margin: 6px 0 16px !important;
+  }
+
+  .mobile-agenda-empty .add-schedule-empty-btn {
+    min-height: 40px !important;
+    padding: 0 18px !important;
+  }
+
+  /* Day Group */
+  .agenda-day-group {
+    background: #ffffff !important;
+    border: 1px solid var(--mobile-border, #e2e8f0) !important;
+    border-radius: var(--mobile-radius-card, 12px) !important;
+    padding: 12px 14px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+  }
+
+  .agenda-day-group.is-today {
+    border-color: #38bdf8 !important;
+    background: #f0f9ff !important;
+  }
+
+  .agenda-day-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid var(--mobile-border, #f1f5f9) !important;
+    margin-bottom: 10px !important;
+  }
+
+  .agenda-day-title {
+    font-size: 0.9375rem !important;
+    font-weight: 700 !important;
+    color: var(--mobile-text-primary, #0f172a) !important;
+    flex: 1 !important;
+  }
+
+  .agenda-today-badge {
+    background-color: var(--mobile-accent, #0284c7) !important;
+    color: #ffffff !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+  }
+
+  .agenda-count-badge {
+    font-size: 0.75rem !important;
+    color: var(--mobile-text-secondary, #64748b) !important;
+    background: #f1f5f9 !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+  }
+
+  /* Agenda Item Card */
+  .agenda-day-items {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .agenda-item-card {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 10px 12px !important;
+    background: #ffffff !important;
+    border: 1px solid var(--mobile-border, #e2e8f0) !important;
+    border-left-width: 4px !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+
+  .agenda-item-card:hover,
+  .agenda-item-card:focus-visible {
+    background: #fafcff !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+    outline: none !important;
+  }
+
+  .agenda-item-time-col {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    min-width: 65px !important;
+    font-size: 0.8125rem !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    line-height: 1.3 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .agenda-time-divider {
+    display: none !important;
+  }
+
+  .agenda-spillover-tag,
+  .agenda-spans-tag {
+    font-size: 0.6875rem !important;
+    color: #0284c7 !important;
+    margin-top: 2px !important;
+    font-weight: 500 !important;
+  }
+
+  .agenda-item-content {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .agenda-item-title {
+    font-size: 0.9375rem !important;
+    font-weight: 600 !important;
+    color: var(--mobile-text-primary, #0f172a) !important;
+    margin: 0 !important;
+    line-height: 1.4 !important;
+    word-break: break-word !important;
+  }
+
+  .agenda-item-desc {
+    font-size: 0.8125rem !important;
+    color: var(--mobile-text-secondary, #64748b) !important;
+    margin: 4px 0 0 !important;
+    line-height: 1.35 !important;
+    word-break: break-word !important;
+  }
+
+  .agenda-linked-task-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    color: var(--mobile-accent, #0284c7) !important;
+    background: #f0f9ff !important;
+    border: 1px solid #bae6fd !important;
+    padding: 2px 8px !important;
+    border-radius: 6px !important;
+    margin-top: 6px !important;
+  }
+
+  /* Unscheduled Tasks mobile drawer overlay */
+  .unscheduled-sidebar-mobile-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(4px) !important;
+    z-index: var(--mobile-z-modal, 100) !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+  }
+
+  .unscheduled-sidebar-mobile-panel {
+    width: 90% !important;
+    max-width: 360px !important;
+    height: 100% !important;
+    background: #ffffff !important;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 14px !important;
+    padding-top: max(14px, var(--mobile-safe-top, 0px)) !important;
+    padding-bottom: max(14px, var(--mobile-safe-bottom, 0px)) !important;
+    box-sizing: border-box !important;
+  }
+
+  .unscheduled-mobile-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 12px !important;
+    padding-bottom: 8px !important;
+    border-bottom: 1px solid var(--mobile-border, #e2e8f0) !important;
+  }
+
+  .unscheduled-mobile-title {
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+  }
+
+  .unscheduled-mobile-close-btn {
+    min-width: 36px !important;
+    min-height: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}

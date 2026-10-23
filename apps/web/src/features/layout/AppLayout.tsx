@@ -8,9 +8,11 @@ import { AccountDropdown } from './AccountDropdown'
 import { useSidebarCollapse } from './use-sidebar-collapse'
 import { BUILD_INFO_STRING } from '../../lib/build-info'
 import { TaskTopBarControls } from '../tasks/components/task-topbar-controls'
+import { MobileNavigation } from './MobileNavigation'
+import './mobile-shell.css'
 
 export function AppLayout() {
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
   const { t } = useI18n()
   const location = useLocation()
   const [accessDeniedMsg, setAccessDeniedMsg] = useState<string | null>(null)
@@ -183,7 +185,7 @@ export function AppLayout() {
       </aside>
 
       <div className="app-content-wrapper">
-        <header className="app-topbar">
+        <header className={`app-topbar ${location.pathname.startsWith('/tasks') ? 'has-task-controls' : ''}`.trim()}>
           <div className="topbar-left">
             <span className="topbar-breadcrumb">{getBreadcrumb()}</span>
           </div>
@@ -215,6 +217,7 @@ export function AppLayout() {
           )}
           <Outlet />
         </main>
+        <MobileNavigation profile={profile} onSignOut={signOut} />
       </div>
     </div>
   )

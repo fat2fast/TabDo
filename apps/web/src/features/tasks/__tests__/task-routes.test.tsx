@@ -1,7 +1,7 @@
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, act } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../../app/App'
 import { AuthProvider } from '../../auth/auth-provider'
@@ -19,6 +19,13 @@ vi.mock('../../../lib/supabase', () => {
   }
 })
 
+let latestLocation: any = null
+function LocationObserver() {
+  const loc = useLocation()
+  latestLocation = loc
+  return null
+}
+
 function renderRoute(initialPath: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -27,6 +34,7 @@ function renderRoute(initialPath: string) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialPath]}>
         <AuthProvider>
+          <LocationObserver />
           <App />
         </AuthProvider>
       </MemoryRouter>
@@ -37,6 +45,7 @@ function renderRoute(initialPath: string) {
 describe('task-routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    latestLocation = null
 
     // Default authenticated mock
     vi.mocked(supabase.auth.getSession).mockResolvedValue({
@@ -137,6 +146,7 @@ describe('task-routes', () => {
     await user.click(closeBtn)
 
     expect(screen.queryByTestId('task-drawer')).not.toBeInTheDocument()
+    expect(new URLSearchParams(latestLocation.search).get('taskId')).toBeNull()
   })
 
   it('toggles between list and board layouts on /tasks/inbox and preserves params', async () => {
@@ -172,5 +182,40 @@ describe('task-routes', () => {
     expect(await screen.findByRole('heading', { name: /thùng rác|trash/i })).toBeInTheDocument()
     expect(screen.queryByTestId('task-board')).not.toBeInTheDocument()
     expect(await screen.findByRole('status')).toBeInTheDocument()
+  })
+
+  it('preserves query params like status and sort when taskId is closed (observable assertion)', async () => {
+    const { userEvent } = await import('@testing-library/user-event')
+    const user = userEvent.setup()
+
+    renderRoute('/tasks/today?status=todo&sort=priority&taskId=123e4567-e89b-12d3-a456-426614174000')
+
+    expect(await screen.findByRole('heading', { name: /hôm nay|today/i })).toBeInTheDocument()
+    expect(await screen.findByTestId('task-drawer')).toBeInTheDocument()
+
+    // Initial search has all 3 params
+    const initialParams = new URLSearchParams(latestLocation.search)
+    expect(initialParams.get('status')).toBe('todo')
+    expect(initialParams.get('sort')).toBe('priority')
+    expect(initialParams.get('taskId')).toBe('123e4567-e89b-12d3-a456-426614174000')
+
+    // Click close button
+    const closeBtn = screen.getByLabelText('Đóng bảng chi tiết')
+    await user.click(closeBtn)
+
+    expect(screen.queryByTestId('task-drawer')).not.toBeInTheDocument()
+
+    // Assert status and sort remain intact in URL while taskId is deleted
+    const postCloseParams = new URLSearchParams(latestLocation.search)
+    expect(postCloseParams.get('status')).toBe('todo')
+    expect(postCloseParams.get('sort')).toBe('priority')
+    expect(postCloseParams.get('taskId')).toBeNull()
+  })
+
+  it('synchronizes selectedTaskId and drawer when URL search param changes', async () => {
+    renderRoute('/tasks/today?taskId=task-url-sync-1')
+
+    expect(await screen.findByTestId('task-drawer')).toBeInTheDocument()
+    expect(new URLSearchParams(latestLocation.search).get('taskId')).toBe('task-url-sync-1')
   })
 })

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "pilot_id": "tabdo-calendar-001",
+  "skill": {
+    "version": "0.4.1",
+    "source_sha": "344d9d464a8eb4d769ea1f061d3e579d230f8ab7",
+    "payload_sha256": "924a93a9f24c5376a2923f4a97900cec5b9ba6fb6bb9e60304e7139a6b7b0f2a"
+  },
+  "project": {
+    "alias": "tabdo",
+    "baseline_sha": "31dc37588173893176c487400ed9ea124b28f4ce",
+    "after_sha": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+    "dirty_state": "clean",
+    "public_pr_url": "https://github.com/fat2fast/TabDo/pull/32"
+  },
+  "agent": {
+    "runtime": "antigravity",
+    "version": "2.0.0"
+  },
+  "task": {
+    "id": "calendar-agenda-responsive-sidebar",
+    "summary": "Calendar agenda view and responsive unscheduled tasks sidebar lifecycle"
+  },
+  "scope": {
+    "route_id": "calendar-route"
+  },
+  "environment": {
+    "browser": "headless-chromium-vitest-jsdom",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "created_utc": "2026-10-23T12:56:00Z",
+  "decision": {
+    "selected": "Responsive MobileAgenda presentation with decoupled unscheduled tasks modal",
+    "rejected": "Dense multi-day grid forced onto phone viewports or always-open mobile sidebar",
+    "reason": "Vertical day grouping fits narrow screens and separating sidebar state prevents surprise modals on resize",
+    "preserved": "Desktop multi-day grid, schedule block CRUD operations, and user timezone conversion"
+  },
+  "limitations": [
+    "Touch drag-and-drop between days on touchscreens not tested in headless environment",
+    "Physical mobile browser rotation animations not verified",
+    "Tested on simulated desktop and mobile viewports with automated regression suite"
+  ],
+  "checks": [
+    {
+      "id": "cal-before-desktop-grid",
+      "phase": "before",
+      "target": "DESKTOP",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "Baseline calendar displayed time grid on desktop viewports",
+      "observed": "Day and week grid views rendered with scheduling slots on desktop",
+      "revision": "31dc37588173893176c487400ed9ea124b28f4ce",
+      "evidence_ref": "artifact:baseline-calendar-page-test"
+    },
+    {
+      "id": "cal-before-mobile-agenda",
+      "phase": "before",
+      "target": "TASK",
+      "status": "INFERRED",
+      "method": "source-review",
+      "assertion": "Baseline lacked narrow-width agenda list presentation for mobile viewports",
+      "observed": "Desktop grid was clipped and required horizontal scrolling on phone screens",
+      "revision": "31dc37588173893176c487400ed9ea124b28f4ce"
+    },
+    {
+      "id": "cal-after-agenda-display",
+      "phase": "after",
+      "target": "TASK",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "Calendar renders MobileAgenda day grouped list when on mobile viewports",
+      "observed": "Agenda cards display timezone-aware events with schedule detail modal transition",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+      "evidence_ref": "artifact:calendar-page-test"
+    },
+    {
+      "id": "cal-after-modal-lifecycle",
+      "phase": "after",
+      "target": "A11Y",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "Unscheduled tasks modal opens on explicit toggle with dialog role and focus trap",
+      "observed": "Modal opens with body scroll lock and closes on close button or Escape key",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+      "evidence_ref": "artifact:calendar-page-test"
+    },
+    {
+      "id": "cal-regression-breakpoint-modal",
+      "phase": "regression",
+      "target": "DESKTOP",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "Resizing from desktop to mobile does not automatically pop up unscheduled modal",
+      "observed": "Desktop sidebar state separated from mobile panel preventing unintended modal opening",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+      "evidence_ref": "artifact:calendar-page-test"
+    },
+    {
+      "id": "cal-physical-touch-drag",
+      "phase": "regression",
+      "target": "BUSINESS",
+      "status": "NOT RUN",
+      "method": "unavailable",
+      "assertion": "Cross-day touch drag-and-drop rescheduling on physical mobile device",
+      "observed": "Physical device touch gestures excluded from automated test suite",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797"
+    }
+  ]
+}

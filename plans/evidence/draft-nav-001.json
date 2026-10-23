@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "pilot_id": "tabdo-nav-001",
+  "skill": {
+    "version": "0.4.1",
+    "source_sha": "344d9d464a8eb4d769ea1f061d3e579d230f8ab7",
+    "payload_sha256": "924a93a9f24c5376a2923f4a97900cec5b9ba6fb6bb9e60304e7139a6b7b0f2a"
+  },
+  "project": {
+    "alias": "tabdo",
+    "baseline_sha": "31dc37588173893176c487400ed9ea124b28f4ce",
+    "after_sha": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+    "dirty_state": "clean",
+    "public_pr_url": "https://github.com/fat2fast/TabDo/pull/32"
+  },
+  "agent": {
+    "runtime": "antigravity",
+    "version": "2.0.0"
+  },
+  "task": {
+    "id": "mobile-navigation-lifecycle",
+    "summary": "Responsive bottom navigation, more sheet overlay and breakpoint scroll-lock lifecycle"
+  },
+  "scope": {
+    "route_id": "app-shell-navigation"
+  },
+  "environment": {
+    "browser": "headless-chromium-vitest-jsdom",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "created_utc": "2026-10-23T12:56:00Z",
+  "decision": {
+    "selected": "Bottom navigation bar with secondary sheet dialog for more items and breakpoint transition cleanup",
+    "rejected": "Persistent burger sidebar drawer or separate mobile app",
+    "reason": "Preserves primary task reachability within thumb zone while preventing invisible modals and scroll locks",
+    "preserved": "Desktop responsive sidebar, user authentication state, role-based admin route protection, and i18n locale"
+  },
+  "limitations": [
+    "Physical touchscreen hardware gesture lag not tested in jsdom",
+    "PWA standalone display mode not verified",
+    "Tested on simulated desktop and mobile viewports with automated regression suite"
+  ],
+  "checks": [
+    {
+      "id": "nav-before-desktop-sidebar",
+      "phase": "before",
+      "target": "DESKTOP",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "Baseline desktop layout displays sidebar navigation and topbar controls",
+      "observed": "Sidebar rendered correctly at desktop viewports on baseline commit",
+      "revision": "31dc37588173893176c487400ed9ea124b28f4ce",
+      "evidence_ref": "artifact:baseline-portal-layout-test"
+    },
+    {
+      "id": "nav-before-mobile-shell",
+      "phase": "before",
+      "target": "TASK",
+      "status": "INFERRED",
+      "method": "source-review",
+      "assertion": "Baseline lacked mobile bottom navigation bar and mobile topbar layout",
+      "observed": "Desktop sidebar was hidden by CSS on small screens without bottom nav fallback",
+      "revision": "31dc37588173893176c487400ed9ea124b28f4ce"
+    },
+    {
+      "id": "nav-after-bottom-bar",
+      "phase": "after",
+      "target": "TASK",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "Bottom navigation bar renders top primary routes on mobile viewports",
+      "observed": "Dashboard, Tasks, Calendar and More buttons visible with active indicator",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+      "evidence_ref": "artifact:portal-layout-test"
+    },
+    {
+      "id": "nav-after-more-sheet",
+      "phase": "after",
+      "target": "A11Y",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "More menu opens as accessible sheet with dialog role and focus management",
+      "observed": "Sheet dialog traps Tab focus and closes cleanly on Escape with focus restoration",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+      "evidence_ref": "artifact:portal-layout-test"
+    },
+    {
+      "id": "nav-regression-scroll-lock-cleanup",
+      "phase": "regression",
+      "target": "DESKTOP",
+      "status": "PASS",
+      "method": "unit",
+      "assertion": "Switching from mobile to desktop automatically closes More menu and restores body scrolling",
+      "observed": "Body overflow-hidden is cleanly cleared and sheet unmounts without persistent keyboard trap",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797",
+      "evidence_ref": "artifact:portal-layout-test"
+    },
+    {
+      "id": "nav-physical-device-gesture",
+      "phase": "regression",
+      "target": "BUSINESS",
+      "status": "NOT RUN",
+      "method": "unavailable",
+      "assertion": "Swipe velocity and touch feedback on physical Android and iOS hardware",
+      "observed": "Physical device testing excluded from automated test suite",
+      "revision": "53207fabbd7f6e2d242c9db3ba2842cca2206797"
+    }
+  ]
+}
