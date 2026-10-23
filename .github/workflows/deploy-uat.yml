@@ -91,8 +91,9 @@ jobs:
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
           supabase functions deploy complete-initial-password \
             --project-ref "$SUPABASE_UAT_PROJECT_REF"
+          # The purge worker uses a dedicated, server-side x-purge-secret, not a user JWT.
           supabase functions deploy purge-deleted-tasks \
-            --project-ref "$SUPABASE_UAT_PROJECT_REF"
+            --no-verify-jwt --project-ref "$SUPABASE_UAT_PROJECT_REF"
 
       - name: Report Supabase UAT deployment
         env:
