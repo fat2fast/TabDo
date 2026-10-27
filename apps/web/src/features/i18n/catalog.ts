@@ -40,6 +40,10 @@ export const viCatalog = {
   'nav.adminDashboard': 'Tổng quan Quản trị',
   'nav.collapseSidebar': 'Thu gọn thanh bên',
   'nav.expandSidebar': 'Mở rộng thanh bên',
+  'nav.more': 'Thêm',
+  'nav.monthlyReport': 'Báo cáo tháng',
+  'nav.closeMore': 'Đóng menu',
+  'nav.menu': 'Menu điều hướng',
 
   // Header & User Menu
   'menu.theme': 'Giao diện',
@@ -412,6 +416,10 @@ export const enCatalog: Record<TranslationKey, string> = {
   'nav.adminDashboard': 'Admin Overview',
   'nav.collapseSidebar': 'Collapse sidebar',
   'nav.expandSidebar': 'Expand sidebar',
+  'nav.more': 'More',
+  'nav.monthlyReport': 'Monthly Report',
+  'nav.closeMore': 'Close menu',
+  'nav.menu': 'Navigation menu',
 
   // Header & User Menu
   'menu.theme': 'Theme',

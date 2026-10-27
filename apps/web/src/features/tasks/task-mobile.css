@@ -1,0 +1,468 @@
+/* ==========================================================================
+   TabDo Mobile Tasks Styles (Phase 02)
+   Scoped to @media (max-width: 768px)
+   Does not override desktop styles (>= 768px)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  /* Topbar container when tasks controls are present */
+  .app-topbar:has(.topbar-center),
+  .app-topbar.has-task-controls {
+    height: auto !important;
+    min-height: var(--mobile-topbar-height, 54px) !important;
+    flex-wrap: wrap !important;
+    padding: 8px 14px !important;
+    padding-top: max(8px, var(--mobile-safe-top, 0px)) !important;
+    gap: 8px !important;
+  }
+
+  .app-topbar .topbar-center {
+    order: 3;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .task-topbar-controls {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .topbar-search-box {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .topbar-search-box .task-search-wrapper {
+    height: 44px !important;
+    background-color: var(--mobile-bg-surface, #ffffff) !important;
+    border-color: var(--mobile-border, #cbd5e1) !important;
+  }
+
+  .topbar-search-box .task-search-input {
+    padding: 0 30px 0 36px !important;
+    font-size: 0.875rem !important;
+  }
+
+  .topbar-search-box .task-search-wrapper .search-icon {
+    left: 10px !important;
+  }
+
+  .topbar-filters-box {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .btn-filter-trigger {
+    height: 44px !important;
+    padding: 0 10px !important;
+    font-size: 0.8125rem !important;
+    gap: 5px !important;
+  }
+
+  .sort-dropdown-btn {
+    height: 44px !important;
+    padding: 0 8px !important;
+    font-size: 0.8125rem !important;
+  }
+
+  /* Tasks Page Layout */
+  .tasks-page {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .task-view-header {
+    margin-bottom: 14px !important;
+  }
+
+  .header-top-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .view-title-block h2 {
+    font-size: 1.25rem !important;
+  }
+
+  .header-actions-group {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+
+  .btn-header-create-task,
+  .btn-category-mgr {
+    flex: 1 1 auto !important;
+    min-height: 38px !important;
+    justify-content: center !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .task-view-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 6px !important;
+    gap: 6px !important;
+  }
+
+  .task-view-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .view-tab {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding: 7px 12px !important;
+    font-size: 0.8125rem !important;
+  }
+
+  /* Quick Add Mobile */
+  .quick-add-container.card {
+    padding: 12px !important;
+    margin-bottom: 14px !important;
+    border-radius: var(--mobile-radius-card, 12px) !important;
+  }
+
+  .quick-add-main-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .quick-add-input {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    min-height: 40px !important;
+    font-size: 0.9375rem !important;
+  }
+
+  .quick-add-toggle-btn {
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .quick-add-submit-btn {
+    flex: 1 !important;
+    min-height: 40px !important;
+  }
+
+  .quick-add-detail-modal-btn {
+    min-height: 40px !important;
+    padding: 0 10px !important;
+  }
+
+  .quick-add-options-row {
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .quick-add-options-row .option-field {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .quick-add-options-row .quick-add-dropdown-btn {
+    width: 100% !important;
+    justify-content: space-between !important;
+    min-height: 38px !important;
+  }
+
+  /* Task List & Card Rows (Ergonomic Touch Card) */
+  .tasks-content-area {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .task-list {
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 10px !important;
+  }
+
+  .task-group-container {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-bottom: 16px !important;
+  }
+
+  .task-row {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    grid-template-areas:
+      "check content"
+      "foot  foot" !important;
+    padding: 12px 14px !important;
+    gap: 8px 10px !important;
+    border-radius: var(--mobile-radius-card, 12px) !important;
+    min-width: 0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .task-row-checkbox-col {
+    grid-area: check !important;
+    align-self: start !important;
+    width: 44px !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer;
+  }
+
+  .task-checkbox {
+    width: 22px !important;
+    height: 22px !important;
+    cursor: pointer !important;
+  }
+
+  .task-row-content {
+    grid-area: content !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .task-title {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    font-size: var(--mobile-font-base, 0.9375rem) !important;
+    line-height: 1.4 !important;
+  }
+
+  .task-row-meta {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 6px !important;
+  }
+
+  .task-badge {
+    font-size: 0.75rem !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+    min-height: 22px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    white-space: nowrap !important;
+  }
+
+  .task-row-right-col {
+    grid-area: foot !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-top: 4px !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed var(--mobile-border, #f1f5f9) !important;
+    min-width: 0 !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .task-due-chip,
+  .task-completed-chip,
+  .task-no-due-chip {
+    min-height: 32px !important;
+    padding: 4px 10px !important;
+    font-size: 0.75rem !important;
+    max-width: calc(100% - 100px) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* Clear touch affordance on mobile (no hover dependency) */
+  .task-row-actions {
+    opacity: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-left: auto !important;
+  }
+
+  .task-row-actions .btn-quick-action.view { display: none !important; }
+  .task-row .task-due-chip { max-width: none !important; white-space: normal !important; }
+  .task-row-actions .btn-quick-action.delete {
+    color: #be123c !important;
+    background: rgba(225, 29, 72, 0.08) !important;
+    border: 1px solid rgba(225, 29, 72, 0.3) !important;
+    border-radius: 10px !important;
+  }
+  .task-row-actions .btn-quick-action.delete:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+  .task-overdue-desktop { display: none; }
+  .task-overdue-mobile { display: inline; }
+
+  .btn-quick-action {
+    min-height: 44px !important;
+    padding: 6px 12px !important;
+    font-size: 0.8125rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 6px !important;
+  }
+
+  .btn-quick-action.delete {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 6px !important;
+  }
+
+  /* Board view mobile lane tabs */
+  .task-board-mobile-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 4px !important;
+  }
+
+  .task-board-mobile-tab {
+    min-height: 40px !important;
+    white-space: nowrap !important;
+  }
+  /* Task Detail / Edit / Create Full-Screen Mobile Overlay (Task 2.3) */
+  .task-drawer-backdrop {
+    padding: 0 !important;
+    background-color: rgba(15, 23, 42, 0.6) !important;
+    z-index: var(--mobile-z-modal, 100) !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+
+  .task-drawer-panel {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    height: 100% !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .drawer-header {
+    padding: 10px 14px !important;
+    padding-top: max(10px, var(--mobile-safe-top, 0px)) !important;
+    min-height: 52px !important;
+    border-bottom: 1px solid var(--mobile-border, #e2e8f0) !important;
+    flex-shrink: 0 !important;
+    background: var(--mobile-bg-surface, #ffffff) !important;
+  }
+
+  .drawer-close-btn {
+    min-width: 38px !important;
+    min-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .drawer-body {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 14px !important;
+    padding-bottom: max(30px, calc(var(--mobile-safe-bottom, 0px) + 80px)) !important;
+    box-sizing: border-box !important;
+  }
+
+  .task-detail-form.modern-2col-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
+
+  .task-detail-main-col {
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 14px !important;
+  }
+
+  .task-detail-sidebar-col {
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 12px !important;
+  }
+
+  .task-workspace-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    display: flex !important;
+    gap: 6px !important;
+    padding-bottom: 4px !important;
+    border-bottom: 1px solid var(--mobile-border, #e2e8f0) !important;
+  }
+
+  .task-workspace-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .workspace-tab {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    min-height: 36px !important;
+    padding: 6px 12px !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .task-detail-sticky-footer {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 25 !important;
+    background: var(--mobile-bg-surface, #ffffff) !important;
+    padding: 10px 14px !important;
+    padding-bottom: max(10px, var(--mobile-safe-bottom, 0px)) !important;
+    border-top: 1px solid var(--mobile-border, #e2e8f0) !important;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin: 0 -14px -14px -14px !important;
+  }
+
+  .task-detail-sticky-footer .sticky-footer-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 1 !important;
+    justify-content: flex-end !important;
+  }
+
+  .btn-save-action,
+  .btn-cancel-action {
+    min-height: 40px !important;
+    font-size: 0.875rem !important;
+  }
+
+  .btn-save-action {
+    flex: 1 1 auto !important;
+    max-width: 220px !important;
+  }
+
+}
+
+.task-overdue-mobile { display: none; }
+@media (max-width: 768px) {
+  .task-overdue-mobile { display: inline; }
+}

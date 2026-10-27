@@ -1,10 +1,11 @@
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TasksPage } from '../../../pages/TasksPage'
+import { TaskTopBarControls } from '../components/task-topbar-controls'
 import type { TaskRow } from '../types'
 import { supabase } from '../../../lib/supabase'
 
@@ -37,13 +38,14 @@ vi.mock('../../auth/auth-provider', () => {
   }
 })
 
-function renderTasksPage(initialPath: string = '/tasks/inbox') {
+function renderTasksPage(initialPath: string = '/tasks/inbox', withControls = false) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialPath]}>
+        {withControls && <TaskTopBarControls />}
         <TasksPage />
       </MemoryRouter>
     </QueryClientProvider>
@@ -315,11 +317,15 @@ describe('smart-task-views', () => {
       return {} as any
     })
 
-    renderTasksPage('/tasks/inbox')
+    renderTasksPage('/tasks/inbox', true)
 
-    // Filter by priority
-    const prioritySelect = screen.getByLabelText(/lọc theo ưu tiên/i)
-    await user.selectOptions(prioritySelect, 'high')
+    // Use the same filter controls rendered by the application header.
+    await user.click(screen.getByTestId('filter-popover-trigger'))
+    await user.click(screen.getByRole('button', { name: /tất cả mức ưu tiên/i }))
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /ưu tiên cao/i }))
+    await user.click(screen.getByRole('button', { name: /tất cả trạng thái/i }))
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /^đang làm$/i }))
+    await user.click(screen.getByLabelText('Đóng bộ lọc'))
 
     // Search by title
     const searchInput = screen.getByPlaceholderText(/tìm kiếm theo tiêu đề/i)
@@ -328,6 +334,7 @@ describe('smart-task-views', () => {
     await waitFor(() => {
       expect(ilikeMock).toHaveBeenCalledWith('title', '%urgent report%')
       expect(eqMock).toHaveBeenCalledWith('priority', 'high')
+      expect(eqMock).toHaveBeenCalledWith('status', 'in_progress')
     })
   })
 

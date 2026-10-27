@@ -152,7 +152,7 @@ export function InProgressTasks({ tasks = [], total = 0, timeZone, onSelectTask 
               </li>
             )}
           </ul>
-          <div ref={sentinelRef} style={{ height: 1 }} aria-hidden="true" />
+          <div ref={sentinelRef} className="in-progress-pagination-sentinel" style={{ height: 1 }} aria-hidden="true" />
         </div>
       )}
     </section>

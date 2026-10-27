@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { Task } from '../../tasks/types'
 import { useI18n } from '../../i18n/i18n-provider'
 import { formatTaskDueDate, formatTaskOverdueDuration } from '@tabdo/utils'
+import { formatCompactOverdue } from '../../tasks/utils/compact-overdue'
 
 export interface OverdueTasksProps {
   tasks: Task[]
@@ -13,7 +14,7 @@ export interface OverdueTasksProps {
 const STORAGE_KEY = 'tabdo:dashboard:overdue-collapsed'
 
 export function OverdueTasks({ tasks, timeZone, onSelectTask }: OverdueTasksProps) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const navigate = useNavigate()
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
@@ -121,9 +122,10 @@ export function OverdueTasks({ tasks, timeZone, onSelectTask }: OverdueTasksProp
                   {task.priority === 'high' ? 'Cao' : task.priority === 'medium' ? 'Trung bình' : 'Thấp'}
                 </span>
                 <span className="overdue-date">
-                  {task.dueAt
-                    ? formatTaskOverdueDuration(task.dueAt, new Date()) || formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
-                    : ''}
+                  {task.dueAt && <>
+                    <span className="task-overdue-desktop">{formatTaskOverdueDuration(task.dueAt, new Date(), locale) || formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}</span>
+                    <span className="task-overdue-mobile">{formatCompactOverdue(task.dueAt, new Date(), locale)}</span>
+                  </>}
                 </span>
               </div>
             </li>

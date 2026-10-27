@@ -1,0 +1,90 @@
+/* Dashboard Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .dashboard-page-container {
+    padding-bottom: 24px;
+  }
+
+  .dashboard-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .dashboard-header-actions {
+    width: 100%;
+  }
+
+  .dashboard-header-actions .btn {
+    min-height: 40px;
+    padding: 8px 16px;
+    font-size: 0.875rem;
+  }
+
+  .dashboard-overview-card,
+  .dashboard-overview-card.is-collapsed,
+  .dashboard-overdue-alert,
+  .dashboard-overdue-alert.is-collapsed { padding: 16px; }
+
+  .dashboard-overview-card .overview-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: start;
+    gap: 8px;
+  }
+  .overview-header-left { flex: 1; min-width: 0; }
+  .overview-title-row { flex-wrap: wrap; gap: 6px; }
+  .overview-title { font-size: 1rem; line-height: 1.3; }
+  .overview-subtitle, .metric-label { font-size: 0.75rem; }
+  .overview-header-actions { display: contents; }
+  .overview-header-actions .dashboard-collapse-btn { grid-column: 2; grid-row: 1; }
+  .overview-header-actions .overview-ring-container { grid-column: 1; grid-row: 2; }
+  .overview-ring-container { width: 48px; height: 48px; }
+  .overview-ring-container .progress-ring { width: 48px; height: 48px; }
+  .dashboard-collapse-btn { width: 44px; height: 44px; flex: 0 0 44px; }
+
+  .dashboard-overdue-alert .alert-header { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 6px 8px; }
+  .dashboard-overdue-alert .alert-badge { min-width: 0; font-size: 0.8125rem; }
+  .dashboard-overdue-alert .alert-header-actions { display: contents; }
+  .dashboard-overdue-alert .overdue-collapse-btn { grid-column: 2; grid-row: 1; }
+  .dashboard-overdue-alert .alert-link { grid-column: 1 / -1; justify-self: start; min-height: 44px; }
+  .overdue-item { flex-wrap: wrap; gap: 8px; }
+  .overdue-task-title { flex: 1 1 100%; }
+  .overdue-meta { flex-wrap: wrap; }
+
+  .overview-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .overview-metric-item {
+    padding: 12px 10px;
+  }
+
+  .dashboard-section {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .task-card-item,
+  .dashboard-task-item {
+    min-height: 44px;
+  }
+
+  .dashboard-area-in-progress .dashboard-scrollable-container {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+  .in-progress-pagination-sentinel { display: none; }
+
+  .dashboard-task-item { flex-direction: column; align-items: stretch; gap: 8px; }
+  .dashboard-task-item .task-primary-info { flex-wrap: wrap; overflow: visible; }
+  .dashboard-task-item .dashboard-item-title { flex: 1 1 100%; white-space: normal; overflow-wrap: anywhere; }
+  .dashboard-task-item .task-secondary-info { flex-wrap: wrap; }
+}
+
+@media (max-width: 360px) {
+  .overview-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}

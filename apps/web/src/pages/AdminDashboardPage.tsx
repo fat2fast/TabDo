@@ -1,3 +1,4 @@
+import '../features/admin/admin-mobile.css'
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAdminStats } from '../features/admin/api/admin-users'

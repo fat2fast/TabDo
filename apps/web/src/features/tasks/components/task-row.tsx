@@ -15,6 +15,9 @@ import { extractTaskAttachments } from '../utils/task-attachments'
 import { extractTaskChecklist } from '../utils/task-checklist'
 import { extractLinkedTaskIds } from '../utils/task-linking'
 import { useConfirm } from '../../../components/ui'
+import { CategoryIcon } from './category-icon'
+import { formatCompactOverdue } from '../utils/compact-overdue'
+import { useI18n } from '../../i18n/i18n-provider'
 
 export interface TaskRowProps {
   task: Task
@@ -23,6 +26,7 @@ export interface TaskRowProps {
 }
 
 export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
+  const { locale } = useI18n()
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
   const { data: categories = [] } = useCategories()
@@ -110,7 +114,7 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault()
           onSelect(task.id)
         }
@@ -118,7 +122,7 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
       data-testid={`task-row-${task.id}`}
     >
       {/* Left Checkbox */}
-      <div className="task-row-checkbox-col" onClick={(e) => e.stopPropagation()}>
+      <label className="task-row-checkbox-col" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
           checked={isCompleted}
@@ -127,7 +131,7 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
           aria-label={`Đánh dấu hoàn thành: ${task.title}`}
           className="task-checkbox"
         />
-      </div>
+      </label>
 
       {/* Center Main Info */}
       <div className="task-row-content">
@@ -154,7 +158,7 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
                 color: category.color || '#0f172a',
               }}
             >
-              {category.icon && <span className="cat-icon">{category.icon}</span>}
+              {category.icon && <span className="cat-icon"><CategoryIcon icon={category.icon} /></span>}
               {category.name}
             </span>
           )}
@@ -273,9 +277,10 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
               <polyline points="12 6 12 12 16 14" />
             </svg>
             <span className="due-chip-text">
-              {isOverdue
-                ? formatTaskOverdueDuration(task.dueAt, new Date()) || formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)
-                : formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}
+              {isOverdue ? <>
+                <span className="task-overdue-desktop">{formatTaskOverdueDuration(task.dueAt, new Date(), locale) || formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}</span>
+                <span className="task-overdue-mobile">{formatCompactOverdue(task.dueAt, new Date(), locale)}</span>
+              </> : formatTaskDueDate(task.dueAt, task.dueDateKind, timeZone)}
             </span>
           </div>
         ) : (
@@ -308,6 +313,7 @@ export function TaskRow({ task, onSelect, subtaskCount }: TaskRowProps) {
             type="button"
             className="btn-quick-action delete"
             onClick={handleDelete}
+            disabled={isPending}
             title="Xóa công việc"
             aria-label={`Xóa công việc ${task.title}`}
           >

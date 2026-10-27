@@ -1,3 +1,4 @@
+import '../features/summary/summary-mobile.css'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { formatInTimeZone } from 'date-fns-tz'

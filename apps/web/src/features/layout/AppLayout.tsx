@@ -8,13 +8,23 @@ import { AccountDropdown } from './AccountDropdown'
 import { useSidebarCollapse } from './use-sidebar-collapse'
 import { BUILD_INFO_STRING } from '../../lib/build-info'
 import { TaskTopBarControls } from '../tasks/components/task-topbar-controls'
+import { MobileNavigation } from './MobileNavigation'
+import './mobile-shell.css'
 
 export function AppLayout() {
-  const { profile } = useAuth()
-  const { t } = useI18n()
+  const { profile, signOut } = useAuth()
+  const { t, locale } = useI18n()
   const location = useLocation()
   const [accessDeniedMsg, setAccessDeniedMsg] = useState<string | null>(null)
+  const [showBackToTop, setShowBackToTop] = useState(false)
   const { isCollapsed, toggleSidebar } = useSidebarCollapse()
+
+  useEffect(() => {
+    const update = () => setShowBackToTop(window.scrollY > 300)
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    return () => window.removeEventListener('scroll', update)
+  }, [])
 
   useEffect(() => {
     if (location.state?.accessDenied) {
@@ -183,7 +193,7 @@ export function AppLayout() {
       </aside>
 
       <div className="app-content-wrapper">
-        <header className="app-topbar">
+        <header className={`app-topbar ${location.pathname.startsWith('/tasks') ? 'has-task-controls' : ''}`.trim()}>
           <div className="topbar-left">
             <span className="topbar-breadcrumb">{getBreadcrumb()}</span>
           </div>
@@ -200,7 +210,7 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className={`app-main ${location.pathname.startsWith('/calendar') ? 'app-main-fullwidth' : ''}`}>
+        <main className={`app-main ${location.pathname.startsWith('/calendar') ? 'app-main-fullwidth' : ''}`} tabIndex={-1}>
           {accessDeniedMsg && (
             <div className="access-denied-banner" role="alert">
               <span>{accessDeniedMsg}</span>
@@ -215,6 +225,20 @@ export function AppLayout() {
           )}
           <Outlet />
         </main>
+        {showBackToTop && (
+          <button
+            type="button"
+            className="mobile-back-to-top"
+            aria-label={locale === 'vi' ? 'Về đầu trang' : 'Back to top'}
+            onClick={() => {
+              document.querySelector<HTMLElement>('.app-main')?.focus({ preventScroll: true })
+              window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg>
+          </button>
+        )}
+        <MobileNavigation profile={profile} onSignOut={signOut} />
       </div>
     </div>
   )
