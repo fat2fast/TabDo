@@ -304,6 +304,22 @@ export function ScheduleEditor({
         aria-modal="true"
         aria-labelledby="schedule-editor-title"
         data-testid="schedule-editor-modal"
+        onKeyDown={(event) => {
+          if (event.key !== 'Tab') return
+          const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+          )).filter((element) => element.getClientRects().length > 0)
+          if (!controls.length) return
+          const first = controls[0]
+          const last = controls[controls.length - 1]
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault()
+            last.focus()
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault()
+            first.focus()
+          }
+        }}
       >
         <div className="modal-header">
           <h3 id="schedule-editor-title" className="modal-title">

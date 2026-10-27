@@ -16,7 +16,6 @@ import { TaskCreateModal } from '../features/tasks/components/task-create-modal'
 import { TaskDrawer } from '../features/tasks/components/task-drawer'
 import { TaskGroup } from '../features/tasks/components/task-group'
 import { TaskList } from '../features/tasks/components/task-list'
-import { TaskTopBarControls } from '../features/tasks/components/task-topbar-controls'
 import { TaskTrash } from '../features/tasks/components/task-trash'
 import { TaskViewEmptyState } from '../features/tasks/components/task-view-empty-state'
 import { TaskViewHeader } from '../features/tasks/components/task-view-header'
@@ -278,13 +277,6 @@ export function TasksPage() {
         <TaskTrash onSelectTask={handleSelectTask} />
       ) : (
         <>
-          {/* Standalone controls fallback when rendered outside AppLayout (e.g. unit tests) */}
-          {typeof document !== 'undefined' && !document.getElementById('topbar-task-search-slot') && (
-            <div className="tasks-standalone-controls-fallback" data-testid="tasks-standalone-fallback">
-              <TaskTopBarControls />
-            </div>
-          )}
-
           {/* Main Task List Area */}
           <div className="tasks-content-area">
             {params.layout === 'board' ? (

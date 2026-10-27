@@ -25,19 +25,20 @@
 
   .task-topbar-controls {
     display: flex !important;
+    flex-wrap: wrap !important;
     align-items: center !important;
     gap: 8px !important;
     width: 100% !important;
   }
 
   .topbar-search-box {
-    flex: 1 1 0 !important;
+    flex: 1 1 100% !important;
     min-width: 0 !important;
     max-width: none !important;
   }
 
   .topbar-search-box .task-search-wrapper {
-    height: 38px !important;
+    height: 44px !important;
     background-color: var(--mobile-bg-surface, #ffffff) !important;
     border-color: var(--mobile-border, #cbd5e1) !important;
   }
@@ -59,14 +60,14 @@
   }
 
   .btn-filter-trigger {
-    height: 38px !important;
+    height: 44px !important;
     padding: 0 10px !important;
     font-size: 0.8125rem !important;
     gap: 5px !important;
   }
 
   .sort-dropdown-btn {
-    height: 38px !important;
+    height: 44px !important;
     padding: 0 8px !important;
     font-size: 0.8125rem !important;
   }
@@ -200,7 +201,7 @@
 
   .task-row {
     display: grid !important;
-    grid-template-columns: 28px minmax(0, 1fr) !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
     grid-template-areas:
       "check content"
       "foot  foot" !important;
@@ -214,7 +215,12 @@
   .task-row-checkbox-col {
     grid-area: check !important;
     align-self: start !important;
-    padding-top: 3px !important;
+    width: 44px !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer;
   }
 
   .task-checkbox {
@@ -289,8 +295,23 @@
     margin-left: auto !important;
   }
 
+  .task-row-actions .btn-quick-action.view { display: none !important; }
+  .task-row .task-due-chip { max-width: none !important; white-space: normal !important; }
+  .task-row-actions .btn-quick-action.delete {
+    color: #be123c !important;
+    background: rgba(225, 29, 72, 0.08) !important;
+    border: 1px solid rgba(225, 29, 72, 0.3) !important;
+    border-radius: 10px !important;
+  }
+  .task-row-actions .btn-quick-action.delete:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+  .task-overdue-desktop { display: none; }
+  .task-overdue-mobile { display: inline; }
+
   .btn-quick-action {
-    min-height: 36px !important;
+    min-height: 44px !important;
     padding: 6px 12px !important;
     font-size: 0.8125rem !important;
     display: inline-flex !important;
@@ -300,8 +321,8 @@
   }
 
   .btn-quick-action.delete {
-    min-width: 36px !important;
-    min-height: 36px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
     padding: 6px !important;
   }
 
@@ -439,4 +460,9 @@
     max-width: 220px !important;
   }
 
+}
+
+.task-overdue-mobile { display: none; }
+@media (max-width: 768px) {
+  .task-overdue-mobile { display: inline; }
 }

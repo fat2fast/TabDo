@@ -35,7 +35,8 @@
 
   .tabdo-calendar-toolbar .today-btn,
   .tabdo-calendar-toolbar .nav-btn {
-    min-height: 38px !important;
+    min-height: 44px !important;
+    min-width: 44px !important;
   }
 
   .tabdo-calendar-toolbar .calendar-title {
@@ -58,28 +59,36 @@
   .tabdo-calendar-toolbar .view-toggle-group,
   .tabdo-calendar-toolbar .display-toggle-group {
     display: inline-flex !important;
-    min-height: 38px !important;
+    min-height: 44px !important;
   }
 
   .tabdo-calendar-toolbar .toggle-btn {
-    min-height: 38px !important;
+    min-height: 44px !important;
     padding: 0 10px !important;
     font-size: 0.8125rem !important;
   }
 
   .tabdo-calendar-toolbar .toolbar-sidebar-toggle-btn {
-    min-height: 38px !important;
+    min-height: 44px !important;
     padding: 0 10px !important;
     font-size: 0.8125rem !important;
     gap: 5px !important;
   }
 
   .tabdo-calendar-toolbar .add-schedule-btn {
-    min-height: 38px !important;
+    min-height: 44px !important;
     padding: 0 14px !important;
     font-size: 0.875rem !important;
     margin-left: auto !important;
   }
+
+  .tabdo-calendar-toolbar .toolbar-right > .view-toggle-group,
+  .tabdo-calendar-toolbar .toolbar-right > .display-toggle-group {
+    flex: 1 1 130px;
+  }
+  .tabdo-calendar-toolbar .toggle-btn { flex: 1; }
+  .tabdo-calendar-toolbar .toolbar-sidebar-toggle-btn { flex: 1 1 auto; justify-content: center; }
+  .tabdo-calendar-toolbar .add-schedule-btn { flex: 1 1 auto; justify-content: center; }
 
   /* Agenda Container & Cards */
   .mobile-agenda-container {

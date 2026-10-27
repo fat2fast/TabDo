@@ -51,7 +51,8 @@ async function extractEdgeFunctionError(error: any, defaultMsg: string): Promise
   const context = error?.context
   if (context) {
     if (context.status === 503 || context.status === 502) {
-      return 'Dịch vụ Edge Function chưa sẵn sàng hoặc chưa được khởi chạy (503 Service Unavailable). Hãy chạy "pnpm dev:functions" trong môi trường cục bộ.'
+      const local = import.meta.env.DEV && ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+      return `Dịch vụ quản trị tạm thời không khả dụng (${context.status}). ${local ? 'Kiểm tra Supabase và chạy pnpm dev:functions, sau đó thử lại.' : 'Vui lòng thử lại sau.'}`
     }
     if (typeof context.json === 'function') {
       try {

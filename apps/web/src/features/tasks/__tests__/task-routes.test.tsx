@@ -102,6 +102,23 @@ describe('task-routes', () => {
     renderRoute('/tasks')
 
     expect(await screen.findByRole('heading', { name: /tất cả|all|hộp thư đến|inbox/i })).toBeInTheDocument()
+    expect(screen.getAllByTestId('task-topbar-controls')).toHaveLength(1)
+  })
+
+  it('offers a back-to-top action after scrolling', async () => {
+    const { userEvent } = await import('@testing-library/user-event')
+    const user = userEvent.setup()
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    renderRoute('/tasks/inbox')
+    await screen.findByRole('heading', { name: /tất cả|all|hộp thư đến|inbox/i })
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 500 })
+    act(() => window.dispatchEvent(new Event('scroll')))
+    await user.click(screen.getByRole('button', { name: /về đầu trang|back to top/i }))
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 })
+    scrollTo.mockRestore()
+    vi.unstubAllGlobals()
   })
 
   it('renders smart views on static paths /tasks/today, /tasks/upcoming, /tasks/overdue, /tasks/completed, /tasks/trash', async () => {

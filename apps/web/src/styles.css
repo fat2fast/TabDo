@@ -8498,6 +8498,12 @@ body {
   gap: 16px;
 }
 
+@media (max-width: 768px) {
+  .schedule-editor-form { padding: 16px; }
+  .schedule-editor-form .form-row { flex-wrap: wrap; }
+  .schedule-editor-form .form-group.col-6 { flex: 1 1 100%; min-width: 0; }
+}
+
 .form-row {
   display: flex;
   gap: 14px;

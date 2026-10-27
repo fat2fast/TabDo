@@ -6,6 +6,8 @@
   display: none;
 }
 
+.mobile-back-to-top { display: none; }
+
 .mobile-more-backdrop {
   display: none;
 }
@@ -15,6 +17,24 @@
 }
 
 @media (max-width: 768px) {
+  .mobile-back-to-top {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 16px;
+    bottom: calc(var(--mobile-bottom-nav-height, 60px) + var(--mobile-safe-bottom, 0px) + 16px);
+    z-index: 49;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--mobile-border, #cbd5e1);
+    border-radius: 50%;
+    background: var(--mobile-bg-surface, #fff);
+    color: var(--mobile-accent, #0284c7);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+    cursor: pointer;
+  }
+  .mobile-back-to-top:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
   /* Hide desktop sidebar entirely on phone viewports */
   .app-shell .app-sidebar,
   .admin-shell .admin-sidebar {

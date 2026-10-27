@@ -174,6 +174,9 @@ export function CalendarPage() {
 
   // Open editor pre-linked to an unscheduled task
   const handleScheduleTask = (task: Task) => {
+    openingEditorFromPanel.current = isMobilePanelOpen
+    returnToUnscheduledTrigger.current = isMobilePanelOpen
+    setIsMobilePanelOpen(false)
     setEditingBlock(null)
     setEditorStartAt(undefined)
     setEditorEndAt(undefined)
@@ -248,6 +251,8 @@ export function CalendarPage() {
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false)
   const unscheduledPanelRef = useRef<HTMLDivElement>(null)
   const unscheduledTriggerRef = useRef<HTMLElement | null>(null)
+  const openingEditorFromPanel = useRef(false)
+  const returnToUnscheduledTrigger = useRef(false)
 
   // Reconcile breakpoint transitions: when switching to desktop, close mobile panel
   useEffect(() => {
@@ -272,7 +277,8 @@ export function CalendarPage() {
 
       return () => {
         document.body.style.overflow = prevOverflow
-        unscheduledTriggerRef.current?.focus?.()
+        if (!openingEditorFromPanel.current) unscheduledTriggerRef.current?.focus?.()
+        openingEditorFromPanel.current = false
       }
     }
   }, [isMobile, isMobilePanelOpen])
@@ -460,13 +466,20 @@ export function CalendarPage() {
 
       <ScheduleEditor
         isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
+        onClose={() => {
+          setIsEditorOpen(false)
+          if (returnToUnscheduledTrigger.current) {
+            returnToUnscheduledTrigger.current = false
+            unscheduledTriggerRef.current?.focus()
+          }
+        }}
         initialBlock={editingBlock}
         initialStartAt={editorStartAt}
         initialEndAt={editorEndAt}
         initialTask={editorTask}
         onOpenTaskDetail={(taskId) => {
           setIsEditorOpen(false)
+          returnToUnscheduledTrigger.current = false
           setDrawerTaskId(taskId)
         }}
       />
