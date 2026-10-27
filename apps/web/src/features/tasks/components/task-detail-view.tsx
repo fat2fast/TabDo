@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { CategoryIcon } from './category-icon'
 import {
   formatDisplayDate,
   formatRecurrenceRuleSummary,
@@ -752,7 +753,7 @@ export function TaskDetailView({
                     className="category-badge-chip"
                     style={{ borderColor: category.color || '#0284c7' }}
                   >
-                    {category.icon && <span className="cat-icon">{category.icon}</span>}
+                    {category.icon && <span className="cat-icon"><CategoryIcon icon={category.icon} /></span>}
                     <span>{category.name}</span>
                   </span>
                 ) : (

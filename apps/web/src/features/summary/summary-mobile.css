@@ -1,0 +1,94 @@
+/* Summary & Monthly Report Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .summary-page-container,
+  .monthly-report-page-container {
+    padding-bottom: 24px;
+  }
+
+  .summary-header,
+  .monthly-report-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .summary-header-actions,
+  .monthly-report-header .header-title-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .summary-header-actions .btn,
+  .monthly-report-header .btn {
+    min-height: 40px;
+    padding: 8px 14px;
+  }
+
+  /* Summary Controls Bar */
+  .summary-controls-bar {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .summary-period-tabs .btn {
+    min-height: 38px;
+    padding: 6px 14px;
+  }
+
+  /* Monthly Report Controls */
+  .report-controls-card {
+    padding: 16px 14px;
+  }
+
+  .filter-action-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .report-filters-group {
+    width: 100%;
+  }
+
+  .report-actions-group {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .report-export-submit-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  /* Report candidate tasks card */
+  .report-tasks-card {
+    padding: 16px 14px;
+  }
+
+  .report-tasks-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .report-tasks-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+
+  .report-tasks-actions .btn {
+    flex: 1;
+    min-height: 38px;
+    justify-content: center;
+  }
+
+  .report-task-item {
+    padding: 12px;
+  }
+
+  .task-metadata-line {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}

@@ -1,3 +1,4 @@
+import '../features/admin/admin-mobile.css'
 import React, { useState } from 'react'
 import { useAuth } from '../features/auth/auth-provider'
 import { useAdminUsers, useAdminUserLifecycle, type AdminUserItem } from '../features/admin/api/admin-users'
@@ -19,6 +20,73 @@ export function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const triggerRef = React.useRef<HTMLElement | null>(null)
+  const modalRef = React.useRef<HTMLDivElement | null>(null)
+
+  // Capture trigger focus and lock body scroll when modal opens
+  React.useEffect(() => {
+    if (showCreateForm) {
+      triggerRef.current = document.activeElement as HTMLElement | null
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+
+      requestAnimationFrame(() => {
+        const first = modalRef.current?.querySelector<HTMLElement>(
+          'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        first?.focus()
+      })
+
+      return () => {
+        document.body.style.overflow = prevOverflow
+        triggerRef.current?.focus?.()
+      }
+    }
+  }, [showCreateForm])
+
+  // Support hotkey Escape and Tab focus trap
+  React.useEffect(() => {
+    if (!showCreateForm) return
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setShowCreateForm(false)
+        return
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusables = modalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusables.length === 0) return
+
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+
+        if (!modalRef.current.contains(document.activeElement)) {
+          e.preventDefault()
+          first.focus()
+          return
+        }
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showCreateForm])
 
   const { data, isLoading, isError, error, refetch, isFetching } = useAdminUsers({
     page,
@@ -161,6 +229,7 @@ export function AdminUsersPage() {
           data-testid="create-user-modal"
         >
           <div
+            ref={modalRef}
             className="modal-content card"
             onClick={(e) => e.stopPropagation()}
             style={{ maxWidth: '520px', width: '100%', padding: '24px' }}

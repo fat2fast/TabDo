@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { toTaskDueInstant, formatDisplayDate, RELATIVE_REMINDER_PRESETS } from '@tabdo/utils'
 import type { DueDateKind, Task, TaskPriority } from '../types'
 import { useOptionalAuth } from '../../auth/auth-provider'
@@ -118,13 +118,72 @@ export function TaskCreateModal({
     }
   }, [isOpen, initialTitle, defaultCategoryId, todayStr])
 
-  // Support hotkey Escape to close the modal
+  const panelRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
+  // Capture trigger focus and lock body scroll on open
+  useEffect(() => {
+    if (isOpen) {
+      triggerRef.current = document.activeElement as HTMLElement | null
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+
+      requestAnimationFrame(() => {
+        const titleInput = panelRef.current?.querySelector<HTMLElement>(
+          '#create-task-title-input, textarea, input'
+        )
+        titleInput?.focus()
+      })
+
+      return () => {
+        document.body.style.overflow = prevOverflow
+        triggerRef.current?.focus?.()
+      }
+    }
+  }, [isOpen])
+
+  // Support hotkey Escape and Tab focus trap
   useEffect(() => {
     if (!isOpen) return
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        const hasTopOverlay = document.querySelector(
+          '.confirm-dialog-backdrop, .custom-dropdown-menu.open, .date-picker-popover-content'
+        )
+        if (hasTopOverlay) {
+          return
+        }
         onClose()
+        return
+      }
+
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusables.length === 0) return
+
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+
+        if (!panelRef.current.contains(document.activeElement)) {
+          e.preventDefault()
+          first.focus()
+          return
+        }
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
       }
     }
 
@@ -378,9 +437,11 @@ export function TaskCreateModal({
       data-testid="task-create-modal-backdrop"
     >
       <div
+        ref={panelRef}
         className="task-drawer-panel task-modal-dialog"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-labelledby="create-task-title"
         data-testid="task-create-modal"
       >
@@ -436,7 +497,6 @@ export function TaskCreateModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
-                  autoFocus
                   maxLength={500}
                   placeholder="Nhập tiêu đề công việc..."
                   disabled={isSaving}

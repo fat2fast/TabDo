@@ -225,7 +225,9 @@ describe('core-task-workflow', () => {
       const checkbox = screen.getByRole('checkbox', { name: /đánh dấu hoàn thành/i })
       expect(checkbox).not.toBeChecked()
 
-      await user.click(checkbox)
+      checkbox.focus()
+      await user.keyboard(' ')
+      expect(onSelect).not.toHaveBeenCalled()
 
       await waitFor(() => {
         expect(supabase.rpc).toHaveBeenCalledWith('complete_task_and_generate_next', {

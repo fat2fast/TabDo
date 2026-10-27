@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import {
   getThisWeekEnd,
@@ -16,7 +16,6 @@ import { TaskCreateModal } from '../features/tasks/components/task-create-modal'
 import { TaskDrawer } from '../features/tasks/components/task-drawer'
 import { TaskGroup } from '../features/tasks/components/task-group'
 import { TaskList } from '../features/tasks/components/task-list'
-import { TaskTopBarControls } from '../features/tasks/components/task-topbar-controls'
 import { TaskTrash } from '../features/tasks/components/task-trash'
 import { TaskViewEmptyState } from '../features/tasks/components/task-view-empty-state'
 import { TaskViewHeader } from '../features/tasks/components/task-view-header'
@@ -55,22 +54,53 @@ export function TasksPage() {
   // Local UI state (drawer and category manager)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(taskIdParam)
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false)
+  const isPushedToHistoryRef = useRef(false)
 
-  // Synchronize when taskId search param changes
+  // Synchronize when taskId search param changes (both directions, including null)
   useEffect(() => {
-    if (taskIdParam) {
-      setSelectedTaskId(taskIdParam)
+    setSelectedTaskId(taskIdParam || null)
+    if (!taskIdParam) {
+      isPushedToHistoryRef.current = false
     }
   }, [taskIdParam])
 
-  const handleCloseDrawer = () => {
+  // Select task from list / board / group / trash: push to URL history
+  const handleSelectTask = useCallback((taskId: string) => {
+    setSelectedTaskId(taskId)
+    isPushedToHistoryRef.current = true
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('taskId', taskId)
+      return next
+    })
+  }, [setSearchParams])
+
+  // Select task inside drawer (subtask / parent switch): replace URL to avoid close loop
+  const handleSelectDrawerTask = useCallback((taskId: string) => {
+    setSelectedTaskId(taskId)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('taskId', taskId)
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const handleCloseDrawer = useCallback(() => {
     setSelectedTaskId(null)
-    if (searchParams.has('taskId')) {
-      const next = new URLSearchParams(searchParams)
-      next.delete('taskId')
-      setSearchParams(next, { replace: true })
+    if (isPushedToHistoryRef.current && typeof window !== 'undefined' && window.history.length > 1) {
+      isPushedToHistoryRef.current = false
+      window.history.back()
+    } else {
+      isPushedToHistoryRef.current = false
+      if (searchParams.has('taskId')) {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('taskId')
+          return next
+        }, { replace: true })
+      }
     }
-  }
+  }, [searchParams, setSearchParams])
 
   // Stable reference time for queries
   const now = useMemo(() => new Date(), [currentView, params])
@@ -244,23 +274,16 @@ export function TasksPage() {
       )}
 
       {currentView === 'trash' ? (
-        <TaskTrash onSelectTask={setSelectedTaskId} />
+        <TaskTrash onSelectTask={handleSelectTask} />
       ) : (
         <>
-          {/* Standalone controls fallback when rendered outside AppLayout (e.g. unit tests) */}
-          {typeof document !== 'undefined' && !document.getElementById('topbar-task-search-slot') && (
-            <div className="tasks-standalone-controls-fallback" data-testid="tasks-standalone-fallback">
-              <TaskTopBarControls />
-            </div>
-          )}
-
           {/* Main Task List Area */}
           <div className="tasks-content-area">
             {params.layout === 'board' ? (
               <TaskBoard
                 currentView={currentView}
                 params={params}
-                onSelectTask={setSelectedTaskId}
+                onSelectTask={handleSelectTask}
                 now={now}
               />
             ) : isPageLoading ? (
@@ -277,19 +300,19 @@ export function TasksPage() {
                   <TaskGroup
                     title={t('tasks.groupOverdue')}
                     tasks={todayGroups.overdueTasks}
-                    onSelectTask={setSelectedTaskId}
+                    onSelectTask={handleSelectTask}
                     badgeVariant="danger"
                   />
                   <TaskGroup
                     title={t('tasks.groupDueToday')}
                     tasks={todayGroups.dueTodayTasks}
-                    onSelectTask={setSelectedTaskId}
+                    onSelectTask={handleSelectTask}
                     badgeVariant="primary"
                   />
                   <TaskGroup
                     title={t('tasks.groupScheduledToday')}
                     tasks={todayGroups.scheduledTodayTasks}
-                    onSelectTask={setSelectedTaskId}
+                    onSelectTask={handleSelectTask}
                     badgeVariant="default"
                   />
                 </div>
@@ -308,19 +331,19 @@ export function TasksPage() {
                   <TaskGroup
                     title={t('tasks.groupTomorrow')}
                     tasks={upcomingGroups.tomorrowTasks}
-                    onSelectTask={setSelectedTaskId}
+                    onSelectTask={handleSelectTask}
                     badgeVariant="primary"
                   />
                   <TaskGroup
                     title={t('tasks.groupThisWeek')}
                     tasks={upcomingGroups.thisWeekTasks}
-                    onSelectTask={setSelectedTaskId}
+                    onSelectTask={handleSelectTask}
                     badgeVariant="warning"
                   />
                   <TaskGroup
                     title={t('tasks.groupLater')}
                     tasks={upcomingGroups.laterTasks}
-                    onSelectTask={setSelectedTaskId}
+                    onSelectTask={handleSelectTask}
                     badgeVariant="default"
                   />
                 </div>
@@ -340,7 +363,7 @@ export function TasksPage() {
             ) : (
               <TaskList
                 tasks={tasks}
-                onSelectTask={setSelectedTaskId}
+                onSelectTask={handleSelectTask}
               />
             )}
           </div>
@@ -351,7 +374,7 @@ export function TasksPage() {
       <TaskDrawer
         taskId={selectedTaskId}
         onClose={handleCloseDrawer}
-        onSelectTask={setSelectedTaskId}
+        onSelectTask={handleSelectDrawerTask}
       />
 
       {/* Category Manager Modal */}

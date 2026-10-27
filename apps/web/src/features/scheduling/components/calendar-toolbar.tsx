@@ -1,12 +1,16 @@
 import React from 'react'
 import { addDays, format } from 'date-fns'
 import { formatInTimeZone } from 'date-fns-tz'
+import { vi, enUS } from 'date-fns/locale'
+import { useI18n } from '../../i18n/i18n-provider'
 
 export interface CalendarToolbarProps {
   view: 'day' | 'week'
+  display?: 'agenda' | 'grid'
   currentDate: string // YYYY-MM-DD
   timeZone: string
   onViewChange: (view: 'day' | 'week') => void
+  onDisplayChange?: (display: 'agenda' | 'grid') => void
   onDateChange: (dateStr: string) => void
   onAddSchedule: () => void
   isSidebarOpen?: boolean
@@ -15,14 +19,17 @@ export interface CalendarToolbarProps {
 
 export function CalendarToolbar({
   view,
+  display = 'grid',
   currentDate,
   timeZone,
   onViewChange,
+  onDisplayChange,
   onDateChange,
   onAddSchedule,
   isSidebarOpen,
   onToggleSidebar,
 }: CalendarToolbarProps) {
+  const { locale } = useI18n()
   const dateObj = new Date(currentDate + 'T12:00:00')
 
   const handlePrev = () => {
@@ -45,11 +52,11 @@ export function CalendarToolbar({
   // Title formatting
   const displayTitle = React.useMemo(() => {
     if (view === 'day') {
-      return formatInTimeZone(dateObj, timeZone, "EEEE, 'ngày' dd 'tháng' MM, yyyy")
+      return formatInTimeZone(dateObj, timeZone, locale === 'vi' ? "EEEE, 'ngày' dd 'tháng' MM, yyyy" : 'EEEE, MMMM d, yyyy', { locale: locale === 'vi' ? vi : enUS })
     }
     // Week view title: e.g. "Tháng MM, yyyy"
-    return formatInTimeZone(dateObj, timeZone, "'Tháng' MM, yyyy")
-  }, [view, dateObj, timeZone])
+    return formatInTimeZone(dateObj, timeZone, locale === 'vi' ? "'Tháng' MM, yyyy" : 'MMMM yyyy', { locale: locale === 'vi' ? vi : enUS })
+  }, [view, dateObj, timeZone, locale])
 
   return (
     <div className="tabdo-calendar-toolbar" data-testid="calendar-toolbar">
@@ -92,6 +99,7 @@ export function CalendarToolbar({
           <button
             type="button"
             className={`btn toggle-btn ${view === 'day' ? 'active' : ''}`}
+            aria-pressed={view === 'day'}
             onClick={() => onViewChange('day')}
             data-testid="view-day-btn"
           >
@@ -100,12 +108,38 @@ export function CalendarToolbar({
           <button
             type="button"
             className={`btn toggle-btn ${view === 'week' ? 'active' : ''}`}
+            aria-pressed={view === 'week'}
             onClick={() => onViewChange('week')}
             data-testid="view-week-btn"
           >
             Tuần
           </button>
         </div>
+
+        {onDisplayChange && (
+          <div className="display-toggle-group" role="group" aria-label="Chế độ hiển thị" data-testid="display-toggle-group">
+            <button
+              type="button"
+              className={`btn toggle-btn ${display === 'agenda' ? 'active' : ''}`}
+              aria-pressed={display === 'agenda'}
+              onClick={() => onDisplayChange('agenda')}
+              data-testid="display-agenda-btn"
+              title="Chế độ Danh sách lịch (Agenda)"
+            >
+              Agenda
+            </button>
+            <button
+              type="button"
+              className={`btn toggle-btn ${display !== 'agenda' ? 'active' : ''}`}
+              aria-pressed={display === 'grid'}
+              onClick={() => onDisplayChange('grid')}
+              data-testid="display-grid-btn"
+              title="Chế độ Lưới (Grid)"
+            >
+              Lưới
+            </button>
+          </div>
+        )}
 
         {onToggleSidebar && (
           <button

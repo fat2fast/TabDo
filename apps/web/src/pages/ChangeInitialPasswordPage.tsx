@@ -1,3 +1,4 @@
+import '../features/auth/auth-mobile.css'
 import React, { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../features/auth/auth-provider'

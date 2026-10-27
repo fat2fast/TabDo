@@ -130,5 +130,31 @@ BEGIN
     RAISE EXCEPTION 'Assertion failed: Expected at least 3 reminders, found %', v_count;
   END IF;
 
+  -- Active reminders must still have a future effective time after the seed runs.
+  SELECT count(*) INTO v_count
+  FROM public.reminders
+  WHERE status IN ('pending', 'snoozed')
+    AND (effective_at IS NULL OR effective_at <= statement_timestamp());
+  IF v_count > 0 THEN
+    RAISE EXCEPTION 'Assertion failed: Found % active reminder(s) without a future effective time', v_count;
+  END IF;
+
+  -- Guard against a time-of-day regression: the demo relative reminder's task
+  -- must be due no earlier than tomorrow (local date), even when CI runs late.
+  SELECT count(*) INTO v_count
+  FROM public.reminders r
+  JOIN public.tasks t ON t.id = r.task_id
+  WHERE r.id = '77777777-0000-4000-8000-000000000002'
+    AND r.status = 'pending'
+    AND r.reminder_kind = 'relative_due'
+    AND r.offset_minutes = 15
+    AND t.due_date_kind = 'date_time'
+    AND t.due_at >= v_today_end
+    AND r.remind_at = t.due_at - (r.offset_minutes * interval '1 minute')
+    AND r.effective_at > statement_timestamp();
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'Assertion failed: Demo relative reminder is missing, incorrectly derived or tied to a same-day task';
+  END IF;
+
   RAISE NOTICE 'seed fixture PASS';
 END $$;

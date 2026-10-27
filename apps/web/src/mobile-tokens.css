@@ -1,0 +1,87 @@
+/* Mobile Design Tokens for TabDo Web
+   Scoped tokens for mobile layout, spacing, safe area, and touch ergonomics.
+   Does not override desktop styles. */
+
+:root {
+  /* Safe area insets with fallbacks */
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-safe-left: env(safe-area-inset-left, 0px);
+  --mobile-safe-right: env(safe-area-inset-right, 0px);
+
+  /* Mobile shell dimensions */
+  --mobile-topbar-height: 54px;
+  --mobile-bottom-nav-height: 60px;
+  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-safe-bottom));
+  --mobile-min-target-size: 44px;
+
+  /* Mobile surfaces & color tokens (matches TabDo branding) */
+  --mobile-bg-main: #f8fafc;
+  --mobile-bg-surface: #ffffff;
+  --mobile-bg-subtle: #f1f5f9;
+  --mobile-border: #e2e8f0;
+  --mobile-border-light: #f1f5f9;
+  --mobile-text-primary: #0f172a;
+  --mobile-text-secondary: #64748b;
+  --mobile-text-muted: #94a3b8;
+  --mobile-accent: #0284c7;
+  --mobile-accent-hover: #0369a1;
+  --mobile-accent-light: #e0f2fe;
+  --mobile-accent-subtle: rgba(2, 132, 199, 0.08);
+
+  /* Status tokens */
+  --mobile-danger: #ef4444;
+  --mobile-danger-light: #fee2e2;
+  --mobile-success: #10b981;
+  --mobile-success-light: #d1fae5;
+  --mobile-warning: #f59e0b;
+  --mobile-warning-light: #fef3c7;
+
+  /* Z-index layering scale */
+  --mobile-z-header: 45;
+  --mobile-z-bottom-nav: 50;
+  --mobile-z-drawer-backdrop: 60;
+  --mobile-z-drawer: 70;
+  --mobile-z-modal-backdrop: 80;
+  --mobile-z-modal: 90;
+  --mobile-z-toast: 100;
+
+  /* Spacing */
+  --mobile-space-xs: 4px;
+  --mobile-space-sm: 8px;
+  --mobile-space-md: 12px;
+  --mobile-space-lg: 16px;
+  --mobile-space-xl: 20px;
+  --mobile-space-2xl: 24px;
+
+  /* Typography scale */
+  --mobile-font-xs: 0.75rem;
+  --mobile-font-sm: 0.8125rem;
+  --mobile-font-base: 0.9375rem;
+  --mobile-font-md: 1rem;
+  --mobile-font-lg: 1.125rem;
+  --mobile-font-xl: 1.25rem;
+
+  /* Radii */
+  --mobile-radius-sm: 6px;
+  --mobile-radius-md: 10px;
+  --mobile-radius-lg: 14px;
+  --mobile-radius-full: 9999px;
+
+  /* Shadows */
+  --mobile-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --mobile-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --mobile-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --mobile-shadow-nav: 0 -2px 10px rgba(0, 0, 0, 0.05);
+
+  /* Transitions */
+  --mobile-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --mobile-transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mobile-transition-fast: 0ms;
+    --mobile-transition-normal: 0ms;
+  }
+}

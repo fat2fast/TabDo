@@ -19,22 +19,81 @@ export function TaskDrawer({
 }: TaskDrawerProps) {
   const { data: task, isLoading, error } = useTaskDetail(taskId)
   const [isEditing, setIsEditing] = useState(initialMode === 'edit')
+  const panelRef = React.useRef<HTMLDivElement>(null)
+  const triggerRef = React.useRef<HTMLElement | null>(null)
+
+  // Capture trigger focus and lock body scroll on open
+  React.useEffect(() => {
+    if (taskId) {
+      triggerRef.current = document.activeElement as HTMLElement | null
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+
+      requestAnimationFrame(() => {
+        const focusable = panelRef.current?.querySelector<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        focusable?.focus()
+      })
+
+      return () => {
+        document.body.style.overflow = prevOverflow
+        triggerRef.current?.focus?.()
+      }
+    }
+  }, [Boolean(taskId)])
 
   // Reset editing mode when taskId changes
   React.useEffect(() => {
     setIsEditing(initialMode === 'edit')
   }, [taskId, initialMode])
 
-  // Support hotkey Escape to close the drawer
+  // Support hotkey Escape and Tab focus trap
   React.useEffect(() => {
     if (!taskId) return
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        // If a nested child overlay (confirm dialog, dropdown menu, date picker) is open, let it close first
+        const hasTopOverlay = document.querySelector(
+          '.confirm-dialog-backdrop, .custom-dropdown-menu.open, .date-picker-popover-content'
+        )
+        if (hasTopOverlay) {
+          return
+        }
         if (isEditing) {
           setIsEditing(false)
         } else {
           onClose()
+        }
+        return
+      }
+
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusables.length === 0) return
+
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+
+        if (!panelRef.current.contains(document.activeElement)) {
+          e.preventDefault()
+          first.focus()
+          return
+        }
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
         }
       }
     }
@@ -53,9 +112,11 @@ export function TaskDrawer({
       data-testid="task-drawer-backdrop"
     >
       <div
+        ref={panelRef}
         className="task-drawer-panel task-modal-dialog"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-labelledby="drawer-title"
         data-testid="task-drawer"
       >

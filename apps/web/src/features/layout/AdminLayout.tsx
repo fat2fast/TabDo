@@ -6,6 +6,7 @@ import { useI18n } from '../i18n/i18n-provider'
 
 import { useSidebarCollapse } from './use-sidebar-collapse'
 import { BUILD_INFO_STRING } from '../../lib/build-info'
+import './mobile-shell.css'
 
 export function AdminLayout() {
   const { t } = useI18n()
@@ -142,6 +143,27 @@ export function AdminLayout() {
             <AccountDropdown />
           </div>
         </header>
+        <nav className="admin-mobile-nav" aria-label={t('nav.menu')}>
+          <NavLink
+            to="/admin/dashboard"
+            className={({ isActive }) =>
+              isActive ? 'admin-mobile-nav-link active' : 'admin-mobile-nav-link'
+            }
+          >
+            {t('nav.adminDashboard')}
+          </NavLink>
+          <NavLink
+            to="/admin/users"
+            className={({ isActive }) =>
+              isActive ? 'admin-mobile-nav-link active' : 'admin-mobile-nav-link'
+            }
+          >
+            {t('nav.adminUsers')}
+          </NavLink>
+          <NavLink to="/dashboard" className="admin-mobile-nav-link user-switch-link">
+            {t('nav.userPortal')}
+          </NavLink>
+        </nav>
 
         <main className="app-main admin-main">
           <Outlet />

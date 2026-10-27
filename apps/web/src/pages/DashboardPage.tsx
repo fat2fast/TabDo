@@ -1,3 +1,4 @@
+import '../features/dashboard/dashboard-mobile.css'
 import React, { useState } from 'react'
 import { formatInTimeZone } from 'date-fns-tz'
 import { vi } from 'date-fns/locale'
