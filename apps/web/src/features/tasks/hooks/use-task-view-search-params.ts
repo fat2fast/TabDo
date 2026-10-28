@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSafeSearchParams } from '../../pwa/use-safe-search-params'
 import { getCompletedRangeBoundaries } from '@tabdo/utils'
 import { useOptionalAuth } from '../../auth/auth-provider'
 import type { TaskLayout, TaskPriority, TaskSortOption, TaskStatus } from '../types'
@@ -31,7 +31,7 @@ const VALID_SORTS: TaskSortOption[] = [
 ]
 
 export function useTaskViewSearchParams() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSafeSearchParams()
   const auth = useOptionalAuth()
   const timeZone = auth?.profile?.timezone || 'Asia/Ho_Chi_Minh'
 

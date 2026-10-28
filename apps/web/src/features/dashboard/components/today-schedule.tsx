@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useSafeNavigate } from '../../pwa/use-safe-navigate'
 import { formatInTimeZone } from 'date-fns-tz'
 import type { TodayScheduleItem } from '../types'
 import { useI18n } from '../../i18n/i18n-provider'
@@ -16,7 +17,7 @@ export interface TodayScheduleProps {
 
 export function TodaySchedule({ schedule = [], total, timeZone, onSelectTask }: TodayScheduleProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useSafeNavigate()
 
   const fetchPage = useCallback(
     (page: number) => fetchTodaySchedulePaged({ page, pageSize: 5, timeZone }),

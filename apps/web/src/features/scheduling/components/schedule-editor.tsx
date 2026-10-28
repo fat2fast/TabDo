@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { usePrivatePortalHost } from '../../auth/session-verification-boundary'
 import {
   fromScheduleInstant,
   isScheduleBlockAllDay,
@@ -37,6 +38,7 @@ export function ScheduleEditor({
   onDeleted,
   onOpenTaskDetail,
 }: ScheduleEditorProps) {
+  const portalHost = usePrivatePortalHost()
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
 
@@ -640,5 +642,5 @@ export function ScheduleEditor({
     </div>
   )
 
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent
+  return portalHost ? createPortal(modalContent, portalHost) : modalContent
 }

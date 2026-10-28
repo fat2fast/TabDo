@@ -1,6 +1,7 @@
 import './auth-mobile.css'
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { useSafeNavigate } from '../pwa/use-safe-navigate'
 import { useAuth } from './auth-provider'
 import { useI18n } from '../i18n/i18n-provider'
 import { QuickLanguageButton } from '../layout/QuickLanguageButton'
@@ -13,7 +14,7 @@ interface LoginFormProps {
 export function LoginForm({ portal }: LoginFormProps) {
   const { signIn, session, profile, isAuthLoading, isProfileLoading } = useAuth()
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useSafeNavigate()
   const location = useLocation()
 
   const [email, setEmail] = useState('')

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useSafeNavigate } from '../../pwa/use-safe-navigate'
 import type { Task } from '../../tasks/types'
 import { useI18n } from '../../i18n/i18n-provider'
 import { DashboardEmptyState } from './dashboard-empty-state'
@@ -16,7 +17,7 @@ export interface UpcomingDeadlinesProps {
 
 export function UpcomingDeadlines({ tasks = [], total, timeZone, onSelectTask }: UpcomingDeadlinesProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useSafeNavigate()
 
   const fetchPage = useCallback(
     (page: number) => fetchUpcomingDeadlinesPaged({ page, pageSize: 5, timeZone }),

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase as defaultClient } from '../../../lib/supabase'
+import { assertWriteIdentity, canContinueWrite, getWriteIdentityRevision, runGuardedWrite } from '../../../lib/write-safety'
 import { recordTaskActivity } from '../../tasks/api/task-activities'
 import type {
   CreateScheduleBlockInput,
@@ -39,10 +40,11 @@ export async function getScheduleBlocksByTask(
   return (data as ScheduleBlockRow[]).map(toScheduleBlock)
 }
 
-export async function createScheduleBlock(
+async function createScheduleBlockImpl(
   client: SupabaseClient = defaultClient,
   input: CreateScheduleBlockInput
 ): Promise<ScheduleBlock> {
+  const identity = getWriteIdentityRevision()
   const title = input.title?.trim()
   if (!title) {
     throw new Error('Title cannot be blank')
@@ -62,6 +64,7 @@ export async function createScheduleBlock(
   if (authError || !user) {
     throw new Error('User must be authenticated to create schedule blocks')
   }
+  assertWriteIdentity(identity)
 
   const { data, error } = await client
     .from('schedule_blocks')
@@ -78,7 +81,7 @@ export async function createScheduleBlock(
   if (error) throw error
   const created = toScheduleBlock(data as ScheduleBlockRow)
 
-  if (created.taskId) {
+  if (created.taskId && canContinueWrite(identity)) {
     await recordTaskActivity({
       userId: user.id,
       taskId: created.taskId,
@@ -95,11 +98,12 @@ export async function createScheduleBlock(
   return created
 }
 
-export async function updateScheduleBlock(
+async function updateScheduleBlockImpl(
   client: SupabaseClient = defaultClient,
   id: string,
   input: UpdateScheduleBlockInput
 ): Promise<ScheduleBlock> {
+  const identity = getWriteIdentityRevision()
   if (input.title !== undefined) {
     const title = input.title.trim()
     if (!title) throw new Error('Title cannot be blank')
@@ -131,13 +135,9 @@ export async function updateScheduleBlock(
 
   const updated = toScheduleBlock(data[0] as ScheduleBlockRow)
 
-  if (updated.taskId) {
-    const {
-      data: { user },
-    } = await client.auth.getUser()
-    if (user) {
+  if (updated.taskId && canContinueWrite(identity)) {
       await recordTaskActivity({
-        userId: user.id,
+        userId: updated.userId,
         taskId: updated.taskId,
         action: 'schedule_updated',
         metadata: {
@@ -147,17 +147,17 @@ export async function updateScheduleBlock(
           endAt: updated.endAt,
         },
       })
-    }
   }
 
   return updated
 }
 
-export async function deleteScheduleBlock(
+async function deleteScheduleBlockImpl(
   client: SupabaseClient = defaultClient,
   id: string,
   previousUpdatedAt: string
 ): Promise<void> {
+  const identity = getWriteIdentityRevision()
   // Read existing block to log activity if linked
   const { data: existingRows } = await client
     .from('schedule_blocks')
@@ -166,6 +166,8 @@ export async function deleteScheduleBlock(
 
   const existing =
     existingRows && existingRows[0] ? toScheduleBlock(existingRows[0] as ScheduleBlockRow) : null
+
+  assertWriteIdentity(identity)
 
   const { data, error } = await client
     .from('schedule_blocks')
@@ -179,13 +181,9 @@ export async function deleteScheduleBlock(
     throw new Error('Schedule block was updated or deleted by another session. Please refresh.')
   }
 
-  if (existing?.taskId) {
-    const {
-      data: { user },
-    } = await client.auth.getUser()
-    if (user) {
+  if (existing?.taskId && canContinueWrite(identity)) {
       await recordTaskActivity({
-        userId: user.id,
+        userId: existing.userId,
         taskId: existing.taskId,
         action: 'schedule_deleted',
         metadata: {
@@ -193,6 +191,9 @@ export async function deleteScheduleBlock(
           title: existing.title,
         },
       })
-    }
   }
 }
+
+export const createScheduleBlock: typeof createScheduleBlockImpl = (...args) => runGuardedWrite(() => createScheduleBlockImpl(...args))
+export const updateScheduleBlock: typeof updateScheduleBlockImpl = (...args) => runGuardedWrite(() => updateScheduleBlockImpl(...args))
+export const deleteScheduleBlock: typeof deleteScheduleBlockImpl = (...args) => runGuardedWrite(() => deleteScheduleBlockImpl(...args))

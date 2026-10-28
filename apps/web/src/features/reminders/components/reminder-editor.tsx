@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { usePrivatePortalHost } from '../../auth/session-verification-boundary'
 import {
   formatReminderDisplay,
   fromScheduleInstant,
@@ -31,6 +32,7 @@ export function ReminderEditor({
   initialReminder,
   initialOffsetMinutes,
 }: ReminderEditorProps) {
+  const portalHost = usePrivatePortalHost()
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
   const hasTimedDue = Boolean(task.dueAt && task.dueDateKind === 'date_time')
@@ -445,5 +447,5 @@ export function ReminderEditor({
     </div>
   )
 
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent
+  return portalHost ? createPortal(modalContent, portalHost) : modalContent
 }

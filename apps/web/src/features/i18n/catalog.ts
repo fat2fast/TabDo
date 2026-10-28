@@ -1,6 +1,19 @@
 import type { SupportedLocale } from '@tabdo/types'
 
 export const viCatalog = {
+  'pwa.installTitle': 'Cài đặt TabDo',
+  'pwa.installDescription': 'Mở TabDo nhanh hơn như một ứng dụng.',
+  'pwa.install': 'Cài đặt',
+  'pwa.installed': 'TabDo đã được cài đặt.',
+  'pwa.installIos': 'Trong Safari, chọn Chia sẻ → Thêm vào Màn hình chính.',
+  'pwa.installBrowser': 'Mở menu trình duyệt và chọn Cài đặt ứng dụng hoặc Thêm vào màn hình chính.',
+  'pwa.updateTitle': 'Có phiên bản TabDo mới',
+  'pwa.updateDescription': 'Tải lại có thể làm mất bản nháp chưa lưu.',
+  'pwa.versionChanged': 'Phiên bản đã thay đổi trong cửa sổ khác. Hãy sao chép hoặc lưu bản nháp trước khi tải lại.',
+  'pwa.update': 'Cập nhật và tải lại',
+  'pwa.reload': 'Tải lại',
+  'pwa.pending': 'Vui lòng đợi các thao tác đang chạy hoàn tất.',
+  'pwa.updateError': 'Không thể kích hoạt cập nhật. Vui lòng thử lại.',
   // Common
   'common.loading': 'Đang tải...',
   'common.saving': 'Đang lưu...',
@@ -377,6 +390,19 @@ export const viCatalog = {
 export type TranslationKey = keyof typeof viCatalog
 
 export const enCatalog: Record<TranslationKey, string> = {
+  'pwa.installTitle': 'Install TabDo',
+  'pwa.installDescription': 'Open TabDo quickly as an app.',
+  'pwa.install': 'Install',
+  'pwa.installed': 'TabDo is installed.',
+  'pwa.installIos': 'In Safari, choose Share → Add to Home Screen.',
+  'pwa.installBrowser': 'Open the browser menu and choose Install app or Add to Home Screen.',
+  'pwa.updateTitle': 'A new TabDo version is available',
+  'pwa.updateDescription': 'Reloading may discard unsaved drafts.',
+  'pwa.versionChanged': 'The version changed in another window. Copy or save drafts before reloading.',
+  'pwa.update': 'Update and reload',
+  'pwa.reload': 'Reload',
+  'pwa.pending': 'Wait for ongoing operations to finish.',
+  'pwa.updateError': 'The update could not be activated. Please try again.',
   // Common
   'common.loading': 'Loading...',
   'common.saving': 'Saving...',

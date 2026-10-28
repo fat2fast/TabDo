@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA, type VitePWAOptions } from 'vite-plugin-pwa'
 import { execSync } from 'node:child_process'
 
 function getGitCommitHash(): string {
@@ -33,6 +34,28 @@ function getDeployDate(): string {
 
 const commitHash = getGitCommitHash()
 const deployDate = getDeployDate()
+
+export const pwaOptions: Partial<VitePWAOptions> = {
+  strategies: 'generateSW', registerType: 'prompt', injectRegister: false,
+  devOptions: { enabled: false },
+  includeAssets: ['favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'logo-icon.png', 'logo.png'],
+  manifest: {
+    id: '/', name: 'TabDo', short_name: 'TabDo', start_url: '/', scope: '/',
+    display: 'standalone', theme_color: '#0284c7', background_color: '#ffffff',
+    icons: [
+      { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    ],
+  },
+  workbox: {
+    globPatterns: ['index.html', 'assets/*.{js,css}'], runtimeCaching: [], cleanupOutdatedCaches: true,
+    // Keep the current static entry bundle within a finite precache limit.
+    maximumFileSizeToCacheInBytes: 2.5 * 1024 * 1024,
+    navigateFallback: '/index.html',
+    navigateFallbackAllowlist: [/^\/(?:\?.*)?$/, /^\/(?:login|change-password|dashboard|calendar|settings)(?:\?.*)?$/, /^\/(?:tasks|summary|admin)(?:\/[^?]*)?(?:\?.*)?$/],
+    navigateFallbackDenylist: [/^\/(?:auth|rest|functions|storage|realtime|_vercel)(?:\/|\?|$)/, /[?&](?:code|access_token|refresh_token|token|error|error_description)=/i],
+  },
+}
 
 export default defineConfig(({ mode }) => {
   if (process.env.TABDO_EXPECT_PRODUCTION_BUILD === '1') {
@@ -84,7 +107,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [react()],
+    plugins: [react(), VitePWA(pwaOptions)],
     define: {
       __APP_VERSION__: JSON.stringify(commitHash),
       __DEPLOY_DATE__: JSON.stringify(deployDate),

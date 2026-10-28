@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase'
+import { runGuardedWrite } from '../../../lib/write-safety'
 
 export interface AdminUserItem {
   id: string
@@ -175,9 +176,9 @@ export function useAdminUserLifecycle() {
 
   return useMutation({
     mutationFn: async ({ action, userId }: { action: 'activate' | 'deactivate'; userId: string }) => {
-      const { data, error } = await supabase.functions.invoke('admin-users', {
+      const { data, error } = await runGuardedWrite(() => supabase.functions.invoke('admin-users', {
         body: { action, userId },
-      })
+      }))
 
       if (error) {
         const msg = await extractEdgeFunctionError(error, `Failed to ${action} user`)
@@ -212,9 +213,9 @@ export function useAdminCreateUser() {
       if (displayName) payload.displayName = displayName
       if (initialPassword) payload.initialPassword = initialPassword
 
-      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+      const { data, error } = await runGuardedWrite(() => supabase.functions.invoke('admin-create-user', {
         body: payload,
-      })
+      }))
 
       if (error) {
         const msg = await extractEdgeFunctionError(error, 'Failed to create user')

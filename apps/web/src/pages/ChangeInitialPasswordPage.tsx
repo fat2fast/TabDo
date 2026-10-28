@@ -1,14 +1,19 @@
 import '../features/auth/auth-mobile.css'
 import React, { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
+import { useSafeNavigate } from '../features/pwa/use-safe-navigate'
 import { useAuth } from '../features/auth/auth-provider'
 import { useI18n } from '../features/i18n/i18n-provider'
 import { supabase } from '../lib/supabase'
+import { assertWriteIdentity, getWriteIdentityRevision, runGuardedWrite } from '../lib/write-safety'
+import { useOnlineStatus } from '../features/pwa/use-online-status'
+import { OfflinePrivateState } from '../features/pwa/offline-private-state'
 
 export function ChangeInitialPasswordPage() {
-  const { session, profile, isAuthLoading, isProfileLoading, refreshProfile, signOut } = useAuth()
+  const { session, profile, isAuthLoading, isProfileLoading, authError, profileError, retrySession, refreshProfile, signOut } = useAuth()
+  const online = useOnlineStatus()
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useSafeNavigate()
 
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -18,7 +23,9 @@ export function ChangeInitialPasswordPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  if (isAuthLoading || isProfileLoading) {
+  if (!online && !profile) return <OfflinePrivateState retry={session ? refreshProfile : retrySession} />
+  if (authError) return <div className="auth-error-state" role="alert"><p>{authError}</p><button type="button" onClick={retrySession}>Thử lại</button></div>
+  if (isAuthLoading || (isProfileLoading && !profile)) {
     return (
       <div className="auth-loading-state" role="status">
         <div className="spinner" style={{ width: '28px', height: '28px', margin: '0 auto 8px' }}></div>
@@ -29,6 +36,10 @@ export function ChangeInitialPasswordPage() {
 
   if (!session) {
     return <Navigate to="/login" replace />
+  }
+
+  if (profileError || !profile || profile.id !== session.user.id) {
+    return <div className="auth-error-state" role="alert"><p>{profileError || 'Không thể xác minh hồ sơ tài khoản.'}</p><button type="button" onClick={() => refreshProfile()}>Thử lại</button></div>
   }
 
   if (profile?.isActive === false) {
@@ -66,11 +77,12 @@ export function ChangeInitialPasswordPage() {
     }
 
     setIsSubmitting(true)
+    const identity = getWriteIdentityRevision()
 
     try {
-      const { error } = await supabase.functions.invoke('complete-initial-password', {
+      const { error } = await runGuardedWrite(() => supabase.functions.invoke('complete-initial-password', {
         body: { newPassword },
-      })
+      }))
 
       if (error) {
         let msg = error.message
@@ -86,10 +98,11 @@ export function ChangeInitialPasswordPage() {
         return
       }
 
+      assertWriteIdentity(identity)
       setSuccessMessage(t('auth.passwordUpdatedSuccess'))
       await refreshProfile()
       setTimeout(() => {
-        navigate(profile?.role === 'admin' ? '/admin/dashboard' : '/dashboard', { replace: true })
+        if (getWriteIdentityRevision() === identity) navigate(profile?.role === 'admin' ? '/admin/dashboard' : '/dashboard', { replace: true })
       }, 500)
     } catch (err: any) {
       setErrorMessage(err?.message || 'Đã có lỗi xảy ra khi đổi mật khẩu.')

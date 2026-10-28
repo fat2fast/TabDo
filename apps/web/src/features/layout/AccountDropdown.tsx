@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { useSafeNavigate } from '../pwa/use-safe-navigate'
 import { useAuth } from '../auth/auth-provider'
 import { useI18n } from '../i18n/i18n-provider'
 import { UserGuideModal } from './UserGuideModal'
@@ -7,7 +8,7 @@ import { UserGuideModal } from './UserGuideModal'
 export function AccountDropdown() {
   const { user, profile, signOut } = useAuth()
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useSafeNavigate()
   const location = useLocation()
 
   const [isOpen, setIsOpen] = useState(false)
