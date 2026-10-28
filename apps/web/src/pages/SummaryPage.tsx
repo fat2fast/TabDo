@@ -1,6 +1,7 @@
 import '../features/summary/summary-mobile.css'
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useSafeSearchParams } from '../features/pwa/use-safe-search-params'
 import { formatInTimeZone } from 'date-fns-tz'
 import { useAuth } from '../features/auth/auth-provider'
 import { useI18n } from '../features/i18n/i18n-provider'
@@ -18,7 +19,7 @@ export function SummaryPage() {
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSafeSearchParams()
 
   const rawPeriod = searchParams.get('period')
   const period: SummaryPeriod = rawPeriod === 'weekly' ? 'weekly' : 'daily'

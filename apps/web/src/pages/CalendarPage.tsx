@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSafeSearchParams } from '../features/pwa/use-safe-search-params'
 import {
   formatDisplayDate,
   getVisibleRangeForDay,
@@ -39,7 +39,7 @@ function useIsMobile(breakpoint = 768) {
 export function CalendarPage() {
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSafeSearchParams()
   const [drawerTaskId, setDrawerTaskId] = useState<string | null>(null)
 
   const todayStr = useMemo(() => {

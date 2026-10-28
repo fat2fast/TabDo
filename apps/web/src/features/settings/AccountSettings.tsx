@@ -4,6 +4,7 @@ import type { SupportedLocale } from '@tabdo/types'
 import { useAuth } from '../auth/auth-provider'
 import { useI18n } from '../i18n/i18n-provider'
 import { supabase } from '../../lib/supabase'
+import { assertWriteIdentity, getWriteIdentityRevision, runGuardedWrite } from '../../lib/write-safety'
 import { CustomDropdown } from '../../components/ui/custom-dropdown'
 
 export function AccountSettings() {
@@ -44,18 +45,20 @@ export function AccountSettings() {
     setProfileSuccessMsg(null)
     setProfileErrorMsg(null)
     setIsUpdatingProfile(true)
+    const identity = getWriteIdentityRevision()
 
     try {
-      const { error } = await supabase.rpc('update_my_profile', {
+      const { error } = await runGuardedWrite(() => supabase.rpc('update_my_profile', {
         new_display_name: displayName.trim() || null,
         new_timezone: timezone.trim() || 'Asia/Ho_Chi_Minh',
         new_locale: selectedLocale,
-      })
+      }))
 
       if (error) {
         throw new Error(error.message)
       }
 
+      assertWriteIdentity(identity)
       setLocale(selectedLocale)
       await refreshProfile()
       setProfileSuccessMsg(t('settings.saveSuccess'))
@@ -84,9 +87,9 @@ export function AccountSettings() {
     setIsUpdatingPassword(true)
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      const { error } = await runGuardedWrite(() => supabase.auth.updateUser({
         password: newPassword,
-      })
+      }))
 
       if (error) {
         throw new Error(error.message)

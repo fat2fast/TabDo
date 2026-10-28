@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { useSafeSearchParams } from '../features/pwa/use-safe-search-params'
 import {
   getThisWeekEnd,
   getTomorrowBoundaries,
@@ -27,7 +28,7 @@ import type { Task, TaskView } from '../features/tasks/types'
 export function TasksPage() {
   const { t } = useI18n()
   const location = useLocation()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSafeSearchParams()
   const taskIdParam = searchParams.get('taskId')
   const { profile } = useAuth()
   const timeZone = profile?.timezone || 'Asia/Ho_Chi_Minh'

@@ -15,10 +15,17 @@ import { SettingsPage } from '../pages/SettingsPage'
 import { AdminUsersPage } from '../pages/AdminUsersPage'
 import { AdminDashboardPage } from '../pages/AdminDashboardPage'
 import { ChangeInitialPasswordPage } from '../pages/ChangeInitialPasswordPage'
+import { InstallPrompt } from '../features/pwa/install-prompt'
+import { PwaUpdateNotice } from '../features/pwa/pwa-update-notice'
+import { useVersionNavigationGuard } from '../features/pwa/use-version-navigation-guard'
 
 export function App() {
+  const location = useVersionNavigationGuard()
   return (
-    <Routes>
+    <>
+    <InstallPrompt />
+    <PwaUpdateNotice />
+    <Routes location={location}>
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -55,5 +62,6 @@ export function App() {
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </>
   )
 }

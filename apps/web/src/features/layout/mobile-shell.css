@@ -413,3 +413,21 @@
     color: #0369a1;
   }
 }
+.offline-private-banner {
+  padding: 0.75rem 1rem;
+  background: #fff3cd;
+  color: #513b00;
+  text-align: center;
+}
+
+.pwa-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .75rem max(1rem, env(safe-area-inset-right)) .75rem max(1rem, env(safe-area-inset-left));
+  background: #eaf6fd;
+  color: #123b56;
+}
+.pwa-notice p { margin: .25rem 0 0; }
+.pwa-update-notice { background: #fff3cd; color: #513b00; }

@@ -28,14 +28,15 @@ export async function recordTaskActivity({
   action,
   metadata = {},
 }: RecordActivityParams) {
-  const { error } = await supabase.from('task_activities').insert({
-    user_id: userId,
-    task_id: taskId,
-    action,
-    metadata,
-  })
-
-  if (error) {
-    console.error('Failed to record task activity:', error.message)
+  try {
+    const { error } = await supabase.from('task_activities').insert({
+      user_id: userId,
+      task_id: taskId,
+      action,
+      metadata,
+    })
+    if (error) console.error('Failed to record task activity:', error.message)
+  } catch (error) {
+    console.error('Failed to record task activity:', error)
   }
 }

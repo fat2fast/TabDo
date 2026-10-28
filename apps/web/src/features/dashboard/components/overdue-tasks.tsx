@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useSafeNavigate } from '../../pwa/use-safe-navigate'
 import type { Task } from '../../tasks/types'
 import { useI18n } from '../../i18n/i18n-provider'
 import { formatTaskDueDate, formatTaskOverdueDuration } from '@tabdo/utils'
@@ -15,7 +16,7 @@ const STORAGE_KEY = 'tabdo:dashboard:overdue-collapsed'
 
 export function OverdueTasks({ tasks, timeZone, onSelectTask }: OverdueTasksProps) {
   const { t, locale } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useSafeNavigate()
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEY) === 'true'

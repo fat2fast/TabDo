@@ -18,6 +18,7 @@ import {
 } from '../types'
 
 import { recordTaskActivity } from './task-activities'
+import { assertWriteIdentity, canContinueWrite, getWriteIdentityRevision, runGuardedWrite } from '../../../lib/write-safety'
 import {
   extractTaskAttachments,
   mergeTaskAttachments,
@@ -370,7 +371,8 @@ export async function getSubtasks(parentId: string, includeDeleted = false): Pro
   return ((data as TaskRow[]) || []).map(rowToTask)
 }
 
-export async function createTask(input: CreateTaskInput): Promise<Task> {
+async function createTaskImpl(input: CreateTaskInput): Promise<Task> {
+  const identity = getWriteIdentityRevision()
   const trimmedTitle = input.title?.trim()
   if (!trimmedTitle) {
     throw new Error('Task title cannot be blank')
@@ -388,6 +390,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   if (!session) {
     throw new Error('Not authenticated')
   }
+  assertWriteIdentity(identity)
 
   const payload: Record<string, unknown> = {
     user_id: session.user.id,
@@ -422,6 +425,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   const task = rowToTask(data as TaskRow)
 
   // Write own-user activity entry
+  if (!canContinueWrite(identity)) return task
   await recordTaskActivity({
     userId: session.user.id,
     taskId: task.id,
@@ -429,7 +433,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     metadata: { title: task.title },
   })
 
-  if (task.recurrenceRule) {
+  if (task.recurrenceRule && canContinueWrite(identity)) {
     await recordTaskActivity({
       userId: session.user.id,
       taskId: task.id,
@@ -441,11 +445,12 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   return task
 }
 
-export async function updateTask(
+async function updateTaskImpl(
   id: string,
   input: UpdateTaskInput,
   previousTask?: Task
 ): Promise<Task> {
+  const identity = getWriteIdentityRevision()
   const updates: Record<string, unknown> = {}
 
   if (input.title !== undefined) {
@@ -506,6 +511,7 @@ export async function updateTask(
     }
   }
 
+  assertWriteIdentity(identity)
   let query = supabase.from('tasks').update(updates).eq('id', id)
   if (typeof (query as any).is === 'function') {
     query = (query as any).is('deleted_at', null)
@@ -531,6 +537,7 @@ export async function updateTask(
   const task = rowToTask(data as TaskRow)
 
   // Determine activity action
+  if (!canContinueWrite(identity)) return task
   if (previousTask) {
     if (previousTask.status !== 'done' && task.status === 'done') {
       await recordTaskActivity({
@@ -604,25 +611,25 @@ export async function updateTask(
   return task
 }
 
-export async function deleteTask(id: string): Promise<void> {
+async function deleteTaskImpl(id: string): Promise<void> {
   const { error } = await supabase.rpc('trash_task', { p_task_id: id })
   if (error) {
     throw new Error(error.message)
   }
 }
 
-export async function trashTask(id: string): Promise<void> {
-  return deleteTask(id)
+async function trashTaskImpl(id: string): Promise<void> {
+  return deleteTaskImpl(id)
 }
 
-export async function restoreTask(id: string): Promise<void> {
+async function restoreTaskImpl(id: string): Promise<void> {
   const { error } = await supabase.rpc('restore_task', { p_task_id: id })
   if (error) {
     throw new Error(error.message)
   }
 }
 
-export async function purgeTask(id: string): Promise<void> {
+async function purgeTaskImpl(id: string): Promise<void> {
   const { error } = await supabase.rpc('request_purge_task', { p_task_id: id })
   if (error) {
     throw new Error(error.message)
@@ -664,13 +671,14 @@ export async function getTrashTasks(search?: string): Promise<Task[]> {
   return ((data as TaskRow[]) || []).map(rowToTask)
 }
 
-export async function completeTask(task: Task): Promise<CompleteTaskAndGenerateNextResult> {
+async function completeTaskImpl(task: Task): Promise<CompleteTaskAndGenerateNextResult> {
   // The atomic RPC already inserts 'completed' and 'next_occurrence_generated' activities
   // inside the transaction. Do NOT write them again here to avoid duplicate audit records.
   return completeTaskAndGenerateNext(supabase, task.id, task.updatedAt)
 }
 
-export async function reopenTask(task: Task): Promise<Task> {
+async function reopenTaskImpl(task: Task): Promise<Task> {
+  const identity = getWriteIdentityRevision()
   // Check if there is already a generated successor
   const { data: successor, error: checkError } = await supabase
     .from('tasks')
@@ -686,7 +694,9 @@ export async function reopenTask(task: Task): Promise<Task> {
     throw new Error('Không thể mở lại công việc lặp lại đã có phiên lặp tiếp theo')
   }
 
-  return updateTask(
+  assertWriteIdentity(identity)
+
+  return updateTaskImpl(
     task.id,
     {
       status: 'todo',
@@ -697,14 +707,15 @@ export async function reopenTask(task: Task): Promise<Task> {
   )
 }
 
-export async function changeTaskStatus(
+async function changeTaskStatusImpl(
   task: Task,
   targetStatus: TaskStatus,
   boardOrder?: number
 ): Promise<Task> {
+  const identity = getWriteIdentityRevision()
   if (task.status === targetStatus) {
     if (boardOrder !== undefined && boardOrder !== task.boardOrder) {
-      return updateTask(
+      return updateTaskImpl(
         task.id,
         {
           boardOrder,
@@ -718,10 +729,11 @@ export async function changeTaskStatus(
 
   // Active -> Done: must call atomic completeTask RPC
   if (targetStatus === 'done') {
-    const result = await completeTask(task)
+    const result = await completeTaskImpl(task)
     if (boardOrder !== undefined) {
       try {
-        await updateTask(task.id, { boardOrder })
+        assertWriteIdentity(identity)
+        await updateTaskImpl(task.id, { boardOrder })
       } catch (orderErr) {
         console.warn('Failed to update board_order after completing task:', orderErr)
       }
@@ -731,7 +743,7 @@ export async function changeTaskStatus(
 
   // Done -> Todo / In Progress: single update clearing completedAt with optimistic lock
   if (task.status === 'done') {
-    return updateTask(
+    return updateTaskImpl(
       task.id,
       {
         status: targetStatus,
@@ -744,7 +756,7 @@ export async function changeTaskStatus(
   }
 
   // Todo <-> In Progress: single update with optimistic lock
-  return updateTask(
+  return updateTaskImpl(
     task.id,
     {
       status: targetStatus,
@@ -924,10 +936,11 @@ export async function getTaskAttachments(
   return mergeTaskAttachments(normalized, legacy)
 }
 
-export async function uploadTaskAttachment(
+async function uploadTaskAttachmentImpl(
   taskId: string,
   file: File
 ): Promise<TaskAttachment> {
+  const identity = getWriteIdentityRevision()
   const maxBytes = 10 * 1024 * 1024 // 10MB
   if (file.size > maxBytes) {
     throw new Error('Tệp vượt quá kích thước cho phép (tối đa 10MB).')
@@ -940,6 +953,7 @@ export async function uploadTaskAttachment(
   if (!userId) {
     throw new Error('Chưa đăng nhập.')
   }
+  assertWriteIdentity(identity)
 
   const attachmentId =
     typeof crypto !== 'undefined' && crypto.randomUUID
@@ -959,6 +973,7 @@ export async function uploadTaskAttachment(
   if (uploadError) {
     throw new Error(`Tải tệp lên thất bại: ${uploadError.message}`)
   }
+  assertWriteIdentity(identity)
 
   // 2. Insert metadata row
   const { data, error: insertError } = await supabase
@@ -980,6 +995,7 @@ export async function uploadTaskAttachment(
 
   if (insertError) {
     // Attempt rollback of storage object if metadata insert fails
+    assertWriteIdentity(identity)
     await supabase.storage.from('task-attachments').remove([objectPath])
     throw new Error(`Lưu thông tin tệp thất bại: ${insertError.message}`)
   }
@@ -987,11 +1003,12 @@ export async function uploadTaskAttachment(
   return rowToAttachment(data as TaskAttachmentRow)
 }
 
-export async function createTaskLinkAttachment(
+async function createTaskLinkAttachmentImpl(
   taskId: string,
   name: string,
   url: string
 ): Promise<TaskAttachment> {
+  const identity = getWriteIdentityRevision()
   const trimmedUrl = url.trim()
   if (!/^https?:\/\//i.test(trimmedUrl)) {
     throw new Error('Liên kết phải bắt đầu bằng http:// hoặc https://')
@@ -1004,6 +1021,7 @@ export async function createTaskLinkAttachment(
   if (!userId) {
     throw new Error('Chưa đăng nhập.')
   }
+  assertWriteIdentity(identity)
 
   const { data, error } = await supabase
     .from('task_attachments')
@@ -1029,9 +1047,10 @@ export async function createTaskLinkAttachment(
   return rowToAttachment(data as TaskAttachmentRow)
 }
 
-export async function deleteTaskAttachment(
+async function deleteTaskAttachmentImpl(
   attachment: TaskAttachment
 ): Promise<void> {
+  const identity = getWriteIdentityRevision()
   // If storage object exists, remove it
   if (attachment.kind === 'file' && attachment.objectPath) {
     const { error: storageError } = await supabase.storage
@@ -1044,6 +1063,7 @@ export async function deleteTaskAttachment(
 
   // Remove database metadata row
   if (attachment.id) {
+    assertWriteIdentity(identity)
     const { error: dbError } = await supabase
       .from('task_attachments')
       .delete()
@@ -1053,6 +1073,19 @@ export async function deleteTaskAttachment(
     }
   }
 }
+
+export const createTask: typeof createTaskImpl = (...args) => runGuardedWrite(() => createTaskImpl(...args))
+export const updateTask: typeof updateTaskImpl = (...args) => runGuardedWrite(() => updateTaskImpl(...args))
+export const deleteTask: typeof deleteTaskImpl = (...args) => runGuardedWrite(() => deleteTaskImpl(...args))
+export const trashTask: typeof trashTaskImpl = (...args) => runGuardedWrite(() => trashTaskImpl(...args))
+export const restoreTask: typeof restoreTaskImpl = (...args) => runGuardedWrite(() => restoreTaskImpl(...args))
+export const purgeTask: typeof purgeTaskImpl = (...args) => runGuardedWrite(() => purgeTaskImpl(...args))
+export const completeTask: typeof completeTaskImpl = (...args) => runGuardedWrite(() => completeTaskImpl(...args))
+export const reopenTask: typeof reopenTaskImpl = (...args) => runGuardedWrite(() => reopenTaskImpl(...args))
+export const changeTaskStatus: typeof changeTaskStatusImpl = (...args) => runGuardedWrite(() => changeTaskStatusImpl(...args))
+export const uploadTaskAttachment: typeof uploadTaskAttachmentImpl = (...args) => runGuardedWrite(() => uploadTaskAttachmentImpl(...args))
+export const createTaskLinkAttachment: typeof createTaskLinkAttachmentImpl = (...args) => runGuardedWrite(() => createTaskLinkAttachmentImpl(...args))
+export const deleteTaskAttachment: typeof deleteTaskAttachmentImpl = (...args) => runGuardedWrite(() => deleteTaskAttachmentImpl(...args))
 
 export async function downloadTaskAttachment(
   attachment: TaskAttachment

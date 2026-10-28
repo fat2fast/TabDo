@@ -2,7 +2,7 @@ import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfirmProvider } from '../../../components/ui'
 import { I18nProvider } from '../../i18n/i18n-provider'
 import { TaskTrash } from '../components/task-trash'
@@ -23,6 +23,7 @@ vi.mock('../../auth/auth-provider', () => ({
 
 describe('TaskTrash Component (Phase 5 UI/UX)', () => {
   let queryClient: QueryClient
+  const now = Date.UTC(2026, 9, 27, 12)
 
   const mockTasks = [
     {
@@ -39,7 +40,7 @@ describe('TaskTrash Component (Phase 5 UI/UX)', () => {
       recurrence_rule: null,
       recurrence_parent_id: null,
       source_url: null,
-      deleted_at: new Date(Date.now() - 2 * 86400000).toISOString(), // 2 days ago -> 28 days left
+      deleted_at: new Date(now - 2 * 86400000).toISOString(), // 2 days ago -> 28 days left
       deletion_batch_id: 'batch-1',
       purge_status: 'none',
       created_at: new Date().toISOString(),
@@ -60,7 +61,7 @@ describe('TaskTrash Component (Phase 5 UI/UX)', () => {
       recurrence_rule: null,
       recurrence_parent_id: null,
       source_url: null,
-      deleted_at: new Date(Date.now() - 29 * 86400000).toISOString(), // 29 days ago -> 1 day left
+      deleted_at: new Date(now - 29 * 86400000).toISOString(), // 29 days ago -> 1 day left
       deletion_batch_id: 'batch-2',
       purge_status: 'pending',
       created_at: new Date().toISOString(),
@@ -71,6 +72,7 @@ describe('TaskTrash Component (Phase 5 UI/UX)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(Date, 'now').mockReturnValue(now)
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -98,6 +100,8 @@ describe('TaskTrash Component (Phase 5 UI/UX)', () => {
       return {} as any
     })
   })
+
+  afterEach(() => vi.restoreAllMocks())
 
   function renderTrash(onSelect = vi.fn()) {
     return render(

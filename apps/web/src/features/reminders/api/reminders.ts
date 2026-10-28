@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getUpcomingReminders as getUpcomingRemindersShared } from '@tabdo/supabase'
 import { supabase as defaultClient } from '../../../lib/supabase'
+import { assertWriteIdentity, getWriteIdentityRevision, runGuardedWrite } from '../../../lib/write-safety'
 import type {
   CreateReminderInput,
   Reminder,
@@ -31,10 +32,11 @@ export async function getUpcomingRemindersWeb(
   return getUpcomingRemindersShared(client, now)
 }
 
-export async function createReminder(
+async function createReminderImpl(
   client: SupabaseClient = defaultClient,
   input: CreateReminderInput
 ): Promise<Reminder> {
+  const identity = getWriteIdentityRevision()
   const {
     data: { user },
     error: authError,
@@ -43,6 +45,7 @@ export async function createReminder(
   if (authError || !user) {
     throw new Error('User must be authenticated to create reminders')
   }
+  assertWriteIdentity(identity)
 
   const payload: Record<string, unknown> = {
     user_id: user.id,
@@ -76,7 +79,7 @@ export async function createReminder(
   return toReminder(data as ReminderRow)
 }
 
-export async function updateReminder(
+async function updateReminderImpl(
   client: SupabaseClient = defaultClient,
   id: string,
   input: UpdateReminderInput
@@ -110,7 +113,7 @@ export async function updateReminder(
   return toReminder(data[0] as ReminderRow)
 }
 
-export async function snoozeReminder(
+async function snoozeReminderImpl(
   client: SupabaseClient = defaultClient,
   id: string,
   snoozedUntil: string,
@@ -134,7 +137,7 @@ export async function snoozeReminder(
   return toReminder(data[0] as ReminderRow)
 }
 
-export async function dismissReminder(
+async function dismissReminderImpl(
   client: SupabaseClient = defaultClient,
   id: string,
   previousUpdatedAt: string
@@ -157,7 +160,7 @@ export async function dismissReminder(
   return toReminder(data[0] as ReminderRow)
 }
 
-export async function deleteReminder(
+async function deleteReminderImpl(
   client: SupabaseClient = defaultClient,
   id: string,
   previousUpdatedAt: string
@@ -174,3 +177,9 @@ export async function deleteReminder(
     throw new Error('Reminder was updated or deleted by another session. Please refresh.')
   }
 }
+
+export const createReminder: typeof createReminderImpl = (...args) => runGuardedWrite(() => createReminderImpl(...args))
+export const updateReminder: typeof updateReminderImpl = (...args) => runGuardedWrite(() => updateReminderImpl(...args))
+export const snoozeReminder: typeof snoozeReminderImpl = (...args) => runGuardedWrite(() => snoozeReminderImpl(...args))
+export const dismissReminder: typeof dismissReminderImpl = (...args) => runGuardedWrite(() => dismissReminderImpl(...args))
+export const deleteReminder: typeof deleteReminderImpl = (...args) => runGuardedWrite(() => deleteReminderImpl(...args))

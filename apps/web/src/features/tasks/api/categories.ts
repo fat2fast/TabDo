@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabase'
+import { assertWriteIdentity, getWriteIdentityRevision, runGuardedWrite } from '../../../lib/write-safety'
 import {
   type Category,
   type CategoryRow,
@@ -20,7 +21,8 @@ export async function getCategories(): Promise<Category[]> {
   return ((data as CategoryRow[]) || []).map(rowToCategory)
 }
 
-export async function createCategory(input: CreateCategoryInput): Promise<Category> {
+async function createCategoryImpl(input: CreateCategoryInput): Promise<Category> {
+  const identity = getWriteIdentityRevision()
   const trimmedName = input.name?.trim()
   if (!trimmedName) {
     throw new Error('Category name cannot be blank')
@@ -32,6 +34,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Catego
   if (!session) {
     throw new Error('Not authenticated')
   }
+  assertWriteIdentity(identity)
 
   const { data, error } = await supabase
     .from('categories')
@@ -51,7 +54,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Catego
   return rowToCategory(data as CategoryRow)
 }
 
-export async function updateCategory(
+async function updateCategoryImpl(
   id: string,
   input: UpdateCategoryInput
 ): Promise<Category> {
@@ -81,9 +84,13 @@ export async function updateCategory(
   return rowToCategory(data as CategoryRow)
 }
 
-export async function deleteCategory(id: string): Promise<void> {
+async function deleteCategoryImpl(id: string): Promise<void> {
   const { error } = await supabase.from('categories').delete().eq('id', id)
   if (error) {
     throw new Error(error.message)
   }
 }
+
+export const createCategory: typeof createCategoryImpl = (...args) => runGuardedWrite(() => createCategoryImpl(...args))
+export const updateCategory: typeof updateCategoryImpl = (...args) => runGuardedWrite(() => updateCategoryImpl(...args))
+export const deleteCategory: typeof deleteCategoryImpl = (...args) => runGuardedWrite(() => deleteCategoryImpl(...args))

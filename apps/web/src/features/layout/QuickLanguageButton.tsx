@@ -3,10 +3,13 @@ import type { SupportedLocale } from '@tabdo/types'
 import { useI18n } from '../i18n/i18n-provider'
 import { useAuth } from '../auth/auth-provider'
 import { supabase } from '../../lib/supabase'
+import { assertWriteIdentity, getWriteIdentityRevision, runGuardedWrite } from '../../lib/write-safety'
+import { useConfirm } from '../../components/ui/confirm-dialog'
 
 export function QuickLanguageButton() {
   const { locale, setLocale } = useI18n()
   const { user, profile, refreshProfile } = useAuth()
+  const confirm = useConfirm()
   const [isSyncing, setIsSyncing] = useState(false)
 
   const nextLocale: SupportedLocale = locale === 'vi' ? 'en' : 'vi'
@@ -17,17 +20,19 @@ export function QuickLanguageButton() {
 
     // Asynchronously update profile locale if user is logged in
     if (user && profile) {
+      const identity = getWriteIdentityRevision()
       setIsSyncing(true)
       try {
-        await supabase.rpc('update_my_profile', {
+        const { error } = await runGuardedWrite(() => supabase.rpc('update_my_profile', {
           new_display_name: profile.displayName || null,
           new_timezone: profile.timezone || 'Asia/Ho_Chi_Minh',
           new_locale: nextLocale,
-        })
+        }))
+        if (error) throw error
+        assertWriteIdentity(identity)
         await refreshProfile()
       } catch (err) {
-        // Non-blocking error for local switch
-        console.warn('Could not sync locale to remote profile:', err)
+        await confirm({ title: 'Không thể lưu ngôn ngữ', message: err instanceof Error ? err.message : 'Vui lòng thử lại.', variant: 'warning', cancelText: null })
       } finally {
         setIsSyncing(false)
       }

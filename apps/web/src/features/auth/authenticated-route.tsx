@@ -1,11 +1,15 @@
 import React from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './auth-provider'
+import { useOnlineStatus } from '../pwa/use-online-status'
+import { OfflinePrivateBanner, OfflinePrivateState } from '../pwa/offline-private-state'
 
 export function AuthenticatedRoute({ children }: { children?: React.ReactNode }) {
-  const { session, profile, isAuthLoading, isProfileLoading, profileError, refreshProfile, signOut } = useAuth()
+  const { session, profile, isAuthLoading, isProfileLoading, profileError, authError, retrySession, refreshProfile, signOut } = useAuth()
   const location = useLocation()
+  const online = useOnlineStatus()
 
+  if (!online && !profile) return <OfflinePrivateState retry={session ? refreshProfile : retrySession} />
   if (isAuthLoading || (isProfileLoading && !profile)) {
     return (
       <div className="auth-loading-state" role="status">
@@ -14,15 +18,18 @@ export function AuthenticatedRoute({ children }: { children?: React.ReactNode })
     )
   }
 
+  if (!online && authError) return <OfflinePrivateState retry={retrySession} />
+  if (authError) return <div className="auth-error-state" role="alert"><p>{authError}</p><button type="button" onClick={retrySession}>Thử lại</button></div>
+
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  if (profileError) {
+  if (profileError || !profile || profile.id !== session.user.id) {
     return (
       <div className="auth-error-state" role="alert">
         <h2>Lỗi hồ sơ tài khoản</h2>
-        <p>{profileError}</p>
+        <p>{profileError || 'Không thể xác minh hồ sơ tài khoản.'}</p>
         <button type="button" onClick={() => refreshProfile()}>
           Thử lại
         </button>
@@ -46,5 +53,5 @@ export function AuthenticatedRoute({ children }: { children?: React.ReactNode })
     return <Navigate to="/change-password" replace state={{ from: location }} />
   }
 
-  return children ? <>{children}</> : <Outlet />
+  return <>{!online && <OfflinePrivateBanner />}{children || <Outlet />}</>
 }

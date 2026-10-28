@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useSafeNavigate } from '../../pwa/use-safe-navigate'
 import { formatTaskDueDate } from '@tabdo/utils'
 import type { Task } from '../../tasks/types'
 import { useI18n } from '../../i18n/i18n-provider'
@@ -17,7 +18,7 @@ export interface InProgressTasksProps {
 
 export function InProgressTasks({ tasks = [], total = 0, timeZone, onSelectTask }: InProgressTasksProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useSafeNavigate()
   const { data: categories = [] } = useCategories()
 
   const fetchPage = useCallback(
